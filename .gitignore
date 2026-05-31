@@ -1,0 +1,25 @@
+# 환경변수 (API 키 노출 방지)
+.env
+**/.env
+
+# Java
+build/
+*.class
+*.jar
+
+# Node
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
