@@ -1,0 +1,11 @@
+package com.fashionapp.domain.user;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+import java.util.UUID;
+
+public interface UserRepository extends JpaRepository<User, UUID> {
+    Optional<User> findByProviderAndProviderId(User.AuthProvider provider, String providerId);
+    Optional<User> findByEmail(String email);
+}
