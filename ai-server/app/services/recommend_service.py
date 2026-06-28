@@ -45,11 +45,11 @@ async def recommend_outfits(request: RecommendRequest) -> RecommendResponse:
     clothes_list = [
         {
             "id": c.id,
-            "category": c.category,
-            "color": c.color,
-            "pattern": c.pattern,
-            "season": c.season,
-            "style_tag": c.style_tag,
+            "category": c.category or "미분류",
+            "color": c.color or "미분류",
+            "pattern": c.pattern or "미분류",
+            "season": c.season or "미분류",
+            "style_tag": c.style_tag or "미분류",
         }
         for c in request.clothes
     ]

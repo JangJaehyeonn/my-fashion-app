@@ -27,20 +27,8 @@ export default function Recommend() {
         return
       }
 
-      const clothesPayload = clothesRes.map((c) => ({
-        id: c.id,
-        category: c.category,
-        color: c.color,
-        pattern: c.pattern,
-        season: c.season,
-        styleTag: c.styleTag,
-      }))
-
-      const res = await recommendOutfits(
-        { temperature: weather.temperature, condition: weather.condition },
-        clothesPayload
-      )
-      setRecommendations(res.data.outfits)
+      const res = await recommendOutfits(weather)
+      setRecommendations(res.data.data.outfits)
     } catch {
       alert('추천 요청에 실패했습니다. 잠시 후 다시 시도해주세요.')
     } finally {

@@ -6,6 +6,9 @@ import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
+import com.fashionapp.infra.AiRecommendRequest;
+import com.fashionapp.infra.AiRecommendResponse;
+import com.fashionapp.infra.AiServerClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ public class OutfitService {
     private final OutfitCalendarRepository outfitCalendarRepository;
     private final ClothesRepository clothesRepository;
     private final UserRepository userRepository;
+    private final AiServerClient aiServerClient;
 
     @Transactional(readOnly = true)
     public List<OutfitResponse> getMyOutfits(UUID userId) {
@@ -93,6 +97,24 @@ public class OutfitService {
                 .build();
 
         return OutfitCalendarResponse.from(outfitCalendarRepository.save(calendar));
+    }
+
+    @Transactional(readOnly = true)
+    public AiRecommendResponse recommend(UUID userId, double temperature, String condition) {
+        List<Clothes> clothes = clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId);
+
+        List<AiRecommendRequest.ClothesItem> clothesItems = clothes.stream()
+                .map(c -> new AiRecommendRequest.ClothesItem(
+                        c.getId().toString(), c.getCategory(), c.getColor(),
+                        c.getPattern(), c.getSeason(), c.getStyleTag()))
+                .toList();
+
+        AiRecommendRequest request = new AiRecommendRequest(
+                new AiRecommendRequest.WeatherInfo(temperature, condition),
+                clothesItems
+        );
+
+        return aiServerClient.recommendOutfits(request);
     }
 
     @Transactional

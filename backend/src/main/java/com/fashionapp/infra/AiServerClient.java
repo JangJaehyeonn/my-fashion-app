@@ -7,9 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,20 +25,51 @@ public class AiServerClient {
     @Value("${app.ai-server-url}")
     private String aiServerUrl;
 
+    public AiWeatherResponse getWeather() {
+        try {
+            return restClient.get()
+                    .uri(aiServerUrl + "/ai/weather")
+                    .retrieve()
+                    .body(AiWeatherResponse.class);
+        } catch (RestClientException e) {
+            log.error("AI server weather failed: {}", e.getMessage());
+            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+        }
+    }
+
+    public AiRecommendResponse recommendOutfits(AiRecommendRequest request) {
+        try {
+            return restClient.post()
+                    .uri(aiServerUrl + "/ai/outfits/recommend")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(AiRecommendResponse.class);
+        } catch (RestClientException e) {
+            log.error("AI server recommend failed: {}", e.getMessage());
+            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+        }
+    }
+
     public AiClassifyResponse classifyClothes(MultipartFile file) {
         try {
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("image", new ByteArrayResource(file.getBytes()) {
+            String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";
+            String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+
+            ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
                 @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
-            });
+                public String getFilename() { return filename; }
+            };
+
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            builder.part("image", resource)
+                    .filename(filename)
+                    .contentType(MediaType.parseMediaType(contentType));
 
             return restClient.post()
                     .uri(aiServerUrl + "/ai/clothes/classify")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(body)
+                    .body(builder.build())
                     .retrieve()
                     .body(AiClassifyResponse.class);
 

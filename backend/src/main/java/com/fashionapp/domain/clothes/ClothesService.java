@@ -29,7 +29,7 @@ public class ClothesService {
     public List<ClothesResponse> getMyClothes(UUID userId) {
         return clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(ClothesResponse::from)
+                .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -52,14 +52,14 @@ public class ClothesService {
                 .styleTag(aiResult.getStyleTag())
                 .build();
 
-        return ClothesResponse.from(clothesRepository.save(clothes));
+        return toResponse(clothesRepository.save(clothes));
     }
 
     @Transactional(readOnly = true)
     public ClothesResponse getClothes(UUID userId, UUID clothesId) {
         Clothes clothes = clothesRepository.findByIdAndUser_Id(clothesId, userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLOTHES_NOT_FOUND));
-        return ClothesResponse.from(clothes);
+        return toResponse(clothes);
     }
 
     @Transactional
@@ -67,7 +67,20 @@ public class ClothesService {
         Clothes clothes = clothesRepository.findByIdAndUser_Id(clothesId, userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLOTHES_NOT_FOUND));
         clothes.update(request);
-        return ClothesResponse.from(clothes);
+        return toResponse(clothes);
+    }
+
+    private ClothesResponse toResponse(Clothes clothes) {
+        return ClothesResponse.builder()
+                .id(clothes.getId())
+                .imageUrl(s3Uploader.generatePresignedUrl(clothes.getImageUrl()))
+                .category(clothes.getCategory())
+                .color(clothes.getColor())
+                .pattern(clothes.getPattern())
+                .season(clothes.getSeason())
+                .styleTag(clothes.getStyleTag())
+                .createdAt(clothes.getCreatedAt())
+                .build();
     }
 
     @Transactional

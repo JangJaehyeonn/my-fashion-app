@@ -4,7 +4,6 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -12,18 +11,18 @@ import java.util.UUID;
 public class OutfitCalendarResponse {
 
     private UUID id;
-    private OutfitResponse outfit;
+    private UUID outfitId;
+    private String outfitName;
     private LocalDate wornDate;
     private String memo;
-    private LocalDateTime createdAt;
 
     public static OutfitCalendarResponse from(OutfitCalendar calendar) {
         return OutfitCalendarResponse.builder()
                 .id(calendar.getId())
-                .outfit(OutfitResponse.from(calendar.getOutfit()))
+                .outfitId(calendar.getOutfit().getId())
+                .outfitName(calendar.getOutfit().getName())
                 .wornDate(calendar.getWornDate())
                 .memo(calendar.getMemo())
-                .createdAt(calendar.getCreatedAt())
                 .build();
     }
 }

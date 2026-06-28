@@ -1,0 +1,60 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - spring-boot
+    restart: unless-stopped
+
+  spring-boot:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/fashionapp
+      REDIS_HOST: redis
+      AI_SERVER_URL: http://ai-server:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai-server:
+        condition: service_started
+    restart: unless-stopped
+
+  ai-server:
+    build: ./ai-server
+    env_file:
+      - ./ai-server/.env
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fashionapp
+      POSTGRES_USER: fashionapp
+      POSTGRES_PASSWORD: fashionapp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fashionapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

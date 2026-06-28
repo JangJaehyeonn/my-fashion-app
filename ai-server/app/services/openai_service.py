@@ -23,6 +23,8 @@ _CLASSIFY_PROMPT = """이 옷 이미지를 분석해서 다음 JSON 형식으로
 def _parse_json(content: str) -> dict:
     content = content.strip()
     content = re.sub(r"```(?:json)?\n?", "", content).strip()
+    if not content:
+        raise ValueError("OpenAI response was empty after stripping")
     return json.loads(content)
 
 
@@ -47,5 +49,10 @@ async def classify_clothes_image(image_bytes: bytes, content_type: str = "image/
         temperature=0.1,
     )
 
-    data = _parse_json(response.choices[0].message.content)
+    choice = response.choices[0]
+    content = choice.message.content
+    print(f"[OpenAI] finish_reason={choice.finish_reason!r} content={content!r}", flush=True)
+    if not content:
+        raise ValueError(f"OpenAI returned empty content (finish_reason={choice.finish_reason})")
+    data = _parse_json(content)
     return ClothesClassifyResponse(**data)

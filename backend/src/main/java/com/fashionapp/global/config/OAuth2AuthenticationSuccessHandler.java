@@ -25,8 +25,8 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
 
-    @Value("${app.frontend-url}")
-    private String frontendUrl;
+    @Value("${app.oauth2-redirect-base}")
+    private String oauth2RedirectBase;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -43,7 +43,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 TimeUnit.MILLISECONDS
         );
 
-        String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/oauth2/callback")
+        String targetUrl = UriComponentsBuilder.fromUriString(oauth2RedirectBase + "/oauth2/callback")
                 .queryParam("accessToken", accessToken)
                 .queryParam("refreshToken", refreshToken)
                 .build().toUriString();

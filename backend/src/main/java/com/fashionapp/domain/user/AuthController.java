@@ -61,12 +61,14 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@RequestBody Map<String, String> body) {
-        String refreshToken = body.get("refreshToken");
-
-        if (jwtTokenProvider.validateToken(refreshToken)) {
-            UUID userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
-            redisTemplate.delete("refresh:" + userId);
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @RequestBody(required = false) Map<String, String> body) {
+        if (body != null) {
+            String refreshToken = body.get("refreshToken");
+            if (refreshToken != null && jwtTokenProvider.validateToken(refreshToken)) {
+                UUID userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+                redisTemplate.delete("refresh:" + userId);
+            }
         }
 
         return ResponseEntity.ok(ApiResponse.success());

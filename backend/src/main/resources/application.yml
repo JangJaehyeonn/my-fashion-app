@@ -35,7 +35,6 @@ spring:
             scope:
               - profile_nickname
               - profile_image
-              - account_email
             client-name: Kakao
         provider:
           kakao:
@@ -62,6 +61,7 @@ cloud:
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
   ai-server-url: ${AI_SERVER_URL:http://localhost:8000}
+  oauth2-redirect-base: ${OAUTH2_REDIRECT_BASE:fashionapp://app}
 
 spring.servlet.multipart:
   max-file-size: 10MB

@@ -8,7 +8,7 @@ export function useWeather() {
 
   useEffect(() => {
     getWeather()
-      .then((res) => setWeather(res.data))
+      .then((res) => setWeather(res.data.data))
       .catch((err) => setError(err))
       .finally(() => setLoading(false))
   }, [])

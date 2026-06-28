@@ -3,6 +3,7 @@ package com.fashionapp.domain.outfit;
 import com.fashionapp.domain.user.UserPrincipal;
 import com.fashionapp.global.common.ApiResponse;
 import com.fashionapp.global.jwt.CurrentUser;
+import com.fashionapp.infra.AiRecommendResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +32,16 @@ public class OutfitController {
             @CurrentUser UserPrincipal userPrincipal,
             @RequestBody OutfitCreateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(outfitService.createOutfit(userPrincipal.getId(), request)));
+    }
+
+    @PostMapping("/recommend")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<AiRecommendResponse>> recommend(
+            @CurrentUser UserPrincipal userPrincipal,
+            @RequestBody OutfitRecommendRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                outfitService.recommend(userPrincipal.getId(), request.getTemperature(), request.getCondition())
+        ));
     }
 
     @DeleteMapping("/{id}")
