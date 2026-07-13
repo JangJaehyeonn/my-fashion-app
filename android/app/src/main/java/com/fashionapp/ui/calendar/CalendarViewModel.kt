@@ -28,9 +28,6 @@ class CalendarViewModel @Inject constructor(
     private val _outfits = MutableStateFlow<List<Outfit>>(emptyList())
     val outfits = _outfits.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading = _isLoading.asStateFlow()
-
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
@@ -41,12 +38,10 @@ class CalendarViewModel @Inject constructor(
 
     fun loadCalendar() {
         viewModelScope.launch {
-            _isLoading.value = true
             val month = _currentMonth.value
             outfitRepository.getCalendar(month.year, month.monthValue)
                 .onSuccess { _calendarEntries.value = it }
                 .onFailure { _errorMessage.value = it.message }
-            _isLoading.value = false
         }
     }
 

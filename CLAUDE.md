@@ -669,3 +669,103 @@ project-root/
 **다음에 할 작업**
 1. AWS 배포 세팅 (EC2 + GitHub Actions + Nginx)
 
+---
+
+### 2026-06-28
+
+**완료한 작업**
+
+- **AWS EC2 배포 완료**
+  - Ubuntu 24.04 t3.small 인스턴스 생성
+  - Docker + Git 설치
+  - `docker-compose.prod.yml`로 전체 서비스 배포 (PostgreSQL, Redis, Spring Boot, FastAPI, Nginx)
+  - 서비스 헬스체크 적용 (postgres `pg_isready`, redis `redis-cli ping`)
+  - `backend/Dockerfile` 추가 (multi-stage: Gradle 빌드 → JRE 실행)
+
+- **GitHub Actions CI/CD 구축**
+  - `.github/workflows/deploy.yml` 작성
+  - `dev` 브랜치 push → EC2 SSH 접속 → `git pull` → `docker compose up -d --build` 자동 실행
+  - Secrets: `EC2_HOST`, `EC2_USERNAME`, `EC2_SSH_KEY` 등록 완료
+
+- **DuckDNS 무료 도메인 연결**
+  - `fashion-app-jh.duckdns.org` → EC2 퍼블릭 IP 연결
+  - Google / Kakao OAuth2 Redirect URI 추가 등록:
+    - `http://fashion-app-jh.duckdns.org/login/oauth2/code/google`
+    - `http://fashion-app-jh.duckdns.org/login/oauth2/code/kakao`
+
+- **Android 앱 실서버 연결**
+  - `BASE_URL` → `http://fashion-app-jh.duckdns.org/api/`
+  - `OAUTH2_BASE_URL` → `http://fashion-app-jh.duckdns.org`
+  - `network_security_config.xml`에 `fashion-app-jh.duckdns.org` HTTP 허용 추가
+  - 실서버에서 로그인, 날씨, 코디 추천 정상 동작 확인
+
+**현재 전체 구현 상태**
+- 인프라: PostgreSQL + Redis + AI 서버 + Nginx (EC2 Docker Compose)
+- `user` 도메인: 완료
+- `clothes` 도메인: 완료
+- `outfit` 도메인: 완료
+- AI 서버 (FastAPI): 완료 + 실행 중
+- 프론트엔드 (React): 완료 (웹 버전, 미사용)
+- Android 앱 (Kotlin + Jetpack Compose): 완료
+- 소셜 로그인 (Google + Kakao): E2E 완료
+- 옷 업로드 파이프라인: E2E 완료
+- 날씨 카드 + 코디 추천: E2E 완료
+- 캘린더 착용 기록: E2E 완료
+- **EC2 배포 + CI/CD**: **완료**
+
+**다음에 할 작업**
+1. 플레이스토어 등록
+2. 성능 측정 (포트폴리오용)
+3. VTON 가상 피팅 (Phase 2)
+
+---
+
+### 2026-07-08
+
+**완료한 작업**
+
+- **k6 성능 측정 스크립트 작성** (`performance/`)
+  - `k6-latency.js` — API 응답 시간 측정 (1 VU, 20회 반복, 엔드포인트별 Trend 메트릭)
+    - 측정 대상: `GET /users/me`, `/clothes`, `/outfits`, `/calendar`, `/weather`
+    - 임계값: DB 읽기 p95 < 500ms, 날씨 p95 < 1,000ms
+  - `k6-load.js` — 부하 테스트 (최대 50 VUs, 총 5분)
+    - 단계: 워밍업(1 VU) → 증가(20 VUs) → 유지(2분) → 피크(50 VUs) → 쿨다운
+    - 임계값: p95 < 500ms, p99 < 1,000ms, 오류율 < 1%
+    - 대상: DB 읽기 엔드포인트 (AI 엔드포인트 제외 — GPT-4o 비용)
+  - `k6-ai.js` — AI 엔드포인트 단독 측정 (5회 제한)
+    - 측정 대상: `GET /weather`, `POST /outfits/recommend`
+    - 임계값: 추천 p95 < 10,000ms (GPT-4o 포함), 날씨 p95 < 3,000ms
+
+**실행 방법**
+```bash
+# 1. k6 설치 (Windows)
+winget install k6
+
+# 2. JWT 토큰: Android 앱 로그인 후 Logcat에서 accessToken 복사
+
+# 3. 순서대로 실행
+k6 run -e JWT_TOKEN=<토큰> performance/k6-latency.js
+k6 run -e JWT_TOKEN=<토큰> performance/k6-ai.js
+k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
+```
+
+**현재 전체 구현 상태**
+- 인프라: PostgreSQL + Redis + AI 서버 + Nginx (EC2 Docker Compose)
+- `user` 도메인: 완료
+- `clothes` 도메인: 완료
+- `outfit` 도메인: 완료
+- AI 서버 (FastAPI): 완료 + 실행 중
+- 프론트엔드 (React): 완료 (웹 버전, 미사용)
+- Android 앱 (Kotlin + Jetpack Compose): 완료
+- 소셜 로그인 (Google + Kakao): E2E 완료
+- 옷 업로드 파이프라인: E2E 완료
+- 날씨 카드 + 코디 추천: E2E 완료
+- 캘린더 착용 기록: E2E 완료
+- EC2 배포 + CI/CD: 완료
+- **성능 측정 스크립트**: **작성 완료 (미실행)**
+
+**다음에 할 작업**
+1. k6 설치 후 JWT 토큰 준비 → 성능 측정 실행 및 결과 정리
+2. 플레이스토어 등록
+3. VTON 가상 피팅 (Phase 2)
+

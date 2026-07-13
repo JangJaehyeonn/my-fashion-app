@@ -9,5 +9,4 @@ import java.util.UUID;
 public interface ClothesRepository extends JpaRepository<Clothes, UUID> {
     List<Clothes> findByUser_IdOrderByCreatedAtDesc(UUID userId);
     Optional<Clothes> findByIdAndUser_Id(UUID id, UUID userId);
-    void deleteByUser_Id(UUID userId);
 }

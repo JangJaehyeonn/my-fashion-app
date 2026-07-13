@@ -22,9 +22,6 @@ interface OutfitApi {
     @POST("outfits")
     suspend fun createOutfit(@Body request: OutfitCreateRequest): ApiResponse<Outfit>
 
-    @DELETE("outfits/{id}")
-    suspend fun deleteOutfit(@Path("id") id: String): ApiResponse<Unit>
-
     @POST("outfits/recommend")
     suspend fun recommend(@Body request: RecommendRequest): ApiResponse<RecommendResponse>
 

@@ -24,7 +24,6 @@ class WardrobeViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _clothes = MutableStateFlow<List<Clothes>>(emptyList())
-    val clothes = _clothes.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()

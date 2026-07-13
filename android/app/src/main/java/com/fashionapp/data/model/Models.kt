@@ -37,14 +37,6 @@ data class Clothes(
     val createdAt: String
 )
 
-data class ClothesUpdateRequest(
-    val category: String? = null,
-    val color: String? = null,
-    val pattern: String? = null,
-    val season: String? = null,
-    val styleTag: String? = null
-)
-
 // Outfit
 data class OutfitItem(
     val id: String,

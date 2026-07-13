@@ -23,11 +23,6 @@ class OutfitRepository @Inject constructor(
         outfitApi.createOutfit(request).data ?: error("코디 저장 실패")
     }
 
-    suspend fun deleteOutfit(id: String): Result<Unit> = runCatching {
-        outfitApi.deleteOutfit(id)
-        Unit
-    }
-
     suspend fun recommend(request: RecommendRequest): Result<RecommendResponse> = runCatching {
         outfitApi.recommend(request).data ?: error("추천 실패")
     }

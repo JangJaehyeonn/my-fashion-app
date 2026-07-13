@@ -51,7 +51,6 @@ async def classify_clothes_image(image_bytes: bytes, content_type: str = "image/
 
     choice = response.choices[0]
     content = choice.message.content
-    print(f"[OpenAI] finish_reason={choice.finish_reason!r} content={content!r}", flush=True)
     if not content:
         raise ValueError(f"OpenAI returned empty content (finish_reason={choice.finish_reason})")
     data = _parse_json(content)

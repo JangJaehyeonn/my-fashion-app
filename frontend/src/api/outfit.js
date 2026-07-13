@@ -4,8 +4,6 @@ export const getOutfits = () => client.get('/outfits')
 
 export const createOutfit = (data) => client.post('/outfits', data)
 
-export const deleteOutfit = (id) => client.delete(`/outfits/${id}`)
-
 export const getCalendar = (year, month) =>
   client.get('/calendar', { params: { year, month } })
 
