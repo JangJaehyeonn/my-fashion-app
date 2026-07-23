@@ -64,6 +64,10 @@
 | profile_image_url | VARCHAR | 프로필 이미지 |
 | provider | VARCHAR | 소셜 로그인 종류 (google/kakao) |
 | provider_id | VARCHAR | 소셜 로그인 고유 ID |
+| height | INTEGER | 키 (cm) |
+| weight | INTEGER | 몸무게 (kg) |
+| body_type | VARCHAR | 체형 (SLIM/NORMAL/MUSCULAR/CHUBBY) |
+| preferred_style | VARCHAR | 선호 스타일 (CASUAL/FORMAL/SPORTY/STREET/VINTAGE/MINIMAL) |
 | created_at | TIMESTAMP | 가입일 |
 | updated_at | TIMESTAMP | 수정일 |
 
@@ -183,6 +187,8 @@ project-root/
 |--------|----------|------|
 | GET | /api/outfits 🔒 | 내 코디 목록 |
 | POST | /api/outfits 🔒 | 코디 저장 |
+| POST | /api/outfits/recommend 🔒 | 날씨 + 옷장 → AI 코디 추천 |
+| POST | /api/outfits/recommend/situation 🔒 | 날씨 + 상황 + 체형 프로필 → 옷장 없이 AI 코디 추천 (텍스트, 저장 불가) |
 | DELETE | /api/outfits/{id} 🔒 | 코디 삭제 |
 
 ### Calendar
@@ -197,6 +203,7 @@ project-root/
 |--------|----------|------|
 | POST | /ai/clothes/classify | 이미지 → 카테고리/색상/패턴 분류 |
 | POST | /ai/outfits/recommend | 날씨 + 옷장 → 코디 추천 |
+| POST | /ai/outfits/recommend/situation | 날씨 + 상황 + 체형 프로필 → 옷장 없는 코디 텍스트 추천 |
 | GET | /ai/weather | 현재 날씨 조회 (기상청 API) |
 
 > 🔒 = JWT 인증 필요
@@ -768,4 +775,110 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
 1. k6 설치 후 JWT 토큰 준비 → 성능 측정 실행 및 결과 정리
 2. 플레이스토어 등록
 3. VTON 가상 피팅 (Phase 2)
+
+---
+
+### 2026-07-13
+
+**완료한 작업**
+
+- **디버그 로그 정리**
+  - `ai-server/app/services/openai_service.py` — OpenAI 응답 디버깅용 `print()` 제거 (finish_reason/content 출력)
+  - TODO/FIXME 주석: 전체 프로젝트 grep 결과 없음 (정리할 항목 없었음)
+
+- **사용하지 않는 코드 제거** (전체 코드베이스 grep으로 교차 참조 확인 후 삭제)
+  - 백엔드: `OutfitItemRepository` (미사용 인터페이스, 파일 삭제), `UserRepository.findByEmail`, `ClothesRepository.deleteByUser_Id`
+  - Android: `ClothesApi.getClothesById`, `ClothesApi/Repository.updateClothes` (+ 연쇄적으로 미사용이 된 `ClothesUpdateRequest` 모델), `OutfitApi/Repository.deleteOutfit`, `CalendarViewModel.isLoading` (선언·갱신만 되고 `CalendarScreen`에서 구독 안 함), `WardrobeViewModel.clothes` (Screen은 `filteredClothes`만 사용)
+  - 프론트엔드(React, 미사용 웹 버전): `api/clothes.js`의 `updateClothes`, `api/outfit.js`의 `deleteOutfit`
+  - 백엔드의 `ClothesController`/`OutfitController` 쪽 실제 REST 엔드포인트(PUT/DELETE)는 유지 — 클라이언트가 안 쓸 뿐 살아있는 공개 API라 삭제 대상 아님
+
+- **빌드 검증 완료**
+  - 백엔드: `./gradlew compileJava` — BUILD SUCCESSFUL
+  - 프론트엔드: `npm run build` (Vite) — 성공
+  - Android: `gradle compileDebugKotlin` (프로젝트에 `gradlew` 래퍼가 없어 `~/.gradle/wrapper/dists`에 캐시된 Gradle 8.10.2를 직접 사용) — BUILD SUCCESSFUL, 기존 deprecation 경고 2건 외 이상 없음
+  - AI 서버: 로컬 Python/Docker 미가동 상태라 직접 실행 검증은 못함 (제거한 코드는 단순 `print()` 한 줄이라 리스크 낮음)
+
+> ⚠️ Android 프로젝트에 `gradlew`/`gradlew.bat`가 커밋되어 있지 않음 — CLI 빌드 시 Android Studio가 아니라면 시스템 Gradle이나 캐시된 배포판을 직접 지정해야 함
+
+**현재 전체 구현 상태**
+- 인프라: PostgreSQL + Redis + AI 서버 + Nginx (EC2 Docker Compose)
+- `user` 도메인: 완료
+- `clothes` 도메인: 완료
+- `outfit` 도메인: 완료
+- AI 서버 (FastAPI): 완료 + 실행 중
+- 프론트엔드 (React): 완료 (웹 버전, 미사용)
+- Android 앱 (Kotlin + Jetpack Compose): 완료
+- 소셜 로그인 (Google + Kakao): E2E 완료
+- 옷 업로드 파이프라인: E2E 완료
+- 날씨 카드 + 코디 추천: E2E 완료
+- 캘린더 착용 기록: E2E 완료
+- EC2 배포 + CI/CD: 완료
+- 성능 측정 스크립트: 작성 완료 (미실행)
+- **코드 정리 (디버그 로그/TODO/미사용 코드)**: **완료**
+
+**다음에 할 작업**
+1. k6 설치 후 JWT 토큰 준비 → 성능 측정 실행 및 결과 정리
+2. 플레이스토어 등록
+3. VTON 가상 피팅 (Phase 2)
+
+---
+
+### 2026-07-23
+
+**완료한 작업**
+
+- **사용자 체형/취향 프로필 추가**
+  - `User.java`에 `height`, `weight`, `bodyType`(enum: SLIM/NORMAL/MUSCULAR/CHUBBY), `preferredStyle`(enum: CASUAL/FORMAL/SPORTY/STREET/VINTAGE/MINIMAL) 필드 추가 — `ddl-auto: update`로 컬럼 자동 생성
+  - `UpdateProfileRequest`/`UserResponse`에 새 필드 반영, `UserService.updateProfile`에서 enum 파싱 실패 시 `INVALID_BODY_PROFILE(400)` 반환
+  - `CustomOAuth2UserService.saveOrUpdate`가 재로그인 시 기존 체형/취향 값을 덮어쓰지 않도록 `user.update(...)` 호출에 기존 값 전달하도록 수정
+  - Android: `UserProfile`/`UpdateProfileRequest` 모델 확장, `AuthApi.updateProfile` (`PUT /api/users/me`) 신규 추가 (기존엔 Android에 프로필 수정 호출 자체가 없었음), 마이페이지에 "체형·취향 설정" 화면(`BodyProfileScreen`) 신규 추가
+
+- **옷장 없이 상황 기반 AI 코디 추천 기능 추가**
+  - 기존 `/api/outfits/recommend`(옷장 보유 옷 목록 기반)와 별개로 `POST /api/outfits/recommend/situation` 신규 추가
+  - 사용자의 체형/취향 프로필 + 날씨 + 상황(출근/데이트/운동/여행/면접/일상)만으로 GPT-4o가 구체적인 코디 텍스트(품목 조합)를 추천 — 실제 옷 ID가 없어 `outfits`/`outfit_items`에는 저장하지 않음(조회 전용)
+  - Spring Boot: `SituationRecommendRequest`, `AiSituationRecommendRequest/Response` DTO, `OutfitService.recommendBySituation`, `AiServerClient.recommendOutfitsBySituation` 추가
+  - FastAPI: `schemas/outfit.py`에 `BodyProfile`/`SituationRecommendRequest`/`SituationRecommendResponse` 추가, `recommend_service.recommend_outfit_by_situation` 추가 (기존 옷장 기반 프롬프트와 별도의 프롬프트 템플릿 사용), `routers/recommend.py`에 라우트 추가
+  - Android: `RecommendScreen`에 "옷장 기반"/"상황 기반" 탭 추가 — 상황 기반 탭은 날씨 카드 공유 + 상황 선택 드롭다운 + 추천 결과 카드(저장 버튼 없음)
+
+- **상황(situation) 값은 백엔드/AI 서버 양쪽 모두 자유 텍스트로 유지**
+  - 기존 `category`/`styleTag`처럼 백엔드에 별도 enum·검증을 두지 않고 문자열 그대로 통과시킴
+  - Android UI에서만 `Situation` enum으로 드롭다운 선택지를 고정
+
+**빌드 검증**
+- 백엔드: `./gradlew compileJava` — BUILD SUCCESSFUL
+- Android: 캐시된 Gradle 8.10.2로 `compileDebugKotlin` — BUILD SUCCESSFUL
+- AI 서버: 로컬 Python/Docker 미가동 상태라 실행 검증 불가 — 스키마 필드명이 Java DTO와 camelCase로 정확히 매칭되는지 코드 리뷰로만 확인
+- 에뮬레이터 E2E(체형 설정 저장 → 상황 탭 추천받기)는 미실시 — 다음 작업으로 이월
+
+**현재 전체 구현 상태**
+- 인프라: PostgreSQL + Redis + AI 서버 + Nginx (EC2 Docker Compose)
+- `user` 도메인: 완료 (체형/취향 프로필 포함)
+- `clothes` 도메인: 완료
+- `outfit` 도메인: 완료 (옷장 기반 + 상황 기반 추천)
+- AI 서버 (FastAPI): 완료 (실행 검증 미완)
+- 프론트엔드 (React): 완료 (웹 버전, 미사용, 체형/상황 기반 기능 미반영)
+- Android 앱 (Kotlin + Jetpack Compose): 완료
+- **체형/취향 프로필 설정**: **코드 완료, 에뮬레이터 E2E 미실시**
+- **옷장 없는 상황 기반 AI 추천**: **코드 완료, 에뮬레이터 E2E 미실시**
+
+**다음에 할 작업**
+1. AI 서버 기동 후 `/ai/outfits/recommend/situation` curl 테스트, 에뮬레이터에서 체형 설정 저장 + 상황 기반 추천 E2E 테스트
+2. k6 설치 후 JWT 토큰 준비 → 성능 측정 실행 및 결과 정리
+3. 플레이스토어 등록
+4. VTON 가상 피팅 (Phase 2)
+
+---
+
+### 2026-07-23 (追加) — BASE_URL 빌드 타입 분리
+
+**버그 수정 — 체형/취향 설정 저장이 항상 실패함**
+- 원인: `android/app/build.gradle.kts`의 `BASE_URL`/`OAUTH2_BASE_URL`이 `defaultConfig`에 EC2 도메인(`fashion-app-jh.duckdns.org`)으로 고정되어 있어, 디버그 빌드(에뮬레이터)로 실행해도 항상 EC2 운영 서버로 요청이 나감 → 로컬에서 막 추가한 체형/취향 저장 API가 EC2에는 아직 배포되지 않아 저장이 실패
+- 수정: `buildTypes.debug`/`buildTypes.release`에 각각 `buildConfigField`를 분리
+  - debug: `BASE_URL = http://10.0.2.2:8080/api/`, `OAUTH2_BASE_URL = http://localhost:8080` (OAuth2 redirect_uri는 Google/Kakao 콘솔에 IP 등록이 안 되므로 localhost 유지 — 에뮬레이터에서 `adb reverse tcp:8080 tcp:8080` 필요, 2026-06-12 항목과 동일 제약)
+  - release: 기존 EC2 duckdns 도메인 그대로 유지
+- `ApiClient.kt`/`LoginScreen.kt`는 이미 `BuildConfig.BASE_URL`/`BuildConfig.OAUTH2_BASE_URL`을 참조하고 있어 코드 변경 없이 반영됨
+- ⚠️ `BuildConfig` 필드는 빌드 시점에 고정되므로, 에뮬레이터에서 로컬 백엔드로 테스트하려면 디버그 APK를 다시 빌드/재설치해야 함 (Hot reload로는 반영 안 됨)
+
+**빌드 검증**
+- `gradle compileDebugKotlin compileReleaseKotlin` — 둘 다 BUILD SUCCESSFUL
 

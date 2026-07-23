@@ -30,7 +30,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User.AuthProvider provider = User.AuthProvider.valueOf(registrationId);
 
         return userRepository.findByProviderAndProviderId(provider, userInfo.getId())
-                .map(user -> user.update(userInfo.getName(), userInfo.getImageUrl()))
+                .map(user -> user.update(userInfo.getName(), userInfo.getImageUrl(),
+                        user.getHeight(), user.getWeight(), user.getBodyType(), user.getPreferredStyle()))
                 .orElseGet(() -> userRepository.save(
                         User.builder()
                                 .email(userInfo.getEmail())

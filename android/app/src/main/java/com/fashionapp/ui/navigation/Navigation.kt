@@ -17,6 +17,7 @@ import com.fashionapp.ui.calendar.CalendarScreen
 import com.fashionapp.ui.common.BottomNavBar
 import com.fashionapp.ui.common.BottomNavItem
 import com.fashionapp.ui.login.LoginScreen
+import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.recommend.RecommendScreen
 import com.fashionapp.ui.wardrobe.WardrobeScreen
@@ -27,6 +28,7 @@ object Route {
     const val RECOMMEND = "recommend"
     const val CALENDAR = "calendar"
     const val MYPAGE = "mypage"
+    const val BODY_PROFILE = "body_profile"
 }
 
 @Composable
@@ -72,11 +74,20 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.RECOMMEND) { RecommendScreen() }
                 composable(Route.CALENDAR) { CalendarScreen() }
                 composable(Route.MYPAGE) {
-                    MyPageScreen(onLogout = {
-                        navController.navigate(Route.LOGIN) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    })
+                    MyPageScreen(
+                        onLogout = {
+                            navController.navigate(Route.LOGIN) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        },
+                        onEditBodyProfile = { navController.navigate(Route.BODY_PROFILE) }
+                    )
+                }
+                composable(Route.BODY_PROFILE) {
+                    BodyProfileScreen(
+                        onBack = { navController.popBackStack() },
+                        onSaved = { navController.popBackStack() }
+                    )
                 }
             }
         }

@@ -34,6 +34,16 @@ public class User {
     @Column(nullable = false)
     private String providerId;
 
+    private Integer height;
+
+    private Integer weight;
+
+    @Enumerated(EnumType.STRING)
+    private BodyType bodyType;
+
+    @Enumerated(EnumType.STRING)
+    private PreferredStyle preferredStyle;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -44,9 +54,23 @@ public class User {
         google, kakao
     }
 
-    public User update(String nickname, String profileImageUrl) {
+    public enum BodyType {
+        SLIM, NORMAL, MUSCULAR, CHUBBY
+    }
+
+    public enum PreferredStyle {
+        CASUAL, FORMAL, SPORTY, STREET, VINTAGE, MINIMAL
+    }
+
+    public User update(String nickname, String profileImageUrl,
+                        Integer height, Integer weight,
+                        BodyType bodyType, PreferredStyle preferredStyle) {
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
+        this.height = height;
+        this.weight = weight;
+        this.bodyType = bodyType;
+        this.preferredStyle = preferredStyle;
         return this;
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -53,6 +54,7 @@ import coil.compose.AsyncImage
 @Composable
 fun MyPageScreen(
     onLogout: () -> Unit,
+    onEditBodyProfile: () -> Unit = {},
     viewModel: MyPageViewModel = hiltViewModel()
 ) {
     val profile by viewModel.profile.collectAsState()
@@ -105,6 +107,9 @@ fun MyPageScreen(
                     elevation = CardDefaults.cardElevation(1.dp)
                 ) {
                     Column {
+                        MenuRow(label = "체형·취향 설정", icon = Icons.Default.Checkroom) {
+                            onEditBodyProfile()
+                        }
                         MenuRow(label = "로그아웃", icon = Icons.Default.Logout, tint = Color.Red) {
                             showLogoutDialog = true
                         }

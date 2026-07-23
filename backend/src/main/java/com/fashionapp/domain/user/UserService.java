@@ -25,7 +25,19 @@ public class UserService {
     public UserResponse updateProfile(UUID userId, UpdateProfileRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        user.update(request.getNickname(), user.getProfileImageUrl());
+
+        try {
+            User.BodyType bodyType = request.getBodyType() != null
+                    ? User.BodyType.valueOf(request.getBodyType()) : null;
+            User.PreferredStyle preferredStyle = request.getPreferredStyle() != null
+                    ? User.PreferredStyle.valueOf(request.getPreferredStyle()) : null;
+
+            user.update(request.getNickname(), user.getProfileImageUrl(),
+                    request.getHeight(), request.getWeight(), bodyType, preferredStyle);
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(ErrorCode.INVALID_BODY_PROFILE);
+        }
+
         return UserResponse.from(user);
     }
 }

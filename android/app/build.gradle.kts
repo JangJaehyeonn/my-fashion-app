@@ -17,15 +17,19 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        buildConfigField("String", "BASE_URL", "\"http://fashion-app-jh.duckdns.org/api/\"")
-        buildConfigField("String", "OAUTH2_BASE_URL", "\"http://fashion-app-jh.duckdns.org\"")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/api/\"")
+            // OAuth2 redirect_uri는 Google/Kakao 콘솔에 IP를 등록할 수 없어 localhost 고정 (에뮬레이터에서 adb reverse tcp:8080 tcp:8080 필요)
+            buildConfigField("String", "OAUTH2_BASE_URL", "\"http://localhost:8080\"")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("String", "BASE_URL", "\"http://fashion-app-jh.duckdns.org/api/\"")
+            buildConfigField("String", "OAUTH2_BASE_URL", "\"http://fashion-app-jh.duckdns.org\"")
         }
     }
 

@@ -22,8 +22,34 @@ data class UserProfile(
     val email: String,
     val nickname: String,
     val profileImageUrl: String?,
-    val provider: String
+    val provider: String,
+    val height: Int?,
+    val weight: Int?,
+    val bodyType: String?,
+    val preferredStyle: String?
 )
+
+data class UpdateProfileRequest(
+    val nickname: String?,
+    val height: Int?,
+    val weight: Int?,
+    val bodyType: String?,
+    val preferredStyle: String?
+)
+
+enum class BodyType(val label: String) {
+    SLIM("슬림"), NORMAL("보통"), MUSCULAR("근육질"), CHUBBY("통통")
+}
+
+enum class PreferredStyle(val label: String) {
+    CASUAL("캐주얼"), FORMAL("포멀"), SPORTY("스포티"),
+    STREET("스트릿"), VINTAGE("빈티지"), MINIMAL("미니멀")
+}
+
+enum class Situation(val label: String) {
+    WORK("출근"), DATE("데이트"), EXERCISE("운동"),
+    TRAVEL("여행"), INTERVIEW("면접"), DAILY("일상")
+}
 
 // Clothes
 data class Clothes(
@@ -96,4 +122,21 @@ data class RecommendedOutfit(
 
 data class RecommendResponse(
     val outfits: List<RecommendedOutfit>
+)
+
+// Situation-based recommend (no wardrobe)
+data class SituationRecommendRequest(
+    val temperature: Double,
+    val condition: String,
+    val situation: String
+)
+
+data class SituationOutfitSuggestion(
+    val description: String,
+    val reason: String,
+    val styleTag: String
+)
+
+data class SituationRecommendResponse(
+    val outfits: List<SituationOutfitSuggestion>
 )

@@ -7,6 +7,8 @@ import com.fashionapp.data.model.OutfitCalendar
 import com.fashionapp.data.model.OutfitCreateRequest
 import com.fashionapp.data.model.RecommendRequest
 import com.fashionapp.data.model.RecommendResponse
+import com.fashionapp.data.model.SituationRecommendRequest
+import com.fashionapp.data.model.SituationRecommendResponse
 import com.fashionapp.data.model.Weather
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -24,6 +26,9 @@ interface OutfitApi {
 
     @POST("outfits/recommend")
     suspend fun recommend(@Body request: RecommendRequest): ApiResponse<RecommendResponse>
+
+    @POST("outfits/recommend/situation")
+    suspend fun recommendBySituation(@Body request: SituationRecommendRequest): ApiResponse<SituationRecommendResponse>
 
     @GET("calendar")
     suspend fun getCalendar(

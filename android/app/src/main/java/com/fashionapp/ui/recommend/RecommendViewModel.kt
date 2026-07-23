@@ -6,6 +6,9 @@ import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.OutfitCreateRequest
 import com.fashionapp.data.model.RecommendRequest
 import com.fashionapp.data.model.RecommendedOutfit
+import com.fashionapp.data.model.Situation
+import com.fashionapp.data.model.SituationOutfitSuggestion
+import com.fashionapp.data.model.SituationRecommendRequest
 import com.fashionapp.data.model.Weather
 import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.OutfitRepository
@@ -43,20 +46,30 @@ class RecommendViewModel @Inject constructor(
     private val _savedIds = MutableStateFlow<Set<Int>>(emptySet())
     val savedIds = _savedIds.asStateFlow()
 
+    private val _selectedSituation = MutableStateFlow(Situation.WORK)
+    val selectedSituation = _selectedSituation.asStateFlow()
+
+    private val _situationRecommendations = MutableStateFlow<List<SituationOutfitSuggestion>>(emptyList())
+    val situationRecommendations = _situationRecommendations.asStateFlow()
+
+    private val _isSituationLoading = MutableStateFlow(false)
+    val isSituationLoading = _isSituationLoading.asStateFlow()
+
     init {
-        loadWeatherAndClothes()
+        loadWeather()
+        viewModelScope.launch {
+            clothesRepository.getClothes()
+                .onSuccess { _allClothes.value = it }
+        }
     }
 
-    private fun loadWeatherAndClothes() {
+    fun loadWeather() {
         viewModelScope.launch {
+            _isWeatherLoading.value = true
             outfitRepository.getWeather()
                 .onSuccess { _weather.value = it }
                 .onFailure { _errorMessage.value = "날씨를 불러올 수 없습니다." }
             _isWeatherLoading.value = false
-        }
-        viewModelScope.launch {
-            clothesRepository.getClothes()
-                .onSuccess { _allClothes.value = it }
         }
     }
 
@@ -87,6 +100,22 @@ class RecommendViewModel @Inject constructor(
             }.onFailure {
                 _errorMessage.value = "저장에 실패했습니다."
             }
+        }
+    }
+
+    fun selectSituation(situation: Situation) {
+        _selectedSituation.value = situation
+    }
+
+    fun recommendBySituation() {
+        val w = _weather.value ?: return
+        viewModelScope.launch {
+            _isSituationLoading.value = true
+            outfitRepository.recommendBySituation(
+                SituationRecommendRequest(w.temperature, w.condition, _selectedSituation.value.name)
+            ).onSuccess { _situationRecommendations.value = it.outfits }
+                .onFailure { _errorMessage.value = "상황 기반 추천에 실패했습니다." }
+            _isSituationLoading.value = false
         }
     }
 

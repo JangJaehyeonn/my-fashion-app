@@ -14,6 +14,10 @@ public class UserResponse {
     private String nickname;
     private String profileImageUrl;
     private String provider;
+    private Integer height;
+    private Integer weight;
+    private String bodyType;
+    private String preferredStyle;
 
     public static UserResponse from(User user) {
         return UserResponse.builder()
@@ -22,6 +26,10 @@ public class UserResponse {
                 .nickname(user.getNickname())
                 .profileImageUrl(user.getProfileImageUrl())
                 .provider(user.getProvider().name())
+                .height(user.getHeight())
+                .weight(user.getWeight())
+                .bodyType(user.getBodyType() != null ? user.getBodyType().name() : null)
+                .preferredStyle(user.getPreferredStyle() != null ? user.getPreferredStyle().name() : null)
                 .build();
     }
 }

@@ -51,6 +51,20 @@ public class AiServerClient {
         }
     }
 
+    public AiSituationRecommendResponse recommendOutfitsBySituation(AiSituationRecommendRequest request) {
+        try {
+            return restClient.post()
+                    .uri(aiServerUrl + "/ai/outfits/recommend/situation")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(AiSituationRecommendResponse.class);
+        } catch (RestClientException e) {
+            log.error("AI server situation recommend failed: {}", e.getMessage());
+            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+        }
+    }
+
     public AiClassifyResponse classifyClothes(MultipartFile file) {
         try {
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";
