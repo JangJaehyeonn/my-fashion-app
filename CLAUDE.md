@@ -882,3 +882,38 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
 **빌드 검증**
 - `gradle compileDebugKotlin compileReleaseKotlin` — 둘 다 BUILD SUCCESSFUL
 
+---
+
+### 2026-07-23 (追加 2) — 날씨 재시도 버튼 + AI 서버 배포 갭 수정
+
+**버그 수정 — 날씨 로딩 실패 시 영구적으로 복구 불가능**
+- 증상: 추천 화면에 "날씨 정보를 불러올 수 없습니다." 표시, 옷장 기반/상황 기반 두 탭의 "추천받기" 버튼이 계속 비활성화
+- 원인: `RecommendViewModel`이 `init` 블록에서 날씨를 딱 한 번만 요청함. Compose Navigation이 하단 탭 전환 시에도 `추천` 화면의 ViewModel을 그대로 유지하기 때문에, 한 번 실패하면(예: 재빌드 직후 로컬 서버가 아직 안 떴을 때) 앱을 완전히 종료했다 켜기 전까지는 재시도할 방법이 없었음
+- 확인: 실제 JWT로 `curl http://localhost:8080/api/weather` 직접 호출 시 정상 200 응답 — 서버 자체는 문제 없었음, 클라이언트에 재시도 수단이 없는 게 문제였음
+- 수정: `RecommendViewModel.loadWeatherAndClothes()`를 공개 함수 `loadWeather()`로 분리해 재호출 가능하게 만들고, `RecommendScreen`의 날씨 카드 실패 상태에 "다시 시도" 버튼 추가
+  - 파일: `android/app/src/main/java/com/fashionapp/ui/recommend/RecommendViewModel.kt`, `RecommendScreen.kt`
+
+**버그 수정 — 상황 기반 추천 호출 시 404 Not Found**
+- 원인: `docker-compose.yml`의 `ai-server` 서비스는 볼륨 마운트 없이 `build: ./ai-server`로 이미지를 굽는 방식이라, 오늘 추가한 `POST /ai/outfits/recommend/situation` 라우트가 소스 코드에는 있어도 **4주 전에 빌드된 컨테이너 이미지**에는 반영되어 있지 않았음 (2026-06-21 항목과 동일한 유형의 재발 이슈)
+- 수정: `docker compose build ai-server && docker compose up -d ai-server`로 이미지 재빌드 및 컨테이너 재생성
+- 겸사겸사 로컬 백엔드(포트 8080)도 콘솔 로그를 볼 수 없는 별도 프로세스로 떠 있던 것을 내려받고 `./gradlew bootRun`으로 다시 띄워 로그를 파일로 확보 → 디버깅에 사용
+- **검증**: 실제 JWT로 전체 체인을 직접 호출해 확인
+  - `POST http://localhost:8000/ai/outfits/recommend/situation` (AI 서버 단독) → 200, GPT-4o 실제 추천 결과 반환
+  - `POST http://localhost:8080/api/outfits/recommend/situation` (Spring Boot → AI 서버) → 200, 저장된 체형/취향 프로필 반영된 추천 결과 반환
+- ⚠️ **재발 방지 메모**: `ai-server`는 코드만 고쳐서는 반영되지 않음. FastAPI 코드를 수정할 때마다 반드시 `docker compose build ai-server && docker compose up -d ai-server`로 재배포할 것 (dev 편의를 위해 볼륨 마운트 + `--reload`로 바꾸는 것도 고려해볼 만함, 아직 미적용)
+
+**남은 검증**
+- 에뮬레이터에서 실제 버튼 탭으로 조작하는 UI E2E는 이번에도 진행 못함 (이 환경에서 `adb shell input tap`이 앱에 입력을 전달하지 못함 — FAB 버튼 탭도 반응 없음, 툴링 한계로 판단). curl로 서버 체인은 확인했으니, 에뮬레이터에서 실제 탭으로 "다시 시도" 버튼과 상황 기반 추천이 되는지는 사용자 확인 필요
+
+**현재 전체 구현 상태 (업데이트)**
+- **체형/취향 프로필 설정**: 코드 완료 + 저장 API 실동작 확인(로그로 height/weight/bodyType/preferredStyle 저장 확인됨)
+- **옷장 없는 상황 기반 AI 추천**: 코드 완료 + curl로 서버 체인 E2E 확인 완료, 에뮬레이터 탭 조작 확인은 미완
+- AI 서버: 로컬 Docker Compose로 재빌드 후 정상 기동 중
+
+**다음에 할 작업**
+1. 에뮬레이터에서 직접 "다시 시도"/상황 기반 추천받기 버튼 탭하여 눈으로 확인
+2. (선택) `ai-server`에 볼륨 마운트 + `--reload` 적용해 코드 수정 시 재빌드 없이 반영되도록 개선
+3. k6 설치 후 JWT 토큰 준비 → 성능 측정 실행 및 결과 정리
+4. 플레이스토어 등록
+5. VTON 가상 피팅 (Phase 2)
+
