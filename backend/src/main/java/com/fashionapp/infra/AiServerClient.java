@@ -51,6 +51,20 @@ public class AiServerClient {
         }
     }
 
+    public AiShoppingRecommendResponse recommendShopping(AiShoppingRecommendRequest request) {
+        try {
+            return restClient.post()
+                    .uri(aiServerUrl + "/ai/shopping/recommend")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(AiShoppingRecommendResponse.class);
+        } catch (RestClientException e) {
+            log.error("AI server shopping recommend failed: {}", e.getMessage());
+            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+        }
+    }
+
     public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {
         try {
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";

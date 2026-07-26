@@ -263,9 +263,9 @@ project-root/
 - [x] Android `diagnosis` 화면 (갤러리 업로드 + 결과 카드 + 이력 목록)
 
 ### Phase 3 — 쇼핑 도우미 (신규)
-- [ ] AI 서버 `routers/shopping.py` — 예산/상황/체형 → GPT-4o로 구체적 아이템 조합 + 쇼핑몰 검색 제안 + "이것만 사면 N가지 코디" 활용법 텍스트 생성 (외부 상품 API 없음)
-- [ ] 백엔드 `shopping` 도메인 (프록시 + 요청 검증)
-- [ ] Android `shopping` 화면 (예산 슬라이더/입력 + 상황 선택 + 추천 카드 리스트)
+- [x] AI 서버 `routers/shopping.py` — 예산/상황/체형 → GPT-4o로 구체적 아이템 조합 + 쇼핑몰 검색 제안 + "이것만 사면 N가지 코디" 활용법 텍스트 생성 (외부 상품 API 없음)
+- [x] 백엔드 `shopping` 도메인 (프록시 + 요청 검증)
+- [x] Android `shopping` 화면 (예산 입력 + 상황 선택 + 추천 카드 리스트)
 
 ### Phase 4 — 통합 마무리
 - [ ] Android 하단 네비게이션 재구성 (오늘의 코디 / 옷 진단 / 쇼핑 / 마이페이지)
@@ -1132,4 +1132,43 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
 1. 에뮬레이터에서 실제 갤러리 사진으로 진단 버튼 탭 → 결과/이력 화면 눈으로 확인
 2. Phase 3 — 쇼핑 도우미 신규 구현 (예산/상황/체형 → AI 텍스트 아이템 추천 + 쇼핑몰 검색 제안 + "이것만 사면 N가지 코디" 활용법)
 3. EC2 배포 반영 시 `phase0_cleanup.sql` 적용 + `.env`는 그대로(네이버쇼핑 키 불필요, 신규 환경변수 없음)
+
+---
+
+### 2026-07-26 (追加 6) — Phase 3: 쇼핑 도우미 신규 구현
+
+**완료한 작업**
+
+- **AI 서버 — 쇼핑 추천 스키마/서비스/라우터 신규 작성**
+  - `schemas/shopping.py` — `ShoppingRecommendRequest`(budget/situation/body_profile, `outfit.py`의 `BodyProfile` 재사용), `ShoppingItemSuggestion`(item/reason/estimated_price/site/search_keyword), `ShoppingRecommendResponse`(items/total_estimated_price/usage_tip)
+  - `services/shopping_service.py` — 예산+상황+체형 프로필로 GPT-4o에 아이템 조합(2~5개, 예산 110% 이내) + 쇼핑몰 검색 제안 + "이것만 사면 N가지 코디" 활용법(`usage_tip`)을 생성하는 프롬프트. `recommend_service.py`의 `client`/`_parse_json`/`_BODY_TYPE_LABELS`/`_STYLE_LABELS`를 그대로 import해 재사용 (동일 라벨/파싱 로직 중복 방지)
+  - `routers/shopping.py` — `POST /ai/shopping/recommend`, `main.py`에 라우터 등록
+
+- **백엔드 — `shopping` 도메인 신설**
+  - `domain/shopping/ShoppingController`(`POST /api/shopping/recommend`), `ShoppingService`(로그인 사용자의 체형/취향 프로필 조회 후 AI 서버 호출), `ShoppingRecommendRequest`(budget/situation, situation 기존 패턴대로 자유 텍스트)
+  - `infra/AiShoppingRecommendRequest`/`AiShoppingRecommendResponse` DTO 추가, `AiServerClient.recommendShopping()` 추가 (기존 `recommendOutfitsBySituation`과 동일한 JSON POST 패턴)
+  - 별도 저장/이력 없음 (조회 전용, `outfit_recommendations`와 마찬가지로 실시간 생성이라 캐싱 안 함) — 신규 `ErrorCode` 불필요, 기존 `AI_SERVER_ERROR`/`USER_NOT_FOUND` 재사용
+  - `./gradlew compileJava` — BUILD SUCCESSFUL
+
+- **Android — 쇼핑 도우미 화면 신규 구현**
+  - `data/model/Models.kt`에 `ShoppingRecommendRequest`(budget/situation), `ShoppingItemSuggestion`, `ShoppingRecommendResponse` 추가
+  - `ShoppingApi`/`ShoppingRepository`/`AppModule.provideShoppingApi` 추가
+  - `ShoppingViewModel` — 예산 입력(숫자만 필터링) + 상황 선택(기존 `Situation` enum 재사용) + 추천 결과 상태 관리
+  - `ShoppingScreen` — 예산 입력창 + 상황 드롭다운 + 추천 버튼 + 총 예상 금액/활용법 카드 + 아이템별 카드(이름/가격/이유/쇼핑몰 검색 제안)
+  - `Navigation.kt`에 `Route.SHOPPING` 추가, `BottomNavBar`에 "쇼핑" 탭 추가 (추천/진단/쇼핑/마이 4탭 구성)
+  - `compileDebugKotlin` — BUILD SUCCESSFUL (기존과 동일한 `menuAnchor()` deprecation 경고 1건 외 이상 없음)
+
+- **실행 검증**
+  - `docker compose build ai-server && docker compose up -d ai-server` 재빌드·재기동 (2026-06-21 이후 반복된 재발 이슈 방지 원칙 그대로 적용)
+  - `POST http://localhost:8000/ai/shopping/recommend`를 budget=150000, situation=WORK, bodyProfile 포함으로 실제 호출 → `items`(네이비 셔츠/치노 팬츠/화이트 스니커즈, 각 site+searchKeyword 포함) + `totalEstimatedPrice: 140000` + `usageTip`("총 3가지 코디가 가능해요") 정상 반환 확인, 컨테이너 로그에 200 OK만 기록됨
+  - Spring Boot 경유 전체 체인(에뮬레이터 로그인 필요)과 에뮬레이터 실제 탭 조작은 이번에도 미실시 — AI 서버 응답 필드명이 백엔드 DTO(`AiShoppingRecommendResponse`)와 정확히 일치하고 컨트롤러/서비스가 값을 그대로 통과시키는 구조라 코드 리뷰로 정합성 확인
+
+**현재 전체 구현 상태**
+- Phase 0~3 (기존 자산 정리 / 오늘의 코디+쇼핑 제안 / 내 옷 진단 / 쇼핑 도우미): **전부 완료** — AI 서버 실제 응답 검증, 백엔드/Android 컴파일 성공
+- 남은 미검증 항목: 에뮬레이터 실제 탭 조작 E2E(진단·쇼핑 도우미 둘 다), Spring Boot 경유 전체 체인 curl 검증(쇼핑 도우미)
+
+**다음에 할 작업**
+1. Phase 4 — Android 하단 네비게이션은 이미 4탭으로 재구성 완료, 남은 건 전체 E2E 테스트 + k6 성능 측정 스크립트 갱신(엔드포인트 변경 반영) + EC2 운영 DB에 `phase0_cleanup.sql` 적용
+2. 에뮬레이터에서 실제 탭 조작으로 진단/쇼핑 도우미 눈으로 확인
+3. 플레이스토어 등록 준비
 

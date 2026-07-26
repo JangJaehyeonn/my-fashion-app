@@ -19,11 +19,13 @@ import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.recommend.RecommendScreen
+import com.fashionapp.ui.shopping.ShoppingScreen
 
 object Route {
     const val LOGIN = "login"
     const val RECOMMEND = "recommend"
     const val DIAGNOSIS = "diagnosis"
+    const val SHOPPING = "shopping"
     const val MYPAGE = "mypage"
     const val BODY_PROFILE = "body_profile"
 }
@@ -53,7 +55,7 @@ fun AppNavigation(mainViewModel: MainViewModel) {
     }
 
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-    val showBottomBar = currentRoute in listOf(Route.RECOMMEND, Route.DIAGNOSIS, Route.MYPAGE)
+    val showBottomBar = currentRoute in listOf(Route.RECOMMEND, Route.DIAGNOSIS, Route.SHOPPING, Route.MYPAGE)
 
     startDestination?.let { start ->
         Scaffold(
@@ -69,6 +71,7 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.LOGIN) { LoginScreen() }
                 composable(Route.RECOMMEND) { RecommendScreen() }
                 composable(Route.DIAGNOSIS) { DiagnosisScreen() }
+                composable(Route.SHOPPING) { ShoppingScreen() }
                 composable(Route.MYPAGE) {
                     MyPageScreen(
                         onLogout = {

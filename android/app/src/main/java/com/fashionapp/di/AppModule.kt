@@ -4,6 +4,7 @@ import com.fashionapp.data.api.ApiClient
 import com.fashionapp.data.api.AuthApi
 import com.fashionapp.data.api.DiagnosisApi
 import com.fashionapp.data.api.OutfitApi
+import com.fashionapp.data.api.ShoppingApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,4 +29,9 @@ object AppModule {
     @Singleton
     fun provideDiagnosisApi(apiClient: ApiClient): DiagnosisApi =
         apiClient.retrofit.create(DiagnosisApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideShoppingApi(apiClient: ApiClient): ShoppingApi =
+        apiClient.retrofit.create(ShoppingApi::class.java)
 }

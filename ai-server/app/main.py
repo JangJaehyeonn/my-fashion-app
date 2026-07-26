@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 
-from app.routers import diagnosis, recommend, weather
+from app.routers import diagnosis, recommend, shopping, weather
 
 app = FastAPI(title="Fashion AI Server", version="1.0.0")
 
 app.include_router(diagnosis.router)
 app.include_router(recommend.router)
+app.include_router(shopping.router)
 app.include_router(weather.router)
 
 

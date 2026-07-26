@@ -3,6 +3,7 @@ package com.fashionapp.ui.common
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -21,6 +22,7 @@ fun BottomNavBar(navController: NavController) {
     val items = listOf(
         BottomNavItem(Route.RECOMMEND, "추천", Icons.Default.Star),
         BottomNavItem(Route.DIAGNOSIS, "진단", Icons.Default.CameraAlt),
+        BottomNavItem(Route.SHOPPING, "쇼핑", Icons.Default.ShoppingBag),
         BottomNavItem(Route.MYPAGE, "마이", Icons.Default.Person),
     )
 

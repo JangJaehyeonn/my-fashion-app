@@ -97,3 +97,23 @@ data class StyleDiagnosis(
     val similarStyles: List<SimilarStyleSuggestion>,
     val createdAt: String
 )
+
+// Shopping assistant
+data class ShoppingRecommendRequest(
+    val budget: Int,
+    val situation: String
+)
+
+data class ShoppingItemSuggestion(
+    val item: String,
+    val reason: String,
+    val estimatedPrice: Int,
+    val site: String,
+    val searchKeyword: String
+)
+
+data class ShoppingRecommendResponse(
+    val items: List<ShoppingItemSuggestion>,
+    val totalEstimatedPrice: Int,
+    val usageTip: String
+)
