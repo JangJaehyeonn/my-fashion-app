@@ -4,6 +4,7 @@
 
 # Java
 build/
+backend/build/
 *.class
 *.jar
 
@@ -23,6 +24,7 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
-backend/.gradle/ 
+backend/.gradle/
+android/.gradle/ 
  
  
