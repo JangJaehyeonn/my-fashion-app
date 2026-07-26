@@ -1,4 +1,4 @@
-package com.fashionapp.domain.outfit;
+package com.fashionapp.domain.diagnosis;
 
 import com.fashionapp.domain.user.User;
 import jakarta.persistence.*;
@@ -6,17 +6,15 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "outfits")
+@Table(name = "style_diagnoses")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
 @AllArgsConstructor
-public class Outfit {
+public class StyleDiagnosis {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -26,13 +24,17 @@ public class Outfit {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    private String name;
-    private String styleTag;
-    private String weatherCondition;
+    @Column(nullable = false)
+    private String imageUrl;
 
-    @Builder.Default
-    @OneToMany(mappedBy = "outfit", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OutfitItem> items = new ArrayList<>();
+    @Column(nullable = false)
+    private Integer score;
+
+    @Column(columnDefinition = "TEXT")
+    private String feedback;
+
+    @Column(columnDefinition = "TEXT")
+    private String similarStyles;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

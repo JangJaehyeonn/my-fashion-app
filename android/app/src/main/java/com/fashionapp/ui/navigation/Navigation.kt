@@ -13,20 +13,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.fashionapp.ui.calendar.CalendarScreen
 import com.fashionapp.ui.common.BottomNavBar
-import com.fashionapp.ui.common.BottomNavItem
+import com.fashionapp.ui.diagnosis.DiagnosisScreen
 import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.recommend.RecommendScreen
-import com.fashionapp.ui.wardrobe.WardrobeScreen
 
 object Route {
     const val LOGIN = "login"
-    const val WARDROBE = "wardrobe"
     const val RECOMMEND = "recommend"
-    const val CALENDAR = "calendar"
+    const val DIAGNOSIS = "diagnosis"
     const val MYPAGE = "mypage"
     const val BODY_PROFILE = "body_profile"
 }
@@ -38,14 +35,14 @@ fun AppNavigation(mainViewModel: MainViewModel) {
 
     LaunchedEffect(Unit) {
         mainViewModel.checkLoginState { loggedIn ->
-            startDestination = if (loggedIn) Route.WARDROBE else Route.LOGIN
+            startDestination = if (loggedIn) Route.RECOMMEND else Route.LOGIN
         }
     }
 
     LaunchedEffect(Unit) {
         mainViewModel.navEvent.collect { event ->
             when (event) {
-                NavEvent.ToMain -> navController.navigate(Route.WARDROBE) {
+                NavEvent.ToMain -> navController.navigate(Route.RECOMMEND) {
                     popUpTo(Route.LOGIN) { inclusive = true }
                 }
                 NavEvent.ToLogin -> navController.navigate(Route.LOGIN) {
@@ -56,7 +53,7 @@ fun AppNavigation(mainViewModel: MainViewModel) {
     }
 
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-    val showBottomBar = currentRoute in listOf(Route.WARDROBE, Route.RECOMMEND, Route.CALENDAR, Route.MYPAGE)
+    val showBottomBar = currentRoute in listOf(Route.RECOMMEND, Route.DIAGNOSIS, Route.MYPAGE)
 
     startDestination?.let { start ->
         Scaffold(
@@ -70,9 +67,8 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 modifier = Modifier.padding(innerPadding)
             ) {
                 composable(Route.LOGIN) { LoginScreen() }
-                composable(Route.WARDROBE) { WardrobeScreen() }
                 composable(Route.RECOMMEND) { RecommendScreen() }
-                composable(Route.CALENDAR) { CalendarScreen() }
+                composable(Route.DIAGNOSIS) { DiagnosisScreen() }
                 composable(Route.MYPAGE) {
                     MyPageScreen(
                         onLogout = {

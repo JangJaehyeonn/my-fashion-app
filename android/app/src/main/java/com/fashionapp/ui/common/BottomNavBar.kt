@@ -1,8 +1,7 @@
 package com.fashionapp.ui.common
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -20,9 +19,8 @@ data class BottomNavItem(val route: String, val label: String, val icon: android
 @Composable
 fun BottomNavBar(navController: NavController) {
     val items = listOf(
-        BottomNavItem(Route.WARDROBE, "옷장", Icons.Default.Checkroom),
         BottomNavItem(Route.RECOMMEND, "추천", Icons.Default.Star),
-        BottomNavItem(Route.CALENDAR, "캘린더", Icons.Default.CalendarMonth),
+        BottomNavItem(Route.DIAGNOSIS, "진단", Icons.Default.CameraAlt),
         BottomNavItem(Route.MYPAGE, "마이", Icons.Default.Person),
     )
 
@@ -38,7 +36,7 @@ fun BottomNavBar(navController: NavController) {
                 onClick = {
                     if (currentRoute != item.route) {
                         navController.navigate(item.route) {
-                            popUpTo(Route.WARDROBE) { saveState = true }
+                            popUpTo(Route.RECOMMEND) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }

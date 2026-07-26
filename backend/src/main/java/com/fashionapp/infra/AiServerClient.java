@@ -37,20 +37,6 @@ public class AiServerClient {
         }
     }
 
-    public AiRecommendResponse recommendOutfits(AiRecommendRequest request) {
-        try {
-            return restClient.post()
-                    .uri(aiServerUrl + "/ai/outfits/recommend")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(AiRecommendResponse.class);
-        } catch (RestClientException e) {
-            log.error("AI server recommend failed: {}", e.getMessage());
-            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
-        }
-    }
-
     public AiSituationRecommendResponse recommendOutfitsBySituation(AiSituationRecommendRequest request) {
         try {
             return restClient.post()
@@ -65,7 +51,7 @@ public class AiServerClient {
         }
     }
 
-    public AiClassifyResponse classifyClothes(MultipartFile file) {
+    public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {
         try {
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";
             String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
@@ -81,14 +67,14 @@ public class AiServerClient {
                     .contentType(MediaType.parseMediaType(contentType));
 
             return restClient.post()
-                    .uri(aiServerUrl + "/ai/clothes/classify")
+                    .uri(aiServerUrl + "/ai/diagnosis")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(builder.build())
                     .retrieve()
-                    .body(AiClassifyResponse.class);
+                    .body(AiDiagnosisResponse.class);
 
         } catch (IOException | RestClientException e) {
-            log.error("AI server classify failed: {}", e.getMessage());
+            log.error("AI server diagnosis failed: {}", e.getMessage());
             throw new CustomException(ErrorCode.AI_SERVER_ERROR);
         }
     }

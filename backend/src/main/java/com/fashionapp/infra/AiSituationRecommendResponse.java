@@ -16,5 +16,14 @@ public class AiSituationRecommendResponse {
         private String description;
         private String reason;
         private String styleTag;
+        private List<ShoppingSuggestion> shoppingSuggestions;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    public static class ShoppingSuggestion {
+        private String item;
+        private String site;
+        private String searchKeyword;
     }
 }

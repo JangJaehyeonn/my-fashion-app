@@ -2,7 +2,7 @@ package com.fashionapp.di
 
 import com.fashionapp.data.api.ApiClient
 import com.fashionapp.data.api.AuthApi
-import com.fashionapp.data.api.ClothesApi
+import com.fashionapp.data.api.DiagnosisApi
 import com.fashionapp.data.api.OutfitApi
 import dagger.Module
 import dagger.Provides
@@ -21,11 +21,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideClothesApi(apiClient: ApiClient): ClothesApi =
-        apiClient.retrofit.create(ClothesApi::class.java)
+    fun provideOutfitApi(apiClient: ApiClient): OutfitApi =
+        apiClient.retrofit.create(OutfitApi::class.java)
 
     @Provides
     @Singleton
-    fun provideOutfitApi(apiClient: ApiClient): OutfitApi =
-        apiClient.retrofit.create(OutfitApi::class.java)
+    fun provideDiagnosisApi(apiClient: ApiClient): DiagnosisApi =
+        apiClient.retrofit.create(DiagnosisApi::class.java)
 }

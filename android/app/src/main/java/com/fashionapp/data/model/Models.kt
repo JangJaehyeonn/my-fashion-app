@@ -51,77 +51,12 @@ enum class Situation(val label: String) {
     TRAVEL("여행"), INTERVIEW("면접"), DAILY("일상")
 }
 
-// Clothes
-data class Clothes(
-    val id: String,
-    val imageUrl: String,
-    val category: String?,
-    val color: String?,
-    val pattern: String?,
-    val season: String?,
-    val styleTag: String?,
-    val createdAt: String
-)
-
-// Outfit
-data class OutfitItem(
-    val id: String,
-    val clothes: Clothes
-)
-
-data class Outfit(
-    val id: String,
-    val name: String,
-    val styleTag: String?,
-    val weatherCondition: String?,
-    val items: List<OutfitItem>,
-    val createdAt: String
-)
-
-data class OutfitCreateRequest(
-    val name: String,
-    val styleTag: String?,
-    val weatherCondition: String?,
-    val clothesIds: List<String>
-)
-
-// Calendar
-data class OutfitCalendar(
-    val id: String,
-    val outfitId: String,
-    val outfitName: String?,
-    val wornDate: String,
-    val memo: String?
-)
-
-data class CalendarCreateRequest(
-    val outfitId: String,
-    val wornDate: String,
-    val memo: String? = null
-)
-
 // Weather
 data class Weather(
     val temperature: Double,
     val condition: String,
     val humidity: Int,
     val windSpeed: Double
-)
-
-// Recommend
-data class RecommendRequest(
-    val temperature: Double,
-    val condition: String
-)
-
-data class RecommendedOutfit(
-    val clothesIds: List<String>,
-    val reason: String,
-    val styleTag: String
-)
-
-data class RecommendResponse(
-    val outfits: List<RecommendedOutfit>
 )
 
 // Situation-based recommend (no wardrobe)
@@ -131,12 +66,34 @@ data class SituationRecommendRequest(
     val situation: String
 )
 
+data class ShoppingSuggestion(
+    val item: String,
+    val site: String,
+    val searchKeyword: String
+)
+
 data class SituationOutfitSuggestion(
     val description: String,
     val reason: String,
-    val styleTag: String
+    val styleTag: String,
+    val shoppingSuggestions: List<ShoppingSuggestion> = emptyList()
 )
 
 data class SituationRecommendResponse(
     val outfits: List<SituationOutfitSuggestion>
+)
+
+// Style diagnosis
+data class SimilarStyleSuggestion(
+    val styleTag: String,
+    val description: String
+)
+
+data class StyleDiagnosis(
+    val id: String,
+    val imageUrl: String,
+    val score: Int,
+    val feedback: String,
+    val similarStyles: List<SimilarStyleSuggestion>,
+    val createdAt: String
 )
