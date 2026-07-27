@@ -4,7 +4,7 @@
  * 실행 방법:
  *   k6 run -e JWT_TOKEN=<발급받은_JWT_토큰> k6-load.js
  *
- * 주의: AI 추천/분류 엔드포인트는 GPT-4o 비용 문제로 제외
+ * 주의: AI 추천/진단 엔드포인트는 GPT-4o/Vision 비용 문제로 제외
  *       DB 읽기 중심 엔드포인트만 포함
  */
 
@@ -51,10 +51,8 @@ export const options = {
 // 테스트 엔드포인트 목록 (DB 읽기 위주)
 const ENDPOINTS = [
   { method: "GET", url: "/api/users/me", body: null },
-  { method: "GET", url: "/api/clothes", body: null },
-  { method: "GET", url: "/api/outfits", body: null },
-  { method: "GET", url: "/api/calendar", body: null },
-  { method: "GET", url: "/api/weather?nx=60&ny=127", body: null },
+  { method: "GET", url: "/api/weather", body: null },
+  { method: "GET", url: "/api/diagnosis", body: null },
 ];
 
 export default function () {

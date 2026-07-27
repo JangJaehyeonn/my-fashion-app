@@ -91,7 +91,7 @@ async def recommend_outfit_by_situation(request: SituationRecommendRequest) -> S
     )
 
     response = await client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=1000,
         temperature=0.7,

@@ -61,7 +61,7 @@ async def recommend_shopping(request: ShoppingRecommendRequest) -> ShoppingRecom
     )
 
     response = await client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=1200,
         temperature=0.7,

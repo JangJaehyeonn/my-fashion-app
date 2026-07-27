@@ -25,6 +25,11 @@ venv/
 .DS_Store
 Thumbs.db
 backend/.gradle/
-android/.gradle/ 
+android/.gradle/
+
+# 서명 키 정보 (키스토어 비밀번호 노출 방지)
+android/keystore.properties
+*.jks
+*.keystore 
  
  
