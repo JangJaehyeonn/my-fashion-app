@@ -1249,3 +1249,69 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
 2. 사용자가 EC2에 직접 SSH 접속해 `phase0_cleanup.sql` 백업+적용 결과 회신 → row count/적용 결과 확인 후 이 문서에 반영
 3. 플레이스토어 등록 준비
 
+---
+
+### 2026-07-28 — 백엔드 성능/안정성 개선 (User 인덱스, AI 서버 비동기 호출, 2단계 캐싱, HikariCP, JVM 튜닝, 테스트 코드)
+
+**완료한 작업**
+
+- **User 엔티티 인덱스 추가**
+  - `@Table(indexes = {...})`로 `idx_users_email`(email), `idx_users_provider_id`(provider_id) 추가 (`User.java`)
+  - `ddl-auto: update`라 다음 서버 기동 시 자동 반영, 별도 마이그레이션 스크립트 불필요
+
+- **AI 서버 호출 비동기화 + 코디/쇼핑 추천 병렬 호출용 신규 엔드포인트**
+  - `AiServerClient.recommendOutfitsBySituation`/`recommendShopping`을 `CompletableFuture` 반환으로 전환, 전용 `Executor` 빈(`AsyncConfig`, 8-thread fixed pool)에서 실행
+  - `OutfitService`/`ShoppingService`는 `.join()`으로 기존 동기 동작을 그대로 유지하되, `CompletionException`을 언랩해 내부 `CustomException`이 `GlobalExceptionHandler`에서 기존과 동일하게(예: `AI_SERVER_ERROR` → 503) 처리되도록 함
+  - 기존엔 코디 추천과 쇼핑 추천을 동시에 호출하는 지점이 아예 없었음 — 신규 `domain/home`(`HomeController`/`HomeService`/`HomeSummaryRequest`/`HomeSummaryResponse`) 추가, `POST /api/home/summary`가 두 AI 호출을 `CompletableFuture.allOf`로 병렬 실행해 지연시간을 `outfit+shopping` 합산이 아니라 `max(outfit, shopping)`으로 단축
+  - ⚠️ Android 쪽 홈 화면 연동은 이번엔 범위 밖 — 엔드포인트만 신설, 화면 설계/구현은 미착수
+
+- **`k6-ai.js`의 `BASE_URL` 환경변수화**
+  - `__ENV.BASE_URL`(기본값 `http://localhost:8080`)로 변경, EC2 측정 시엔 `-e BASE_URL=http://fashion-app-jh.duckdns.org`로 전환 가능 (`k6-latency.js`/`k6-load.js`는 이번 범위 밖이라 그대로 둠)
+
+- **HikariCP 커넥션 풀 설정 (`application.yml`)**
+  - t3.small(vCPU 2개, RAM 2GB)에 postgres/redis/ai-server/nginx가 함께 떠 있는 제약을 감안해 `maximum-pool-size: 10`, `minimum-idle: 5`, `connection-timeout: 30000`, `idle-timeout: 600000`, `max-lifetime: 1800000`으로 보수적으로 설정, 각 값 옆에 의미를 주석으로 명시
+
+- **Caffeine 로컬 캐시 + Redis 2단계 날씨 캐싱 (신규 `WeatherService`)**
+  - 1단계: Caffeine 로컬 캐시(`expireAfterWrite` 10분, `maximumSize(1)` — 날씨는 위치 구분 없는 앱 전체 공유 값 하나뿐이라)
+  - 2단계: 기존 `RedisTemplate<String, String>` 빈 재사용, `DiagnosisService`와 동일하게 `ObjectMapper`로 JSON 직렬화/역직렬화, TTL 30분(로컬 10분보다 길게 잡아 재시작 직후에도 외부 API 재호출 없이 버티도록 함)
+  - 3단계: 둘 다 미스일 때만 외부 API(`AiServerClient.getWeather()`) 호출 후 두 캐시 모두 채움
+  - `WeatherController`가 `AiServerClient`를 직접 부르던 것에서 `WeatherService`를 거치도록 변경
+  - `build.gradle`에 `com.github.ben-manes.caffeine:caffeine:3.1.8` 추가 (spring-boot-starter-cache/`@EnableCaching`은 쓰지 않음 — L1→L2→원본 순서의 수동 3단계 조회를 표현하기엔 `@Cacheable` 추상화보다 직접 구현이 더 명확했음)
+
+- **JUnit5 + Mockito 테스트 코드 14건 신규 작성**
+  - `WeatherServiceTest`(4) — 로컬 캐시 히트, 로컬 미스+Redis 히트, 둘 다 미스, Redis 값 손상 시 폴백
+  - `OutfitServiceTest`(3), `ShoppingServiceTest`(3) — AI 서버 정상 응답 + 요청 페이로드 캡처 검증, 사용자 없음(`USER_NOT_FOUND`), `CompletionException` 언랩 검증(비동기 전환 회귀 방지용)
+  - `UserControllerTest`(4) — `@WebMvcTest` + MockMvc, 실제 `GlobalExceptionHandler` 경유로 200/404/400 검증
+  - ⚠️ **중요 발견**: `build.gradle`에 `tasks.named('test') { useJUnitPlatform() }`가 아예 없었음 — Gradle 기본 JUnit4 러너가 JUnit5(Jupiter) 테스트를 인식하지 못해 지금까지 작성된 적 있었다면 전부 "0건 통과"로 조용히 무시됐을 상황이었음 (실제로 스크래치 테스트로 재현·확인). 이번에 추가하고 나서야 14건이 실제로 실행/통과되는 것 확인
+  - `UserControllerTest`는 실제 `SecurityConfig`(OAuth2/JWT 관련 빈 5개 추가로 필요)를 끌어오는 대신, `AuthenticationPrincipalArgumentResolver`만 최소로 등록하고 `SecurityContextHolder`에 인증 정보를 직접 주입하는 방식 사용 — 컨트롤러 로직/예외 매핑/JSON 응답은 검증하지만 실제 JWT 필터 체인이나 `@PreAuthorize` 강제 자체는 검증 범위 밖으로 의도적으로 좁힘
+
+- **`docker-compose.prod.yml`에 Spring Boot 컨테이너 JVM 옵션 추가**
+  - `backend/Dockerfile`의 `ENTRYPOINT`가 exec form(`["java","-jar","app.jar"]`)이라 셸 변수 확장이 안 되는 점을 고려해, JVM이 기동 시 직접 읽는 `JAVA_TOOL_OPTIONS` 환경변수로 전달(Dockerfile 수정 불필요)
+  - t3.small 2GB를 다른 컨테이너들과 나눠 쓰는 전제로 `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -Xss512k -XX:+ExitOnOutOfMemoryError` 설정
+  - G1(기본값) 대신 SerialGC를 고른 이유: vCPU 2개뿐인 환경에서 G1의 백그라운드 GC 스레드가 애플리케이션과 CPU를 두고 경쟁하고, 힙이 512MB로 작아 G1의 리전 기반 최적화 이점도 크지 않기 때문
+  - `docker compose config`로 문법 검증 완료 (단, 이 명령이 `.env` 실값을 그대로 풀어서 출력하길래 결과 로그는 바로 삭제)
+
+- **`docker stats`로 실제 메모리 사용량 확인 시도 — 미완료**
+  - 이 세션 환경에서 EC2(`fashion-app-jh.duckdns.org:22`) 아웃바운드 연결이 안 되는 것을 재확인 (2026-07-27 기록과 동일 증상, 여전히 유효함)
+  - 로컬은 Spring Boot가 컨테이너가 아니라 `./gradlew bootRun`으로 직접 뜨는 구조라 `docker-compose.prod.yml`의 JVM 옵션과 애초에 무관 (`docker ps`로 로컬엔 `ai-server`/`redis`/`postgres`만 떠 있음을 확인)
+  - 위 변경사항 전부 로컬 컴파일/테스트 통과 확인 후 커밋까지는 완료됨(아래 커밋 해시 참고) — **EC2 배포는 아직 안 된 상태**라 지금 접속되더라도 이전 설정(JVM 옵션 없음)만 보였을 것
+
+**커밋 이력** (이번 세션 변경분, 세션 밖에서 사용자가 직접 커밋한 것으로 추정 — 대화 중 Claude가 커밋을 실행한 적은 없음)
+- `739a009` feat: async AI server calls + index optimization (User 인덱스, AsyncConfig, AiServerClient, OutfitService/ShoppingService, home 도메인 신설, k6-ai.js — 이 커밋엔 이 세션과 무관한 Android/README/스크린샷 변경도 함께 포함되어 있었음)
+- `464f992` feat: add Caffeine + Redis 2-tier weather cache
+- `8a76b48` test: add JUnit5 unit tests for WeatherService, OutfitService, ShoppingService (UserControllerTest 포함)
+- `d2d00e5` feat: add JVM tuning options for t3.small
+
+**현재 전체 구현 상태**
+- User 인덱스, AI 서버 비동기 호출 + 홈 요약 병렬 엔드포인트, HikariCP 설정, Caffeine+Redis 2단계 날씨 캐싱, 백엔드 단위/통합 테스트 14건, Spring Boot JVM 튜닝: **전부 로컬 컴파일/테스트 통과 + 커밋 완료**
+- EC2 배포: **미완료** (다음 `git pull` + `docker compose -f docker-compose.prod.yml up -d --build` 필요)
+- EC2 운영 DB `phase0_cleanup.sql` 적용: 여전히 미완료 (2026-07-27부터 이월, 사용자 회신 대기 중)
+- 텍스트 추천 모델 `gpt-4o-mini` 전환 후 Docker 재빌드 실행 검증: 여전히 미완료 (2026-07-27 (追加 2)부터 이월)
+
+**다음에 할 작업**
+1. EC2에 배포 후 `docker stats`로 spring-boot 컨테이너 실제 메모리 사용량 확인, 필요시 `-Xmx` 재조정
+2. `docker compose build ai-server && docker compose up -d ai-server`로 재배포 후 gpt-4o-mini 정상 동작 확인 (이월)
+3. 사용자가 EC2에 직접 SSH 접속해 `phase0_cleanup.sql` 백업+적용 결과 회신 (이월)
+4. `POST /api/home/summary`를 실제로 사용할 Android 홈 화면 설계/구현 여부 결정
+5. 플레이스토어 등록 준비
+
