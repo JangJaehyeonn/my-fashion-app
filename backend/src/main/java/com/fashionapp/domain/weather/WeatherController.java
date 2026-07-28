@@ -1,7 +1,6 @@
 package com.fashionapp.domain.weather;
 
 import com.fashionapp.global.common.ApiResponse;
-import com.fashionapp.infra.AiServerClient;
 import com.fashionapp.infra.AiWeatherResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,11 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class WeatherController {
 
-    private final AiServerClient aiServerClient;
+    private final WeatherService weatherService;
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AiWeatherResponse>> getWeather() {
-        return ResponseEntity.ok(ApiResponse.success(aiServerClient.getWeather()));
+        return ResponseEntity.ok(ApiResponse.success(weatherService.getWeather()));
     }
 }

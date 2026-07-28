@@ -4,6 +4,28 @@ spring:
     username: ${DB_USERNAME:fashionapp}
     password: ${DB_PASSWORD:fashionapp}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # 동시에 열어둘 수 있는 최대 커넥션 수.
+      # t3.small(2 vCPU, RAM 2GB) 한 대에 postgres/redis/ai-server/nginx까지 같이 떠 있어
+      # 메모리를 나눠 써야 하므로 너무 크게 잡지 않음. (공식 권장 공식: (core*2)+1 ≈ 5,
+      # k6 부하 테스트 결과 피크 50 VU에서도 43.8 req/s 수준이라 10이면 충분히 여유 있음)
+      maximum-pool-size: 10
+      # 트래픽이 없을 때도 미리 대기시켜 둘 최소 커넥션 수.
+      # 너무 낮으면 순간 요청 시 커넥션을 새로 맺느라 지연이 생기고,
+      # 너무 높으면 유휴 상태에서도 postgres 쪽 메모리를 계속 점유하게 됨.
+      minimum-idle: 5
+      # 커넥션 풀에서 커넥션을 못 받았을 때 대기할 최대 시간(ms).
+      # 이 시간을 넘기면 SQLTransientConnectionException 발생.
+      connection-timeout: 30000
+      # 커넥션이 아무 요청 없이 유휴 상태로 있을 수 있는 최대 시간(ms).
+      # minimum-idle보다 커넥션이 많을 때, 이 시간이 지나면 초과분을 회수함.
+      idle-timeout: 600000
+      # 커넥션 하나가 살아있을 수 있는 최대 수명(ms).
+      # 이 시간이 지나면 오래된 커넥션을 자동으로 폐기하고 새로 생성 —
+      # DB나 중간 네트워크 장비가 너무 오래된 커넥션을 끊어버리는 문제를 예방.
+      max-lifetime: 1800000
+      # 애플리케이션 로그/모니터링에서 풀을 구분하기 위한 이름.
+      pool-name: FashionAppHikariCP
   jpa:
     hibernate:
       ddl-auto: update
