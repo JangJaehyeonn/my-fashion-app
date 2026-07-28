@@ -17,6 +17,31 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/fashionapp
       REDIS_HOST: redis
       AI_SERVER_URL: http://ai-server:8000
+      # Dockerfile의 ENTRYPOINT가 exec form(["java","-jar","app.jar"])이라 셸 변수 확장이 안 되므로,
+      # JVM이 기동 시 스스로 읽어들이는 JAVA_TOOL_OPTIONS로 전달 (Dockerfile 수정 불필요).
+      # t3.small(vCPU 2개, RAM 2GB) 한 대에 nginx/postgres/redis/ai-server(FastAPI)까지 같이 떠 있어
+      # JVM에 몰아줄 수 있는 메모리가 크지 않음을 전제로 값을 잡음.
+      JAVA_TOOL_OPTIONS: >-
+        -Xms256m
+        -Xmx512m
+        -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=128m
+        -Xss512k
+        -XX:+ExitOnOutOfMemoryError
+      # -Xms256m          : 시작 시 미리 확보해두는 최소 힙 크기. 유휴 상태에서도 이만큼은 항상 점유하므로,
+      #                     다른 컨테이너(postgres/redis/ai-server)를 굶기지 않도록 낮게 잡음.
+      # -Xmx512m          : 힙이 늘어날 수 있는 최대치. 부하가 몰려도 512MB를 넘지 않게 상한을 둬서
+      #                     JVM이 컨테이너/호스트 메모리를 다 먹어버리는 상황을 방지.
+      # -XX:+UseSerialGC  : GC 알고리즘을 기본값 G1 대신 SerialGC(단일 스레드)로 변경.
+      #                     G1은 백그라운드 GC 스레드가 vCPU 수에 비례해 늘어나는데, vCPU가 2개뿐인 이 서버에서는
+      #                     그 스레드가 애플리케이션 처리량과 CPU를 두고 경쟁함. 힙도 512MB로 작아
+      #                     G1의 리전 기반 최적화 이점이 거의 없으므로, 오버헤드가 훨씬 적은 SerialGC가 더 유리.
+      # -XX:MaxMetaspaceSize=128m : 클래스 메타데이터가 쌓이는 메타스페이스의 상한. 힙(Xmx)과 별도로 관리되는
+      #                     네이티브 메모리라 상한을 안 두면 계속 늘어날 수 있어, 컨테이너 총 메모리 예산 안에 묶어둠.
+      # -Xss512k          : 스레드 하나당 스택 크기(64비트 JVM 기본값 1MB)를 절반으로 줄여, 요청 처리 스레드가
+      #                     늘어날 때 예약되는 메모리를 절약.
+      # -XX:+ExitOnOutOfMemoryError : OutOfMemoryError 발생 시 어중간하게 살아있지 말고 즉시 프로세스를 종료.
+      #                     docker-compose의 restart: unless-stopped와 맞물려 컨테이너가 자동으로 재기동되게 함.
     depends_on:
       postgres:
         condition: service_healthy
