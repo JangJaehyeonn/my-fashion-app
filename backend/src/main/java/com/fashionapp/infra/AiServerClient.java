@@ -14,6 +14,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Component
@@ -21,6 +23,7 @@ import java.io.IOException;
 public class AiServerClient {
 
     private final RestClient restClient;
+    private final Executor aiServerExecutor;
 
     @Value("${app.ai-server-url}")
     private String aiServerUrl;
@@ -37,32 +40,36 @@ public class AiServerClient {
         }
     }
 
-    public AiSituationRecommendResponse recommendOutfitsBySituation(AiSituationRecommendRequest request) {
-        try {
-            return restClient.post()
-                    .uri(aiServerUrl + "/ai/outfits/recommend/situation")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(AiSituationRecommendResponse.class);
-        } catch (RestClientException e) {
-            log.error("AI server situation recommend failed: {}", e.getMessage());
-            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
-        }
+    public CompletableFuture<AiSituationRecommendResponse> recommendOutfitsBySituation(AiSituationRecommendRequest request) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return restClient.post()
+                        .uri(aiServerUrl + "/ai/outfits/recommend/situation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(request)
+                        .retrieve()
+                        .body(AiSituationRecommendResponse.class);
+            } catch (RestClientException e) {
+                log.error("AI server situation recommend failed: {}", e.getMessage());
+                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+            }
+        }, aiServerExecutor);
     }
 
-    public AiShoppingRecommendResponse recommendShopping(AiShoppingRecommendRequest request) {
-        try {
-            return restClient.post()
-                    .uri(aiServerUrl + "/ai/shopping/recommend")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(AiShoppingRecommendResponse.class);
-        } catch (RestClientException e) {
-            log.error("AI server shopping recommend failed: {}", e.getMessage());
-            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
-        }
+    public CompletableFuture<AiShoppingRecommendResponse> recommendShopping(AiShoppingRecommendRequest request) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return restClient.post()
+                        .uri(aiServerUrl + "/ai/shopping/recommend")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(request)
+                        .retrieve()
+                        .body(AiShoppingRecommendResponse.class);
+            } catch (RestClientException e) {
+                log.error("AI server shopping recommend failed: {}", e.getMessage());
+                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+            }
+        }, aiServerExecutor);
     }
 
     public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {

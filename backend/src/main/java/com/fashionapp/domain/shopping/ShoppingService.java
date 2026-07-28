@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +39,13 @@ public class ShoppingService {
                 bodyProfile
         );
 
-        return aiServerClient.recommendShopping(aiRequest);
+        try {
+            return aiServerClient.recommendShopping(aiRequest).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof CustomException customException) {
+                throw customException;
+            }
+            throw e;
+        }
     }
 }

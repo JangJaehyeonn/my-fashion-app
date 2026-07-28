@@ -41,7 +41,7 @@ fun LoginScreen() {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "내 옷장",
+            text = "AI 스타일리스트",
             fontSize = 32.sp,
             fontWeight = FontWeight.ExtraBold
         )
@@ -98,15 +98,5 @@ fun LoginScreen() {
         ) {
             Text(text = "💬  카카오로 계속하기", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "⚠️ 개발 중: 에뮬레이터 실행 시\nadb reverse tcp:8080 tcp:8080 실행 필요",
-            fontSize = 11.sp,
-            color = Color(0xFFAAAAAA),
-            textAlign = TextAlign.Center,
-            lineHeight = 16.sp
-        )
     }
 }

@@ -3,6 +3,8 @@
  *
  * 실행 방법:
  *   k6 run -e JWT_TOKEN=<발급받은_JWT_토큰> k6-ai.js
+ *   k6 run -e JWT_TOKEN=<발급받은_JWT_토큰> -e BASE_URL=http://fashion-app-jh.duckdns.org k6-ai.js
+ *   (BASE_URL 미지정 시 기본값 http://localhost:8080)
  *
  * 코디 진단(POST /api/diagnosis)은 이미지 멀티파트 업로드가 필요해 이 스크립트 대상에서 제외.
  */
@@ -11,7 +13,7 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { Trend, Rate } from "k6/metrics";
 
-const BASE_URL = "http://fashion-app-jh.duckdns.org";
+const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const JWT_TOKEN = __ENV.JWT_TOKEN;
 
 const trendWeather = new Trend("latency_ai_weather", true);

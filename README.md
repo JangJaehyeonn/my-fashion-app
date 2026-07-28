@@ -1,13 +1,14 @@
-# 👗 AI 패션 코디 앱
+# 👗 AI 스타일리스트
 
-> AI 기반 개인 옷장 관리 및 코디 추천 서비스  
-> 온라인 쇼핑 반품률 문제를 해결하는 스마트 패션 앱
+> 옷에 대한 지식이 없어도 날씨/상황/체형에 맞는 코디를 추천받고,
+> 내 코디를 진단받고, 필요한 옷을 쇼핑까지 이어갈 수 있는 AI 패션 앱
 
 ---
 
 ## 목차
 
 - [서비스 소개](#서비스-소개)
+- [스크린샷](#스크린샷)
 - [기술 스택](#기술-스택)
 - [아키텍처](#아키텍처)
 - [ERD](#erd)
@@ -23,8 +24,33 @@
 
 ## 서비스 소개
 
-옷장을 촬영해서 올리면 AI가 자동으로 분류하고, 오늘 날씨에 맞는 코디를 추천해주는 개인 스타일링 앱입니다.  
-구글 / 카카오 소셜 로그인으로 간편하게 시작할 수 있으며, 착용 기록을 캘린더로 관리할 수 있습니다.
+패션에 무지한 사람도 부담 없이 스타일링을 받을 수 있도록 만든 AI 스타일리스트 앱입니다.  
+구글 / 카카오 소셜 로그인으로 간편하게 시작할 수 있으며, 핵심 기능은 3가지입니다.
+
+1. **오늘의 코디 추천** — 날씨(자동) + 상황 + 체형/취향 프로필을 바탕으로 AI가 코디를 텍스트로 추천하고, "무신사/지그재그에서 ○○ 검색해보세요" 형태의 쇼핑몰 검색 제안까지 함께 제공합니다.
+2. **내 옷 진단** — 오늘 입은 코디 사진을 올리면 AI가 0~100점으로 점수를 매기고, 개선 제안과 비슷한 스타일을 추천해줍니다.
+3. **쇼핑 도우미** — 예산과 상황, 체형/취향을 입력하면 AI가 구체적인 아이템과 쇼핑몰 검색 제안, "이것만 사면 N가지 코디가 가능해요" 같은 활용법을 제시합니다.
+
+> 옷장 등록/관리나 코디 캘린더 없이도, 사용자가 자기 옷을 일일이 등록하지 않아도 바로 추천을 받을 수 있도록 설계했습니다.
+
+---
+
+## 스크린샷
+
+| 로그인 | 오늘의 코디 추천 |
+|:---:|:---:|
+| <img src="docs/screenshots/login.png" width="250"/> | <img src="docs/screenshots/recommend.png" width="250"/> |
+| Google / 카카오 소셜 로그인 화면 | 날씨 카드 + 상황 선택 + AI 코디 추천 + 쇼핑몰 검색 제안 |
+
+| 내 옷 진단 | 쇼핑 도우미 |
+|:---:|:---:|
+| <img src="docs/screenshots/diagnosis.png" width="250"/> | <img src="docs/screenshots/shopping.png" width="250"/> |
+| 코디 사진으로 AI 점수/피드백 진단받기 | 예산 + 상황 입력 → AI 아이템 추천 + 활용법 |
+
+| 마이페이지 |
+|:---:|
+| <img src="docs/screenshots/mypage.png" width="250"/> |
+| 프로필, 체형·취향 설정, 로그아웃 |
 
 ---
 
@@ -32,27 +58,27 @@
 
 | 영역 | 기술 |
 |------|------|
-| 프론트엔드 | React 18 + Vite |
+| 클라이언트 | Android (Kotlin + Jetpack Compose) |
 | 백엔드 | Spring Boot (JWT, REST API) |
 | AI 서버 | FastAPI (Python) |
 | DB | PostgreSQL + Redis |
-| 이미지 스토리지 | AWS S3 |
+| 이미지 스토리지 | AWS S3 (코디 진단 사진 임시 저장) |
 | 인프라 | AWS EC2 + Docker + GitHub Actions |
-| 인증 | Google OAuth2, Kakao OAuth2 |
-| AI API | OpenAI Vision API (GPT-4o), 기상청 API |
-| 상태 관리 | Zustand |
-| HTTP 클라이언트 | Axios |
+| 인증 | Spring Security OAuth2 Client (Google, Kakao) |
+| AI API | OpenAI Vision API (코디 사진 진단, gpt-4o), OpenAI GPT-4o-mini (코디/쇼핑 추천 텍스트 생성), 기상청 API (날씨) |
+| 네트워킹 | Retrofit + OkHttp |
+| 비동기 | Kotlin Coroutines |
 
 ---
 
 ## 아키텍처
 
 ```
-[React 클라이언트]
+[Android 클라이언트]
       │
       │ HTTPS
       ▼
-[Spring Boot — 메인 백엔드]  ──▶  [AWS S3] (이미지 저장)
+[Spring Boot — 메인 백엔드]  ──▶  [AWS S3] (코디 진단 사진 임시 저장)
       │              │
       │ AI 요청       │ DB 읽기/쓰기
       ▼              ▼
@@ -60,7 +86,8 @@
       │
       ▼
 [외부 API]
-  - OpenAI Vision API (옷 분류 / 코디 추천)
+  - OpenAI Vision API (코디 사진 진단: 점수 + 개선 제안)
+  - OpenAI GPT-4o-mini (텍스트 — 오늘의 코디 추천 + 쇼핑몰 검색 제안, 쇼핑 도우미 아이템 추천)
   - 기상청 API (날씨)
 
 [Redis] ◀── Spring Boot (세션, 날씨 캐싱)
@@ -80,50 +107,27 @@
 | profile_image_url | VARCHAR | 프로필 이미지 |
 | provider | VARCHAR | 소셜 로그인 종류 (google/kakao) |
 | provider_id | VARCHAR | 소셜 로그인 고유 ID |
+| height | INTEGER | 키 (cm) |
+| weight | INTEGER | 몸무게 (kg) |
+| body_type | VARCHAR | 체형 (SLIM/NORMAL/MUSCULAR/CHUBBY) |
+| preferred_style | VARCHAR | 선호 스타일 (CASUAL/FORMAL/SPORTY/STREET/VINTAGE/MINIMAL) |
 | created_at | TIMESTAMP | 가입일 |
 | updated_at | TIMESTAMP | 수정일 |
 
 > 소셜 로그인 전용이므로 password_hash 없음
 
-### clothes
-| 컬럼 | 타입 | 설명 |
-|------|------|------|
-| id | UUID PK | 옷 ID |
-| user_id | UUID FK | 소유자 |
-| image_url | VARCHAR | S3 이미지 URL |
-| category | VARCHAR | 상의/하의/아우터 등 |
-| color | VARCHAR | 색상 |
-| pattern | VARCHAR | 패턴 |
-| season | VARCHAR | 계절 |
-| style_tag | VARCHAR | 캐주얼/포멀 등 |
-| created_at | TIMESTAMP | 등록일 |
-
-### outfits
-| 컬럼 | 타입 | 설명 |
-|------|------|------|
-| id | UUID PK | 코디 ID |
-| user_id | UUID FK | 생성자 |
-| name | VARCHAR | 코디명 |
-| style_tag | VARCHAR | 스타일 태그 |
-| weather_condition | VARCHAR | 날씨 조건 |
-| created_at | TIMESTAMP | 생성일 |
-
-### outfit_items
-| 컬럼 | 타입 | 설명 |
-|------|------|------|
-| id | UUID PK | ID |
-| outfit_id | UUID FK | 코디 ID |
-| clothes_id | UUID FK | 옷 ID |
-
-### outfit_calendar
+### style_diagnoses (내 옷 진단 기록)
 | 컬럼 | 타입 | 설명 |
 |------|------|------|
 | id | UUID PK | ID |
 | user_id | UUID FK | 사용자 |
-| outfit_id | UUID FK | 착용 코디 |
-| worn_date | DATE | 착용 날짜 |
-| memo | TEXT | 메모 |
-| created_at | TIMESTAMP | 기록일 |
+| image_url | VARCHAR | 진단한 코디 사진 S3 URL |
+| score | INTEGER | AI 코디 점수 (0~100) |
+| feedback | TEXT | 개선 제안 텍스트 |
+| similar_styles | TEXT | 비슷한 스타일 추천 목록 (JSON 직렬화) |
+| created_at | TIMESTAMP | 진단일 |
+
+> 오늘의 코디 추천 / 쇼핑 도우미는 실제 옷 소유 여부와 무관한 실시간 AI 텍스트 생성이라 별도 테이블에 저장하지 않고 매 요청마다 새로 생성합니다.
 
 ---
 
@@ -132,10 +136,10 @@
 | 화면 | 설명 |
 |------|------|
 | 로그인 | 구글 / 카카오 소셜 로그인 |
-| 옷장 | 카테고리 필터 + 옷 목록 + 사진 업로드 + 상세 모달 |
-| 코디 추천 | 오늘 날씨 카드 + AI 코디 추천 + 코디 저장 |
-| 코디 캘린더 | 월별 캘린더 + 날짜별 착용 코디 기록 |
-| 마이페이지 | 프로필 + 통계(옷장/코디/착용일) + 로그아웃 |
+| 오늘의 코디 추천 | 날씨 카드 + 상황 선택 + AI 코디 추천 텍스트 + 쇼핑몰 검색 제안(무신사/지그재그 등) |
+| 내 옷 진단 | 코디 사진 촬영/업로드 + AI 점수(0~100) + 개선 제안 + 비슷한 스타일 추천 + 진단 이력 |
+| 쇼핑 도우미 | 예산 + 상황 입력 + AI 추천 아이템 + 쇼핑몰 검색 제안 + 활용법("이것만 사면 N가지 코디") |
+| 마이페이지 | 프로필 + 체형/취향 설정 + 로그아웃 |
 
 ---
 
@@ -145,8 +149,8 @@
 
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| POST | /api/auth/google | 구글 소셜 로그인 |
-| POST | /api/auth/kakao | 카카오 소셜 로그인 |
+| GET | /oauth2/authorization/google | 구글 소셜 로그인 시작 (Spring Security OAuth2 리다이렉트) |
+| GET | /oauth2/authorization/kakao | 카카오 소셜 로그인 시작 |
 | POST | /api/auth/refresh | JWT 토큰 갱신 |
 | POST | /api/auth/logout | 로그아웃 |
 
@@ -155,41 +159,42 @@
 | Method | Endpoint | 설명 |
 |--------|----------|------|
 | GET | /api/users/me | 내 프로필 조회 |
-| PUT | /api/users/me | 프로필 수정 |
+| PUT | /api/users/me | 프로필(체형/취향 포함) 수정 |
 
-### Clothes 🔒
-
-| Method | Endpoint | 설명 |
-|--------|----------|------|
-| GET | /api/clothes | 내 옷장 목록 |
-| POST | /api/clothes | 옷 업로드 → S3 저장 → AI 분류 |
-| GET | /api/clothes/{id} | 옷 상세 조회 |
-| PUT | /api/clothes/{id} | 옷 정보 수정 |
-| DELETE | /api/clothes/{id} | 옷 삭제 |
-
-### Outfit 🔒
+### Weather 🔒
 
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| GET | /api/outfits | 내 코디 목록 |
-| POST | /api/outfits | 코디 저장 |
-| DELETE | /api/outfits/{id} | 코디 삭제 |
+| GET | /api/weather | 현재 날씨 조회 |
 
-### Calendar 🔒
+### Recommend (오늘의 코디 추천) 🔒
 
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| GET | /api/calendar | 월별 코디 기록 조회 |
-| POST | /api/calendar | 오늘 코디 기록 저장 |
-| DELETE | /api/calendar/{id} | 코디 기록 삭제 |
+| POST | /api/outfits/recommend/situation | 날씨 + 상황 + 체형/취향 프로필 → AI 코디 텍스트 추천 + 쇼핑몰 검색 제안 |
 
-### AI 서버 (Spring Boot 내부 호출 전용)
+### Diagnosis (내 옷 진단) 🔒
 
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| POST | /ai/clothes/classify | 이미지 → 카테고리/색상/패턴 분류 |
-| POST | /ai/outfits/recommend | 날씨 + 옷장 → 코디 추천 |
+| POST | /api/diagnosis | 코디 사진 업로드 → S3 저장 → AI 점수(0~100) + 개선 제안 + 비슷한 스타일 추천 |
+| GET | /api/diagnosis | 내 진단 이력 목록 |
+| GET | /api/diagnosis/{id} | 진단 상세 조회 |
+
+### Shopping (쇼핑 도우미) 🔒
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | /api/shopping/recommend | 예산 + 상황 + 체형/취향 → AI 아이템 추천 + 쇼핑몰 검색 제안 + 활용법 |
+
+### AI 서버 (FastAPI, Spring Boot 내부 호출 전용)
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
 | GET | /ai/weather | 현재 날씨 조회 (기상청 API) |
+| POST | /ai/outfits/recommend/situation | 날씨 + 상황 + 체형 → 코디 텍스트 추천 + 쇼핑몰 검색 제안 |
+| POST | /ai/diagnosis | 코디 이미지 → 점수 + 개선 제안 (OpenAI Vision) |
+| POST | /ai/shopping/recommend | 예산 + 상황 + 체형 → AI 아이템 조합 추천 + 쇼핑몰 검색 제안 |
 
 > 🔒 = JWT 인증 필요
 
@@ -199,38 +204,49 @@
 
 ```
 my-fashion-app/
-├── frontend/                  # React 18 + Vite
-│   └── src/
-│       ├── api/               # Axios 요청 모듈 (auth.js, clothes.js, outfit.js)
-│       ├── components/        # 공통 UI 컴포넌트 (BottomNav, PrivateRoute)
-│       ├── pages/             # 라우트 페이지
-│       ├── hooks/             # 커스텀 훅 (useAuth, useWeather)
-│       ├── store/             # Zustand 전역 상태 (authStore)
-│       └── utils/
+├── android/                    # Kotlin + Jetpack Compose (실서비스 클라이언트)
+│   └── app/src/main/java/com/fashionapp/
+│       ├── data/
+│       │   ├── api/            # Retrofit API 인터페이스
+│       │   ├── model/          # 데이터 모델
+│       │   ├── repository/     # Repository
+│       │   └── datastore/      # 토큰 저장 (DataStore)
+│       ├── di/                 # Hilt 모듈
+│       └── ui/
+│           ├── login/          # 소셜 로그인
+│           ├── recommend/      # 오늘의 코디 추천
+│           ├── diagnosis/      # 내 옷 진단
+│           ├── shopping/       # 쇼핑 도우미
+│           ├── mypage/         # 프로필, 체형/취향 설정
+│           └── navigation/     # 하단 탭 네비게이션
 │
-├── backend/                   # Spring Boot
+├── backend/                    # Spring Boot
 │   └── src/main/java/com/fashionapp/
 │       ├── domain/
-│       │   ├── user/
-│       │   ├── clothes/
-│       │   └── outfit/
+│       │   ├── user/           # 소셜 로그인, 프로필, JWT 인증
+│       │   ├── weather/        # 날씨 프록시
+│       │   ├── outfit/         # 오늘의 코디 추천
+│       │   ├── diagnosis/      # 내 옷 진단
+│       │   └── shopping/       # 쇼핑 도우미
 │       ├── global/
-│       │   ├── config/        # Security, CORS 설정
-│       │   ├── jwt/           # JWT 처리
-│       │   └── exception/     # 글로벌 에러 핸들링
+│       │   ├── config/         # Security, CORS, RestClient 설정
+│       │   ├── jwt/            # JWT 토큰 처리
+│       │   └── exception/      # 글로벌 에러 핸들링
 │       └── infra/
-│           ├── S3Uploader.java
-│           └── AiServerClient.java
+│           ├── S3Uploader.java       # 진단 사진 업로드
+│           └── AiServerClient.java   # FastAPI 내부 호출
 │
-├── ai-server/                 # FastAPI (Python)
+├── ai-server/                   # FastAPI (Python)
 │   └── app/
-│       ├── routers/           # classify.py, recommend.py, weather.py
-│       ├── services/          # openai_service.py, weather_service.py, recommend_service.py
-│       ├── schemas/           # Pydantic 모델
-│       ├── core/              # config.py (환경변수)
+│       ├── routers/             # recommend.py, diagnosis.py, shopping.py, weather.py
+│       ├── services/            # recommend_service.py, diagnosis_service.py, shopping_service.py, weather_service.py
+│       ├── schemas/             # Pydantic 모델
+│       ├── core/                # config.py (환경변수)
 │       └── main.py
 │
-├── .github/workflows/         # GitHub Actions CI/CD
+├── performance/                  # k6 성능 측정 스크립트
+├── docs/                         # 스크린샷, 트러블슈팅 문서
+├── .github/workflows/            # GitHub Actions CI/CD
 ├── docker-compose.yml
 └── CLAUDE.md
 ```
@@ -241,48 +257,50 @@ my-fashion-app/
 
 ### 사전 요구사항
 
-- Docker Desktop
+- Docker Desktop (PostgreSQL, Redis, AI 서버)
 - Java 17+
-- Node.js 18+
+- Android Studio (에뮬레이터 또는 실기기)
 
 ### 1. 환경변수 설정
 
-**`backend/src/main/resources/application.yml`**
-```yaml
-spring:
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: YOUR_GOOGLE_CLIENT_ID
-            client-secret: YOUR_GOOGLE_CLIENT_SECRET
-          kakao:
-            client-id: YOUR_KAKAO_CLIENT_ID
-            client-secret: YOUR_KAKAO_CLIENT_SECRET
-
-cloud:
-  aws:
-    credentials:
-      access-key: YOUR_AWS_ACCESS_KEY
-      secret-key: YOUR_AWS_SECRET_KEY
-    s3:
-      bucket: YOUR_S3_BUCKET_NAME
+**`backend/.env`**
+```env
+DB_URL=jdbc:postgresql://localhost:5432/fashionapp
+DB_USERNAME=fashionapp
+DB_PASSWORD=fashionapp
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+KAKAO_CLIENT_ID=your_kakao_client_id
+KAKAO_CLIENT_SECRET=your_kakao_client_secret
+JWT_SECRET=your_jwt_secret
+AWS_ACCESS_KEY=your_aws_access_key
+AWS_SECRET_KEY=your_aws_secret_key
+S3_BUCKET=your_s3_bucket_name
 ```
 
-**`ai-server/.env`**
+**`ai-server/.env`** (`.env.example` 참고)
 ```env
 OPENAI_API_KEY=your_openai_api_key
 WEATHER_API_KEY=your_kma_api_key
 ```
 
-### 2. Docker (PostgreSQL + Redis + AI 서버)
+### 2. PostgreSQL 실행
+
+```bash
+docker run -d --name fashionapp-db -p 5432:5432 \
+  -e POSTGRES_DB=fashionapp -e POSTGRES_USER=fashionapp -e POSTGRES_PASSWORD=fashionapp \
+  postgres:16
+```
+
+### 3. Redis + AI 서버 (Docker Compose)
 
 ```bash
 docker compose up -d
+# AI 서버 코드를 수정한 경우 반드시 재빌드해야 반영됩니다
+docker compose build ai-server && docker compose up -d ai-server
 ```
 
-### 3. Spring Boot 백엔드
+### 4. Spring Boot 백엔드
 
 ```bash
 cd backend
@@ -290,13 +308,13 @@ cd backend
 # http://localhost:8080
 ```
 
-### 4. React 프론트엔드
+### 5. Android 클라이언트
+
+Android Studio에서 `android/` 폴더를 열고 에뮬레이터로 실행합니다.
+에뮬레이터는 호스트 PC를 `10.0.2.2`로 접근하므로, OAuth2 로그인 테스트 시 아래 포트포워딩이 필요합니다.
 
 ```bash
-cd frontend
-npm install
-npm run dev
-# http://localhost:3000
+adb reverse tcp:8080 tcp:8080
 ```
 
 ---
