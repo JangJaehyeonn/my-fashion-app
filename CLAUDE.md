@@ -1315,3 +1315,42 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
 4. `POST /api/home/summary`를 실제로 사용할 Android 홈 화면 설계/구현 여부 결정
 5. 플레이스토어 등록 준비
 
+---
+
+### 2026-07-31 — README 최종 정리, EC2 DuckDNS 자동 갱신, GitHub Secrets 자동화 검토(보류)
+
+**완료한 작업**
+
+- **README.md 최종 정리** — 2026-07-28 백엔드 성능/안정성 작업 내용을 문서에 반영
+  - **성능 최적화 섹션 신규 추가**: 인덱스 최적화(`EXPLAIN ANALYZE`), CompletableFuture 비동기 처리(응답시간 25~32% 개선), Caffeine+Redis 2단계 캐싱(97% 개선, 캐시 히트 시 7ms), HikariCP 튜닝, JVM 튜닝(`docker stats` 실측 281MB 안정)을 표로 정리
+  - **테스트 섹션 신규 추가**: JUnit5+Mockito 14건(`WeatherServiceTest`/`OutfitServiceTest`/`ShoppingServiceTest`/`UserControllerTest`) 및 `useJUnitPlatform()` 누락 발견 사실 명시
+  - **k6 성능 측정 결과 최신화**: 날씨 API 235ms→**7ms**(캐시 히트), AI 코디 추천 5.6s→**3.83s**, AI 쇼핑 추천 4.4s→**2.96s**로 교체, "캐싱/비동기 최적화 적용 후 측정"이라고 명시
+  - 기술 스택 표에 캐싱(Caffeine+Redis), CompletableFuture, JUnit5/Mockito 행 추가
+  - **부수적으로 발견해 같이 수정**: 개발 로드맵 섹션이 피봇 이전(React 프론트엔드, 옷장, 캘린더, EC2 미배포) 내용 그대로 남아 있어 README 다른 섹션과 모순되던 것을 확인 → 현재 상태(Phase 0~3 핵심기능 완료, Phase 4 성능개선 진행중, 잔여 TODO 2건) 기준으로 재작성. 요청 범위 밖이었으나 방치 시 문서 신뢰도가 떨어진다고 판단해 함께 정리
+
+- **EC2 부팅 시 DuckDNS IP 자동 갱신 — `infra/duckdns/` 신규 작성**
+  - `update-duckdns.sh` — `DUCKDNS_DOMAIN`/`DUCKDNS_TOKEN` 환경변수로 DuckDNS update API 호출
+  - `duckdns-update.service` — systemd oneshot 유닛, `After=network-online.target`으로 매 부팅 시 1회 실행
+  - `duckdns.env.example`(플레이스홀더만) + `README.md`(설치 절차)
+  - ⚠️ **보안**: 사용자가 대화 중 실제 DuckDNS 토큰을 평문으로 전달했으나, 레포에 커밋되는 파일에는 절대 하드코딩하지 않음 — 스크립트는 `/etc/duckdns/duckdns.env`(EC2에서 직접 생성, git 추적 대상 아님)에서 토큰을 읽도록 설계. 실제 토큰 값은 채팅 응답에만 안내(SSH로 직접 실행할 명령어 형태)하고 파일로는 남기지 않음
+  - 이 세션 환경은 2026-07-27부터 EC2로 아웃바운드 연결이 안 되는 상태라 Claude가 직접 실행/검증 불가 — 사용자가 SSH로 직접 설치·실행
+  - **사용자가 EC2에 직접 설치·실행 완료** (2026-07-31) — `duckdns-update.service` 정상 동작 확인
+
+- **GitHub Secrets `EC2_HOST` 자동 업데이트 요청 — 검토 후 더 단순한 대안으로 대체, 스크립트는 작성 안 함**
+  - 사용자가 "EC2 부팅 시 PAT로 GitHub API 호출해 `EC2_HOST` secret을 자동 갱신"을 요청했으나, secrets 쓰기 권한이 있는 PAT를 EC2 인스턴스에 상시 저장해야 하는 구조라 인스턴스가 탈취될 경우 CI/CD 시크릿 전체(`EC2_SSH_KEY` 등)가 위험해지는 점을 지적
+  - 대안 제시: 방금 만든 DuckDNS 자동 갱신이 이미 `fashion-app-jh.duckdns.org`를 최신 IP로 유지하므로, `EC2_HOST` secret 값을 **IP 대신 이 도메인으로 1회만 수동 변경**하면 이후로는 IP가 바뀌어도 아무것도 안 해도 됨(`deploy.yml`은 `host: ${{ secrets.EC2_HOST }}`만 참조하므로 도메인이든 IP든 코드 변경 불필요)
+  - 사용자가 이 대안을 선택 → GitHub 웹 UI(Settings → Secrets and variables → Actions) 절차와 `gh secret set EC2_HOST --body "fashion-app-jh.duckdns.org"` 명령만 안내, `infra/github-secrets/`는 만들지 않음
+  - **사용자가 GitHub 저장소 Settings에서 `EC2_HOST`를 `fashion-app-jh.duckdns.org`로 변경 완료** (2026-07-31)
+
+**현재 전체 구현 상태**
+- README.md: 성능 최적화/테스트 섹션 추가, k6 결과 최신화, 로드맵 섹션 현재 상태로 정정 — **완료**
+- EC2 DuckDNS 자동 갱신(`infra/duckdns/`): 코드/문서 작성 + **EC2 설치·실행까지 완료** (2026-07-31)
+- GitHub Secrets `EC2_HOST`: PAT 자동화 대신 도메인으로 1회 수동 교체하는 방식으로 결정, **실제 변경까지 완료** (2026-07-31)
+
+**다음에 할 작업**
+1. EC2에 배포 후 `docker stats`로 spring-boot 컨테이너 실제 메모리 사용량 확인, 필요시 `-Xmx` 재조정 (이월)
+2. `docker compose build ai-server && docker compose up -d ai-server`로 재배포 후 gpt-4o-mini 정상 동작 확인 (이월)
+3. 사용자가 EC2에 직접 SSH 접속해 `phase0_cleanup.sql` 백업+적용 결과 회신 (이월)
+4. `POST /api/home/summary`를 실제로 사용할 Android 홈 화면 설계/구현 여부 결정 (이월)
+5. 플레이스토어 등록 준비 (이월)
+
