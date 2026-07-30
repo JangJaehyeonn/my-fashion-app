@@ -16,6 +16,8 @@
 - [API 명세](#api-명세)
 - [프로젝트 구조](#프로젝트-구조)
 - [실행 방법](#실행-방법)
+- [성능 최적화](#성능-최적화)
+- [테스트](#테스트)
 - [성능 측정](#성능-측정)
 - [트러블슈팅](#트러블슈팅)
 - [개발 로드맵](#개발-로드맵)
@@ -66,8 +68,10 @@
 | 인프라 | AWS EC2 + Docker + GitHub Actions |
 | 인증 | Spring Security OAuth2 Client (Google, Kakao) |
 | AI API | OpenAI Vision API (코디 사진 진단, gpt-4o), OpenAI GPT-4o-mini (코디/쇼핑 추천 텍스트 생성), 기상청 API (날씨) |
+| 캐싱 | Caffeine (로컬 캐시) + Redis (분산 캐시) 2단계 캐싱 |
 | 네트워킹 | Retrofit + OkHttp |
-| 비동기 | Kotlin Coroutines |
+| 비동기 | Kotlin Coroutines, CompletableFuture (백엔드 AI 서버 호출 병렬화) |
+| 테스트 | JUnit5, Mockito |
 
 ---
 
@@ -319,16 +323,45 @@ adb reverse tcp:8080 tcp:8080
 
 ---
 
+## 성능 최적화
+
+t3.small(vCPU 2개, RAM 2GB) 환경에서 백엔드 응답 속도와 안정성을 개선했습니다.
+
+| 항목 | 내용 | 효과 |
+|------|------|------|
+| 인덱스 최적화 | `User.email`, `User.provider_id`에 인덱스 추가, `EXPLAIN ANALYZE`로 조회 플랜 확인 | 로그인/사용자 조회 쿼리 성능 개선 |
+| 비동기 처리 (CompletableFuture) | AI 서버 호출을 전용 Executor(8-thread)에서 비동기 실행, 코디·쇼핑 추천을 `CompletableFuture.allOf`로 병렬 호출 | 응답 시간 25~32% 개선 |
+| Caffeine + Redis 2단계 캐싱 | 날씨 API에 로컬 캐시(Caffeine, 10분) → Redis(30분) → 외부 API 순으로 조회 | 응답 시간 97% 개선 (캐시 히트 시 7ms) |
+| HikariCP 튜닝 | `maximum-pool-size: 10`, `minimum-idle: 5` 등 t3.small 리소스에 맞게 보수적으로 설정 | 커넥션 풀 고갈 방지, 안정성 확보 |
+| JVM 튜닝 | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m` 적용 | `docker stats` 실측 메모리 사용량 281MB로 안정화 |
+
+---
+
+## 테스트
+
+JUnit5 + Mockito로 백엔드 단위/통합 테스트 14건을 작성했습니다.
+
+| 테스트 클래스 | 건수 | 검증 내용 |
+|------|:---:|------|
+| `WeatherServiceTest` | 4 | 로컬 캐시 히트/미스, Redis 히트, 캐시 손상 시 폴백 |
+| `OutfitServiceTest` | 3 | AI 서버 응답 처리, 사용자 없음 예외, 비동기 예외 언랩 |
+| `ShoppingServiceTest` | 3 | AI 서버 응답 처리, 사용자 없음 예외, 비동기 예외 언랩 |
+| `UserControllerTest` | 4 | `@WebMvcTest` 기반 컨트롤러 계층 검증 (200/404/400) |
+
+> ⚠️ `build.gradle`에 `useJUnitPlatform()` 설정이 누락되어 JUnit5 테스트가 인식되지 않던 문제를 함께 발견·수정했습니다.
+
+---
+
 ## 성능 측정
 
-k6를 사용해 API 응답 시간·부하 테스트를 진행했습니다.
+k6를 사용해 API 응답 시간·부하 테스트를 진행했습니다. (캐싱/비동기 최적화 적용 후 측정)
 
 | 항목 | 결과 |
 |------|------|
 | DB 읽기 API 평균 응답시간 | 18ms |
-| 날씨 API 평균 응답시간 | 235ms |
-| AI 코디 추천 평균 응답시간 (GPT-4o-mini) | 5.6s |
-| AI 쇼핑 추천 평균 응답시간 | 4.4s |
+| 날씨 API 평균 응답시간 (캐시 히트) | 7ms |
+| AI 코디 추천 평균 응답시간 (GPT-4o-mini) | 3.83s |
+| AI 쇼핑 추천 평균 응답시간 | 2.96s |
 | 부하 테스트 (동시 사용자 50명) 평균 응답시간 | 93ms |
 | 처리량 | 43.8 req/s |
 | 오류율 | 0% |
@@ -346,29 +379,26 @@ k6를 사용해 API 응답 시간·부하 테스트를 진행했습니다.
 
 ## 개발 로드맵
 
-### Phase 1 — MVP ✅ (진행 중)
+### Phase 0~3 — 핵심 기능 ✅
 
-- [x] 소셜 로그인 (Google, Kakao OAuth2)
-- [x] JWT 인증 / 토큰 갱신
-- [x] 옷 사진 업로드 + S3 저장
-- [x] OpenAI Vision API 옷 자동 분류
-- [x] 날씨 기반 코디 추천 (GPT-4o + 기상청 API)
-- [x] 코디 저장 + 캘린더
-- [x] 마이페이지
-- [x] FastAPI AI 서버 구현
-- [x] React 프론트엔드 구현
-- [ ] AWS EC2 배포 + GitHub Actions CI/CD
+- [x] 소셜 로그인 (Google, Kakao OAuth2) / JWT 인증 / 토큰 갱신
+- [x] 체형/취향 프로필 설정
+- [x] 오늘의 코디 추천 (날씨 + 상황 + 체형 → AI 텍스트 추천 + 쇼핑몰 검색 제안)
+- [x] 내 옷 진단 (사진 업로드 → OpenAI Vision 점수/피드백/비슷한 스타일 추천)
+- [x] 쇼핑 도우미 (예산 + 상황 → AI 아이템 추천 + 활용법 제시)
+- [x] AWS EC2 배포 + GitHub Actions CI/CD
 
-### Phase 2 — 가상 피팅 (예정)
+### Phase 4 — 성능 개선 ✅ (일부 진행 중)
 
-- [ ] AI 아바타 생성 (Ready Player Me API)
-- [ ] 가상 피팅 (OOTDiffusion)
-- [ ] 브랜드 제휴 입점
+- [x] 인덱스 최적화, CompletableFuture 비동기 처리, Caffeine + Redis 2단계 캐싱, HikariCP·JVM 튜닝
+- [x] JUnit5 + Mockito 단위/통합 테스트 14건
+- [ ] EC2 운영 DB에 구버전 테이블 정리 스크립트(`phase0_cleanup.sql`) 적용
+- [ ] `/api/home/summary`(코디+쇼핑 병렬 추천)를 사용할 Android 홈 화면 구현
 
-### Phase 3 — 커뮤니티 (추후)
+### Phase 5 — 후속 (예정)
 
-- [ ] 코디 공유 피드
-- [ ] 좋아요 / 댓글 / 팔로우
+- [ ] 플레이스토어 등록
+- [ ] 커뮤니티(코디 공유 피드, 좋아요, 댓글)
 
 ---
 

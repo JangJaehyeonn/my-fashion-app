@@ -1,0 +1,12 @@
+[Unit]
+Description=Update DuckDNS record with this instance's current public IP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/duckdns/duckdns.env
+ExecStart=/home/ubuntu/my-fashion-app/infra/duckdns/update-duckdns.sh
+
+[Install]
+WantedBy=multi-user.target
