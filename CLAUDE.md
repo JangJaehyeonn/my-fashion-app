@@ -1354,3 +1354,54 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
 4. `POST /api/home/summary`를 실제로 사용할 Android 홈 화면 설계/구현 여부 결정 (이월)
 5. 플레이스토어 등록 준비 (이월)
 
+---
+
+### 2026-08-04 — 포트폴리오 정리: GitHub 레포 선정, README 2건 보강, Notion 포트폴리오 페이지 개편
+
+**완료한 작업**
+
+- **GitHub 레포 목록 확인 후 포트폴리오용 프로젝트 선정**
+  - `gh` CLI가 없어 GitHub REST API(`/users/{user}/repos`)로 전체 레포 조회
+  - `my-fashion-app`(본 프로젝트)과 `ad-copy-generator`(Spring Boot + Claude API 광고 카피 생성기, 2026-05 작업)를 포트폴리오 대표작으로 선정
+  - `CodyUs`/`HeartVera`/`LCK-News`/`Hotsix_mini_project`는 fork라 제외, `spring-schedule`/`programming_Java`/`sparta`/`helloworld`는 설명 없는 오래된 연습 저장소라 제외
+
+- **`ad-copy-generator` README 보강** (별도 클론 후 반영)
+  - 커밋 로그 확인 결과 초기 커밋 1개뿐(전체를 한 번에 구현) → 함께 있던 `PROGRESS.md`에서 README에 없던 정보 확인
+  - "개발 노트" 섹션 신규 추가: Spring Boot 3.2.x가 EOL로 start.spring.io에서 생성 자체가 안 돼 수동으로 프로젝트를 구성한 사실, Claude API를 별도 SDK 없이 `java.net.http.HttpClient` + Jackson으로 직접 연동한 사실
+  - "알려진 이슈" 섹션 신규 추가 (Spring Boot 3.2 EOL, 3.3.x 업그레이드 권장), 기술 스택 표에 Claude 모델 버전(`claude-haiku-4-5-20251001`)과 SDK 미사용 사실 명시
+  - 로컬 커밋 후 `origin/main`에 push 완료
+
+- **`my-fashion-app` README 보강**
+  - git 히스토리와 CLAUDE.md 개발 일지를 대조해 README에 빠진 내용 확인
+  - "왜 이렇게 설계했나요?" 섹션 신규 추가 — 기존 "옷장 관리 + 가상 피팅" → "AI 스타일리스트" 피봇 배경(사용자가 옷을 일일이 등록해야 하는 구조가 목표 사용자에게 진입장벽이었다는 판단)을 서비스 소개에 명시
+  - 기술 스택 표/아키텍처 다이어그램에 DuckDNS 자동 갱신(systemd) 인프라 반영 (기존엔 코드만 있고 README엔 미반영 상태였음)
+  - "1인 개발 프로젝트" 명시 문구 추가
+  - 로컬 커밋 후 `origin/dev`에 push 완료
+
+- **Notion API로 포트폴리오 페이지 디자인 개편** (`https://app.notion.com/p/9df763c86da24f1faf4cfd20af321ccc`)
+  - Notion internal integration 생성 → 토큰을 사용자가 `NOTION_API_TOKEN` 사용자 환경변수로 직접 등록(대화 로그에 토큰 노출 안 되도록), Claude는 존재 여부만 확인 후 진행
+  - 기존 페이지 블록 구조 전체를 API로 조회해 파악한 뒤 반영:
+    - 주요 섹션 heading에 이모지 아이콘 추가 (Skills/Projects/About me/Experience/How i work/Contact 등)
+    - Skills 카테고리 4개(Frontend/Backend/Database/Tools) heading에 각각 다른 배경색 적용
+    - 의미 없이 쌓여있던 빈 문단 3개 클러스터 2곳을 구분선 1개로 정리
+    - 기존 `CodyUs` 프로젝트에 제목 heading 추가 + 성과(쿼리 11초→0.7초 개선) 콜아웃 신규 삽입
+    - `my-fashion-app`, `ad-copy-generator` 두 프로젝트를 GitHub README 기준으로 정리해 신규 섹션으로 추가 (설명+링크, 피봇/개발노트 콜아웃, 기술스택·아키텍처·핵심기능 토글, 성능 콜아웃, 트러블슈팅 하이라이트 토글)
+  - **트러블슈팅 1 — 한글 텍스트 인코딩 깨짐**: Windows PowerShell 5.1이 BOM 없는 UTF-8 `.ps1` 스크립트 파일을 시스템 ANSI(cp949)로 잘못 해석해, 첫 heading 업데이트 배치가 깨진 문자로 Notion에 저장됨 → 스크립트 파일을 UTF-8 BOM 포함으로 재저장 후 재실행해 해결. 이후 모든 Notion 스크립트에 동일 패턴(재저장 후 실행) 적용
+  - **트러블슈팅 2 — 프로젝트 섹션 위치 오류**: `ad-copy-generator` 섹션을 추가할 때 "append children" API 응답에서 방금 생성한 마지막 블록 ID를 잘못 캡처해(원인 불명, 우연히 페이지 맨 끝의 기존 블록 ID와 동일한 값을 가리킴), 의도한 위치(`my-fashion-app` 섹션 바로 뒤)가 아니라 페이지 맨 끝(Contact 섹션 뒤)에 삽입됨 → 페이지를 재조회해 올바른 anchor 블록 ID를 직접 확인한 뒤, 잘못 삽입된 8개 블록을 삭제하고 정확한 위치에 재삽입해 수정
+  - `my-fashion-app` 섹션에 "스크린샷" 토글 신규 추가, GitHub raw URL(`docs/screenshots/Screenshot_2026072*.png`)로 이미지 5장(로그인/코디 추천/진단/쇼핑/마이페이지) 임베드
+  - `my-fashion-app` README의 스크린샷 섹션(`docs/screenshots/login.png` 등)은 이미 실제 파일이 존재하고 방금 추가한 `Screenshot_*.png`와 md5 해시까지 동일함을 확인 → 별도 수정 불필요로 판단, 수정하지 않음
+
+**현재 전체 구현 상태**
+- 포트폴리오용 GitHub 레포 선정: **완료** (`my-fashion-app`, `ad-copy-generator`)
+- `ad-copy-generator` README 보강: **완료 + push 완료**
+- `my-fashion-app` README 보강 (피봇 스토리/DuckDNS/1인 개발 명시): **완료 + push 완료**
+- Notion 포트폴리오 페이지 개편 (아이콘/색상/구분선 정리 + 프로젝트 2건 추가 + 스크린샷 5장): **완료**
+
+**다음에 할 작업**
+1. Notion 포트폴리오 페이지 사용자가 직접 열어 최종 눈으로 확인 (특히 새로 삽입한 두 프로젝트 섹션의 위치·이미지 렌더링)
+2. EC2에 배포 후 `docker stats`로 spring-boot 컨테이너 실제 메모리 사용량 확인, 필요시 `-Xmx` 재조정 (이월)
+3. `docker compose build ai-server && docker compose up -d ai-server`로 재배포 후 gpt-4o-mini 정상 동작 확인 (이월)
+4. 사용자가 EC2에 직접 SSH 접속해 `phase0_cleanup.sql` 백업+적용 결과 회신 (이월)
+5. `POST /api/home/summary`를 실제로 사용할 Android 홈 화면 설계/구현 여부 결정 (이월)
+6. 플레이스토어 등록 준비 (이월)
+
