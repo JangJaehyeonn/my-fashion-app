@@ -13,6 +13,10 @@ MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-5")
 MAX_DIFF_CHARS = 60000
 COMMENT_MARKER = "<!-- claude-pr-review -->"
 MAX_COMMENT_CHARS = 65000  # GitHub 이슈 코멘트 65,536자 제한에 여유를 둠
+# 기본 GITHUB_TOKEN으로 남긴 코멘트는 항상 이 login으로 표시된다. 마커 문자열만으로 갱신
+# 대상을 찾으면 공개 저장소에서 아무나 이 문자열이 담긴 코멘트를 달아 하이재킹할 수 있으므로
+# 작성자 login도 함께 검증한다. 토큰을 PAT로 바꾸면 이 값도 같이 바꿔야 한다.
+EXPECTED_COMMENTER_LOGIN = os.environ.get("EXPECTED_COMMENTER_LOGIN", "github-actions[bot]")
 
 
 def _exact_name_patterns(*names: str) -> tuple[str, ...]:
@@ -50,19 +54,24 @@ EXCLUDE_PATTERNS = (
 )
 
 
-def run_git_diff(base_sha: str, head_sha: str) -> str:
+def run_git_diff(base_sha: str, head_sha: str, base_ref: str, pr_number: str) -> str:
     # 파일 목록을 먼저 뽑아 필터링하지 않고 pathspec exclude로 한 번에 처리한다.
     # 이렇게 하면 (1) 비ASCII 파일명 quoting 문제, (2) 변경 파일이 매우 많을 때의
     # argv 길이 제한(E2BIG) 문제를 모두 피할 수 있다.
-    pathspecs = [f":(exclude){pattern}" for pattern in EXCLUDE_PATTERNS]
+    pathspecs = [f":(exclude,icase){pattern}" for pattern in EXCLUDE_PATTERNS]
     diff_args = ["git", "diff", f"{base_sha}...{head_sha}", "--", ".", *pathspecs]
     run_kwargs = dict(capture_output=True, text=True, encoding="utf-8", errors="replace")
 
     result = subprocess.run(diff_args, **run_kwargs)
-    if result.returncode != 0 and "bad object" in result.stderr:
-        # base/head 커밋이 로컬에 없는 드문 경우(체크아웃 시점과 커밋 사이 race 등)
-        # 명시적으로 fetch한 뒤 한 번만 재시도한다.
-        subprocess.run(["git", "fetch", "origin", base_sha, head_sha], capture_output=True, text=True)
+    if result.returncode != 0:
+        # base/head 커밋이 로컬에 없는 드문 경우(체크아웃 시점과 커밋 사이 race 등).
+        # 임의 SHA로 직접 fetch하는 대신, GitHub가 항상 보장하는 이름 있는 ref
+        # (base 브랜치 tip, PR head)로 fetch해서 한 번만 재시도한다.
+        subprocess.run(
+            ["git", "fetch", "origin", base_ref, f"refs/pull/{pr_number}/head"],
+            capture_output=True,
+            text=True,
+        )
         result = subprocess.run(diff_args, **run_kwargs)
 
     if result.returncode != 0:
@@ -137,7 +146,8 @@ def find_existing_comment(repo: str, pr_number: str, headers: dict) -> int | Non
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         for comment in resp.json():
-            if COMMENT_MARKER in comment.get("body", ""):
+            author = comment.get("user", {}).get("login")
+            if author == EXPECTED_COMMENTER_LOGIN and COMMENT_MARKER in comment.get("body", ""):
                 return comment["id"]
         # Link 헤더의 rel="next"를 따라가 100개 넘는 코멘트도 전부 훑는다.
         # 다음 페이지 URL엔 쿼리스트링이 이미 포함되어 있으므로 params는 첫 요청에만 필요.
@@ -171,11 +181,12 @@ def post_or_update_comment(repo: str, pr_number: str, token: str, body: str) -> 
 def main() -> None:
     base_sha = os.environ["BASE_SHA"]
     head_sha = os.environ["HEAD_SHA"]
+    base_ref = os.environ["BASE_REF"]
     repo = os.environ["REPO"]
     pr_number = os.environ["PR_NUMBER"]
     github_token = os.environ["GITHUB_TOKEN"]
 
-    diff = run_git_diff(base_sha, head_sha)
+    diff = run_git_diff(base_sha, head_sha, base_ref, pr_number)
     if not diff.strip():
         print("리뷰 대상 변경 사항 없음 — 스킵")
         return
