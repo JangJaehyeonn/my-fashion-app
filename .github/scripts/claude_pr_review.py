@@ -12,6 +12,7 @@ import requests
 MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-5")
 MAX_DIFF_CHARS = 60000
 COMMENT_MARKER = "<!-- claude-pr-review -->"
+MAX_COMMENT_CHARS = 65000  # GitHub 이슈 코멘트 65,536자 제한에 여유를 둠
 
 
 def _exact_name_patterns(*names: str) -> tuple[str, ...]:
@@ -54,11 +55,16 @@ def run_git_diff(base_sha: str, head_sha: str) -> str:
     # 이렇게 하면 (1) 비ASCII 파일명 quoting 문제, (2) 변경 파일이 매우 많을 때의
     # argv 길이 제한(E2BIG) 문제를 모두 피할 수 있다.
     pathspecs = [f":(exclude){pattern}" for pattern in EXCLUDE_PATTERNS]
-    result = subprocess.run(
-        ["git", "diff", f"{base_sha}...{head_sha}", "--", ".", *pathspecs],
-        capture_output=True,
-        text=True,
-    )
+    diff_args = ["git", "diff", f"{base_sha}...{head_sha}", "--", ".", *pathspecs]
+    run_kwargs = dict(capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    result = subprocess.run(diff_args, **run_kwargs)
+    if result.returncode != 0 and "bad object" in result.stderr:
+        # base/head 커밋이 로컬에 없는 드문 경우(체크아웃 시점과 커밋 사이 race 등)
+        # 명시적으로 fetch한 뒤 한 번만 재시도한다.
+        subprocess.run(["git", "fetch", "origin", base_sha, head_sha], capture_output=True, text=True)
+        result = subprocess.run(diff_args, **run_kwargs)
+
     if result.returncode != 0:
         raise RuntimeError(
             f"git diff 실패 (exit {result.returncode}): {result.stderr.strip()}"
@@ -116,7 +122,12 @@ def request_review(diff: str) -> str:
         return "Claude가 이 diff에 대한 리뷰 생성을 거부했습니다 (안전 정책)."
 
     text_blocks = [block.text for block in response.content if block.type == "text"]
-    return "\n".join(text_blocks).strip() or "리뷰 응답이 비어 있습니다."
+    review = "\n".join(text_blocks).strip() or "리뷰 응답이 비어 있습니다."
+
+    if response.stop_reason == "max_tokens":
+        review += "\n\n_(주의: 응답이 토큰 한도에 걸려 리뷰가 중간에 잘렸을 수 있습니다.)_"
+
+    return review
 
 
 def find_existing_comment(repo: str, pr_number: str, headers: dict) -> int | None:
@@ -140,10 +151,15 @@ def post_or_update_comment(repo: str, pr_number: str, token: str, body: str) -> 
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
     }
-    full_body = f"{COMMENT_MARKER}\n## 🤖 Claude 코드 리뷰\n\n{body}"
+    footer = "\n\n---\n_이 리뷰는 Claude API가 자동 생성했습니다. 참고용으로만 활용하세요._"
+    full_body = f"{COMMENT_MARKER}\n## 🤖 Claude 코드 리뷰\n\n{body}{footer}"
+    if len(full_body) > MAX_COMMENT_CHARS:
+        # GitHub 코멘트 65,536자 제한 초과 시 422로 job 전체가 실패하는 것을 방지
+        cut = MAX_COMMENT_CHARS - len(footer) - 50
+        full_body = f"{COMMENT_MARKER}\n## 🤖 Claude 코드 리뷰\n\n{body[:cut]}\n\n...(길이 제한으로 잘림){footer}"
 
     existing_id = find_existing_comment(repo, pr_number, headers)
-    if existing_id:
+    if existing_id is not None:
         url = f"https://api.github.com/repos/{repo}/issues/comments/{existing_id}"
         resp = requests.patch(url, headers=headers, json={"body": full_body}, timeout=30)
     else:
