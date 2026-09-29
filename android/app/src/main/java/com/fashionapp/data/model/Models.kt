@@ -48,7 +48,7 @@ enum class PreferredStyle(val label: String) {
 
 enum class Situation(val label: String) {
     WORK("출근"), DATE("데이트"), EXERCISE("운동"),
-    TRAVEL("여행"), INTERVIEW("면접"), DAILY("일상")
+    TRAVEL("여행"), INTERVIEW("면접"), DAILY("데일리")
 }
 
 // Weather

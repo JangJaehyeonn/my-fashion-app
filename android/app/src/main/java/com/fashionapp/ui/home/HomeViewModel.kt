@@ -1,9 +1,8 @@
-package com.fashionapp.ui.recommend
+package com.fashionapp.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.model.Situation
-import com.fashionapp.data.model.SituationOutfitSuggestion
 import com.fashionapp.data.model.SituationRecommendRequest
 import com.fashionapp.data.model.Weather
 import com.fashionapp.data.repository.OutfitRepository
@@ -14,7 +13,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class RecommendViewModel @Inject constructor(
+class HomeViewModel @Inject constructor(
     private val outfitRepository: OutfitRepository
 ) : ViewModel() {
 
@@ -27,14 +26,14 @@ class RecommendViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
-    private val _selectedSituation = MutableStateFlow(Situation.WORK)
+    private val _selectedSituation = MutableStateFlow(Situation.DAILY)
     val selectedSituation = _selectedSituation.asStateFlow()
 
-    private val _situationRecommendations = MutableStateFlow<List<SituationOutfitSuggestion>>(emptyList())
-    val situationRecommendations = _situationRecommendations.asStateFlow()
+    private val _looks = MutableStateFlow<List<LookCard>>(emptyList())
+    val looks = _looks.asStateFlow()
 
-    private val _isSituationLoading = MutableStateFlow(false)
-    val isSituationLoading = _isSituationLoading.asStateFlow()
+    private val _isRecommending = MutableStateFlow(false)
+    val isRecommending = _isRecommending.asStateFlow()
 
     init {
         loadWeather()
@@ -54,15 +53,15 @@ class RecommendViewModel @Inject constructor(
         _selectedSituation.value = situation
     }
 
-    fun recommendBySituation() {
+    fun recommend() {
         val w = _weather.value ?: return
         viewModelScope.launch {
-            _isSituationLoading.value = true
+            _isRecommending.value = true
             outfitRepository.recommendBySituation(
                 SituationRecommendRequest(w.temperature, w.condition, _selectedSituation.value.name)
-            ).onSuccess { _situationRecommendations.value = it.outfits }
-                .onFailure { _errorMessage.value = "상황 기반 추천에 실패했습니다." }
-            _isSituationLoading.value = false
+            ).onSuccess { response -> _looks.value = response.outfits.map { it.toLookCard() } }
+                .onFailure { _errorMessage.value = "코디 추천에 실패했습니다." }
+            _isRecommending.value = false
         }
     }
 

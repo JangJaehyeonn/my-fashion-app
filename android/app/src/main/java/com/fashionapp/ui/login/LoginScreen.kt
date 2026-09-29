@@ -41,7 +41,7 @@ fun LoginScreen() {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "AI 스타일리스트",
+            text = "Wearon",
             fontSize = 32.sp,
             fontWeight = FontWeight.ExtraBold
         )
