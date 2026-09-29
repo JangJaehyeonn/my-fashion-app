@@ -116,6 +116,10 @@ fun VtonScreen(
         }
     }
 
+    val personGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { viewModel.setPersonImage(it) }
+    }
+
     val garmentGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { viewModel.setGarmentImage(it) }
     }
@@ -155,7 +159,8 @@ fun VtonScreen(
             ImagePickerSlot(
                 title = "전신 사진",
                 imageUri = personImageUri,
-                onCameraClick = { requestCamera(CameraTarget.PERSON) }
+                onCameraClick = { requestCamera(CameraTarget.PERSON) },
+                onGalleryClick = { personGalleryLauncher.launch("image/*") }
             )
 
             ImagePickerSlot(
@@ -204,7 +209,7 @@ private fun ImagePickerSlot(
     title: String,
     imageUri: Uri?,
     onCameraClick: () -> Unit,
-    onGalleryClick: (() -> Unit)? = null
+    onGalleryClick: () -> Unit
 ) {
     Column {
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -233,10 +238,8 @@ private fun ImagePickerSlot(
             OutlinedButton(onClick = onCameraClick, modifier = Modifier.weight(1f)) {
                 Text("📷  촬영")
             }
-            if (onGalleryClick != null) {
-                OutlinedButton(onClick = onGalleryClick, modifier = Modifier.weight(1f)) {
-                    Text("🖼️  갤러리")
-                }
+            OutlinedButton(onClick = onGalleryClick, modifier = Modifier.weight(1f)) {
+                Text("🖼️  갤러리")
             }
         }
     }
