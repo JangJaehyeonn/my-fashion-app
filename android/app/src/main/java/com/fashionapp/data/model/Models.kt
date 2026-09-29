@@ -117,3 +117,8 @@ data class ShoppingRecommendResponse(
     val totalEstimatedPrice: Int,
     val usageTip: String
 )
+
+// Virtual try-on
+data class VtonResult(
+    val resultImageUrl: String
+)

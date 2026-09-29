@@ -1,5 +1,6 @@
 package com.fashionapp.ui.navigation
 
+import android.net.Uri
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -9,10 +10,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.fashionapp.ui.common.BottomNavBar
 import com.fashionapp.ui.diagnosis.DiagnosisScreen
 import com.fashionapp.ui.login.LoginScreen
@@ -20,6 +23,7 @@ import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.recommend.RecommendScreen
 import com.fashionapp.ui.shopping.ShoppingScreen
+import com.fashionapp.ui.vton.VtonScreen
 
 object Route {
     const val LOGIN = "login"
@@ -28,6 +32,9 @@ object Route {
     const val SHOPPING = "shopping"
     const val MYPAGE = "mypage"
     const val BODY_PROFILE = "body_profile"
+    const val VTON = "vton/{garmentDesc}"
+
+    fun vton(garmentDesc: String) = "vton/${Uri.encode(garmentDesc)}"
 }
 
 @Composable
@@ -71,7 +78,17 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.LOGIN) { LoginScreen() }
                 composable(Route.RECOMMEND) { RecommendScreen() }
                 composable(Route.DIAGNOSIS) { DiagnosisScreen() }
-                composable(Route.SHOPPING) { ShoppingScreen() }
+                composable(Route.SHOPPING) {
+                    ShoppingScreen(
+                        onVtonClick = { garmentDesc -> navController.navigate(Route.vton(garmentDesc)) }
+                    )
+                }
+                composable(
+                    route = Route.VTON,
+                    arguments = listOf(navArgument("garmentDesc") { type = NavType.StringType })
+                ) {
+                    VtonScreen(onBack = { navController.popBackStack() })
+                }
                 composable(Route.MYPAGE) {
                     MyPageScreen(
                         onLogout = {

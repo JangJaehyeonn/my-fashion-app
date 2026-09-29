@@ -44,7 +44,10 @@ import com.fashionapp.data.model.Situation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShoppingScreen(viewModel: ShoppingViewModel = hiltViewModel()) {
+fun ShoppingScreen(
+    viewModel: ShoppingViewModel = hiltViewModel(),
+    onVtonClick: (String) -> Unit = {}
+) {
     val budgetText by viewModel.budgetText.collectAsState()
     val selectedSituation by viewModel.selectedSituation.collectAsState()
     val result by viewModel.result.collectAsState()
@@ -145,7 +148,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = hiltViewModel()) {
                 }
 
                 items(response.items) { suggestion ->
-                    ShoppingItemCard(suggestion)
+                    ShoppingItemCard(suggestion, onVtonClick = { onVtonClick(suggestion.item) })
                 }
             }
         }
@@ -153,7 +156,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun ShoppingItemCard(suggestion: ShoppingItemSuggestion) {
+private fun ShoppingItemCard(suggestion: ShoppingItemSuggestion, onVtonClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -171,6 +174,13 @@ private fun ShoppingItemCard(suggestion: ShoppingItemSuggestion) {
                 fontSize = 13.sp,
                 color = Color(0xFF1A73E8)
             )
+            androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.OutlinedButton(
+                onClick = onVtonClick,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("👕  가상 피팅")
+            }
         }
     }
 }

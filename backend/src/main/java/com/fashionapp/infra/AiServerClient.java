@@ -72,6 +72,42 @@ public class AiServerClient {
         }, aiServerExecutor);
     }
 
+    public CompletableFuture<AiVtonResponse> virtualTryOn(MultipartFile personImage, MultipartFile garmentImage, String garmentDesc) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                MultipartBodyBuilder builder = new MultipartBodyBuilder();
+                addImagePart(builder, "person_image", personImage);
+                addImagePart(builder, "garment_image", garmentImage);
+                builder.part("garment_desc", garmentDesc != null ? garmentDesc : "");
+
+                return restClient.post()
+                        .uri(aiServerUrl + "/ai/vton")
+                        .contentType(MediaType.MULTIPART_FORM_DATA)
+                        .body(builder.build())
+                        .retrieve()
+                        .body(AiVtonResponse.class);
+
+            } catch (IOException | RestClientException e) {
+                log.error("AI server VTON failed: {}", e.getMessage());
+                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+            }
+        }, aiServerExecutor);
+    }
+
+    private void addImagePart(MultipartBodyBuilder builder, String name, MultipartFile file) throws IOException {
+        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";
+        String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+
+        ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
+            @Override
+            public String getFilename() { return filename; }
+        };
+
+        builder.part(name, resource)
+                .filename(filename)
+                .contentType(MediaType.parseMediaType(contentType));
+    }
+
     public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {
         try {
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";

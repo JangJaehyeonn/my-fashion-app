@@ -61,6 +61,23 @@ public class S3Uploader {
         return String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key);
     }
 
+    public String uploadBytes(byte[] bytes, String contentType, String dirName) {
+        String extension = "image/png".equals(contentType) ? ".png" : ".jpg";
+        String key = dirName + "/" + UUID.randomUUID() + extension;
+
+        s3Client.putObject(
+                PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(key)
+                        .contentType(contentType)
+                        .contentLength((long) bytes.length)
+                        .build(),
+                RequestBody.fromBytes(bytes)
+        );
+
+        return String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key);
+    }
+
     public String generatePresignedUrl(String imageUrl) {
         String key = extractKey(imageUrl);
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()

@@ -45,7 +45,7 @@ OpenAI Vision 연동 기반, Spring Boot 백엔드 구조, EC2/Docker/CI·CD 인
 | 인프라 | AWS EC2 + Docker + GitHub Actions |
 | 개발 도구 | Claude Code |
 | 인증 | 소셜 로그인 (Google OAuth2, Kakao OAuth2) |
-| AI API | OpenAI Vision API (코디 사진 진단, gpt-4o), OpenAI GPT-4o-mini (텍스트 — 코디/쇼핑 추천 및 검색 제안 생성), 기상청 API (날씨) |
+| AI API | OpenAI Vision API (코디 사진 진단, gpt-4o), OpenAI GPT-4o-mini (텍스트 — 코디/쇼핑 추천 및 검색 제안 생성), Hugging Face IDM-VTON Space API (가상 피팅, gradio_client), 기상청 API (날씨) |
 
 ---
 
@@ -66,6 +66,7 @@ OpenAI Vision 연동 기반, Spring Boot 백엔드 구조, EC2/Docker/CI·CD 인
 [외부 API]
   - OpenAI Vision API (코디 사진 진단: 점수 + 개선 제안)
   - OpenAI (텍스트) (오늘의 코디 추천 + 쇼핑몰 검색 제안, 쇼핑 도우미 아이템 추천)
+  - Hugging Face IDM-VTON Space (가상 피팅: 전신 사진 + 옷 사진 → 합성 결과 이미지)
   - 기상청 API (날씨)
 
 [Redis] ← Spring Boot (세션, 날씨 캐싱)
@@ -146,7 +147,8 @@ project-root/
 │           ├── mypage/        # 프로필, 체형/취향 설정
 │           ├── recommend/     # 오늘의 코디 추천 (날씨+상황+체형 → 텍스트+쇼핑몰 검색 제안)
 │           ├── diagnosis/     # 내 옷 진단 (사진 → 점수+피드백) — 신규
-│           └── shopping/      # 쇼핑 도우미 (예산+상황+체형 → 상품 추천) — 신규
+│           ├── shopping/      # 쇼핑 도우미 (예산+상황+체형 → 상품 추천) — 신규
+│           └── vton/          # 가상 피팅 (전신 사진 + 옷 사진 → 합성 결과) — 2026-09-04 추가
 │
 ├── backend/                   # Spring Boot
 │   └── src/main/java/com/fashionapp/
@@ -155,21 +157,22 @@ project-root/
 │       │   ├── weather/       # 날씨 프록시
 │       │   ├── recommend/     # 오늘의 코디 추천 (기존 outfit 도메인에서 정리)
 │       │   ├── diagnosis/     # 내 옷 진단 — 신규
-│       │   └── shopping/      # 쇼핑 도우미 — 신규
+│       │   ├── shopping/      # 쇼핑 도우미 — 신규
+│       │   └── vton/          # 가상 피팅 (프록시 전용, 영속화 없음) — 2026-09-04 추가
 │       ├── global/
 │       │   ├── config/        # Security, CORS 설정
 │       │   ├── jwt/           # JWT 토큰 처리
 │       │   └── exception/     # 글로벌 에러 핸들링
 │       └── infra/
-│           ├── S3Uploader.java        # 진단 사진 임시 저장용으로 존속
+│           ├── S3Uploader.java        # 진단 사진 + 가상 피팅 결과 이미지 저장용
 │           └── AiServerClient.java
 │
 ├── ai-server/                 # FastAPI (쇼핑몰 검색 제안도 외부 API 없이 OpenAI 프롬프트로 생성)
 │   └── app/
-│       ├── routers/           # diagnosis.py(신규), recommend.py, shopping.py(신규), weather.py
-│       ├── services/          # weather_service.py, recommend_service.py, diagnosis_service.py(신규), shopping_service.py(신규)
-│       ├── schemas/            # Pydantic 모델 (outfit.py, diagnosis.py(신규), shopping.py(신규))
-│       ├── core/              # config.py (환경변수 — OPENAI_API_KEY, WEATHER_API_KEY)
+│       ├── routers/           # diagnosis.py(신규), recommend.py, shopping.py(신규), vton.py(신규), weather.py
+│       ├── services/          # weather_service.py, recommend_service.py, diagnosis_service.py(신규), shopping_service.py(신규), vton_service.py(신규, gradio_client로 HF Space 호출)
+│       ├── schemas/            # Pydantic 모델 (outfit.py, diagnosis.py(신규), shopping.py(신규), vton.py(신규))
+│       ├── core/              # config.py (환경변수 — OPENAI_API_KEY, WEATHER_API_KEY, HF_API_TOKEN)
 │       └── main.py
 │
 ├── .github/workflows/         # GitHub Actions CI/CD
@@ -217,12 +220,18 @@ project-root/
 |--------|----------|------|
 | POST | /api/shopping/recommend 🔒 | 예산 + 상황 + 체형/취향 → AI 아이템 텍스트 추천 + 쇼핑몰 검색 제안 + 활용법("이것만 사면 N가지 코디") |
 
+### Vton (가상 피팅) — 2026-09-04 추가
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | /api/vton 🔒 | 전신 사진 + 옷 사진(멀티파트) + 옷 설명(쇼핑 추천 아이템명) → Hugging Face IDM-VTON으로 합성한 결과 이미지 URL. 영속화 없음(요청마다 실시간 생성, S3에는 결과 이미지만 저장해 presigned URL로 응답) |
+
 ### AI 서버 (FastAPI — Spring Boot 내부 호출)
 | Method | Endpoint | 설명 |
 |--------|----------|------|
 | POST | /ai/recommend/today | 날씨 + 상황 + 체형 프로필 → 코디 텍스트 추천 + 쇼핑몰 검색 제안 |
 | POST | /ai/diagnosis | 코디 이미지 → 점수 + 개선 제안 (OpenAI Vision) |
 | POST | /ai/shopping/recommend | 예산 + 상황 + 체형 → AI 아이템 조합 추천 + 쇼핑몰 검색 제안 텍스트 생성 |
+| POST | /ai/vton | 전신 사진 + 옷 사진 + 옷 설명 → Hugging Face IDM-VTON Space(`gradio_client`, `/tryon`) 호출 후 결과 이미지(base64) 반환 |
 | GET | /ai/weather | 현재 날씨 조회 (기상청 API) |
 
 > 🔒 = JWT 인증 필요
@@ -236,7 +245,8 @@ project-root/
 | 로그인 | 구글 / 카카오 소셜 로그인 |
 | 오늘의 코디 | 날씨 카드 + 상황 선택 + AI 코디 추천 텍스트 + 쇼핑몰 검색 제안(무신사/지그재그 등) |
 | 내 옷 진단 | 코디 사진 촬영/업로드 + AI 점수(0~100) + 개선 제안 + 비슷한 스타일 |
-| 쇼핑 도우미 | 예산 + 상황 입력 + AI 추천 아이템 + 쇼핑몰 검색 제안 + 활용법("이것만 사면 N가지 코디") |
+| 쇼핑 도우미 | 예산 + 상황 입력 + AI 추천 아이템 + 쇼핑몰 검색 제안 + 활용법("이것만 사면 N가지 코디") + 아이템별 "가상 피팅" 버튼(→ 가상 피팅 화면으로 이동) |
+| 가상 피팅 (신규, 하단 탭 아님 — 쇼핑 도우미에서 진입) | 선택한 아이템명 표시 + 전신 사진(카메라 촬영) + 옷 사진(카메라 촬영/갤러리) + IDM-VTON 합성 결과 이미지 |
 | 마이페이지 | 프로필 + 체형/취향 설정 + 진단 이력 + 설정 메뉴 |
 
 > 기존 `옷장`, `코디 캘린더` 화면은 제거.
@@ -1353,4 +1363,73 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
 3. 사용자가 EC2에 직접 SSH 접속해 `phase0_cleanup.sql` 백업+적용 결과 회신 (이월)
 4. `POST /api/home/summary`를 실제로 사용할 Android 홈 화면 설계/구현 여부 결정 (이월)
 5. 플레이스토어 등록 준비 (이월)
+
+---
+
+### 2026-09-04 — 쇼핑 도우미에 가상 피팅(VTON) 기능 신규 추가
+
+**배경**: `vton-test/`에서 로컬 IDM-VTON 파이프라인을 Colab으로 직접 실행해보던 실험(2026-09-02~04)과는
+별개로, 이번엔 실서비스 쇼핑 도우미 화면에 "선택한 아이템으로 가상 피팅해보기" 기능을 정식으로 추가.
+로컬 모델을 서버에 직접 얹는 대신 **Hugging Face Space(`yisol/IDM-VTON`)를 `gradio_client`로 호출하는
+방식**을 택함 — GPU 인프라를 직접 운영할 필요가 없고, vton-test에서 이미 실제 파라미터/응답 형식을 조사해둔 적이 있어 리스크가 낮다고 판단.
+
+**설계 결정 — "옷 사진"을 어디서 가져올지**: 쇼핑 도우미는 실제 상품 이미지 없이 AI 텍스트 추천(품목명/검색
+제안)만 제공하는 구조라, IDM-VTON이 요구하는 "옷 이미지"가 원래 없음. 사용자에게 확인한 결과, **사용자가
+옷 사진도 직접 촬영/업로드**하는 방식으로 결정 (AI 이미지 생성이나 실제 상품 이미지 API 연동은 채택 안 함 —
+후자는 2026-07-26에 이미 폐기했던 방향이라 다시 되돌리지 않기로 함). 쇼핑 추천의 아이템명(`item` 필드)은
+IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 보조.
+
+**완료한 작업**
+
+- **AI 서버 — `routers/vton.py`, `services/vton_service.py`, `schemas/vton.py` 신규**
+  - `gradio_client.Client(hf_vton_space_id, hf_token=...)`로 `yisol/IDM-VTON` Space의 `/tryon` 엔드포인트 호출
+    (`dict={"background":..., "layers":[], "composite":None}`, `garm_img`, `garment_des`, `is_checked=True`,
+    `is_checked_crop=False`, `denoise_steps=30`, `seed=42`) — 파라미터 형식은 공식 문서에 없어 웹 검색으로 확인
+    (Hugging Face 블로그의 실제 호출 예제 기준)
+  - `gradio_client`는 동기(블로킹) 라이브러리라 `asyncio.to_thread`로 감싸 이벤트 루프를 막지 않도록 함,
+    `Client` 인스턴스는 최초 호출 시 지연 생성(모듈 임포트 시점에 네트워크 핸드셰이크가 걸리는 것 방지)
+  - `core/config.py`에 `hf_api_token`(필수), `hf_vton_space_id`(기본값 `yisol/IDM-VTON`, 선택) 추가
+  - `main.py`에 라우터 등록, `.env.example`에 `HF_API_TOKEN` 플레이스홀더 추가 (실제 `.env`는 사용자가 직접 등록하기로 함 — 건드리지 않음)
+  - `requirements.txt`에 `gradio_client` 추가
+
+- **백엔드 — `domain/vton` 신규 (영속화 없는 프록시 전용 도메인, `shopping` 도메인과 동일한 패턴)**
+  - `VtonController`(`POST /api/vton`, 멀티파트: personImage/garmentImage/garmentDesc) → `VtonService` →
+    `AiServerClient.virtualTryOn()`(`CompletableFuture`, `diagnoseOutfit`의 2-파일 버전 + `shopping`의 비동기 패턴 결합)
+  - AI 서버가 base64로 반환한 결과 이미지를 `S3Uploader.uploadBytes()`(신규 오버로드 — 기존 `upload()`는
+    `MultipartFile` 전용이라 AI 생성 바이트 배열을 못 받아서 추가)로 S3에 올리고 presigned URL로 응답
+  - 사용자가 촬영한 원본 전신/옷 사진 자체는 S3에 저장하지 않고 AI 서버로만 전달 후 폐기 (진단 사진과 달리
+    이력 조회 요구사항이 없고, 사람 전신 사진이라는 민감도를 고려해 저장 범위를 최소화)
+  - 신규 `ErrorCode` 불필요 — 기존 `USER_NOT_FOUND`/`AI_SERVER_ERROR` 재사용
+
+- **Android — 카메라 촬영 기능 자체가 이 세션 전까지 앱에 전혀 없었음 (기존엔 진단 화면도 갤러리 선택만 지원)**
+  - `AndroidManifest.xml`에 `CAMERA` 권한 + `FileProvider` provider 신규 선언 (`res/xml/file_paths.xml` 추가)
+  - `ui/vton/VtonScreen.kt` — `ActivityResultContracts.RequestPermission()`(런타임 카메라 권한) +
+    `ActivityResultContracts.TakePicture()`(전신 사진은 촬영 전용) + `ActivityResultContracts.GetContent()`
+    (옷 사진은 촬영/갤러리 중 선택 가능) 조합으로 신규 구현
+  - `ui/shopping/ShoppingScreen.kt`의 아이템 카드마다 "가상 피팅" 버튼 추가 → `Navigation.kt`의
+    `Route.vton(garmentDesc)`로 아이템명을 인코딩해 네비게이션 인자로 전달, `VtonViewModel`이
+    `SavedStateHandle`로 디코딩해 초기 표시 + `garment_desc`로 재사용
+  - `VtonApi`/`VtonRepository`/`AppModule.provideVtonApi` 추가 (기존 `DiagnosisApi`의 멀티파트 패턴 재사용)
+
+**트러블슈팅 — `Navigation.kt` vs `AppNavigation.kt` 재확인**
+- 코드 조사를 맡긴 서브에이전트가 "실제로는 `AppNavigation.kt`에 Route/NavHost가 있고 `Navigation.kt`에
+  `MainViewModel`이 있다"(2026-07-26 노트와 반대)고 보고했으나, 직접 두 파일을 다시 읽어 확인한 결과
+  **2026-07-26 노트가 맞았음** — `Navigation.kt` = `Route` + `AppNavigation`(NavHost), `AppNavigation.kt` =
+  `MainViewModel`/`NavEvent`. 서브에이전트 보고를 그대로 믿지 않고 실제 파일로 재검증한 덕에 오작업을 피함.
+  ⚠️ 이후에도 이 폴더를 건드릴 땐 반드시 파일을 직접 열어 확인할 것 (파일명이 내용과 반대로 매칭된 상태가
+  여러 세션째 지속되고 있음).
+
+**미검증 항목 (다음에 확인 필요)**
+- 백엔드/AI 서버/Android 전부 코드만 작성 — 이번 세션에서 컴파일 검증, Docker 재빌드, 실제 HF Space 호출
+  테스트는 진행하지 않음 (다음 실행 시 `./gradlew compileJava`, `gradle compileDebugKotlin`,
+  `docker compose build ai-server && docker compose up -d ai-server` 필요)
+- HF Space `yisol/IDM-VTON`은 무료 공개 Space라 대기열(큐)이 걸릴 수 있고, Space 소유자가 내리거나 API
+  시그니처를 바꾸면 깨질 수 있음 — 실제 호출 시 `/tryon` 파라미터가 여전히 유효한지 1차 확인 필요
+  (vton-test에서 검증한 로컬 파이프라인과는 다른 경로이므로 별개로 검증해야 함)
+- `HF_API_TOKEN`을 사용자가 실제 `.env`에 등록하는 작업은 이 세션 밖에서 진행하기로 함
+
+**다음에 할 작업**
+1. 백엔드/AI서버/Android 3개 전부 빌드 검증 (컴파일 + 에뮬레이터 실제 탭 조작 E2E)
+2. `HF_API_TOKEN` 등록 후 실제 HF Space 호출로 가상 피팅 결과 이미지 확인
+3. (이월 항목들은 위 2026-07-31 항목과 동일)
 
