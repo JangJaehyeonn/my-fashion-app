@@ -1606,8 +1606,20 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - `LongRunningTimeoutInterceptor`로 `/api/vton`만 read 180초/write 60초 (다른 API는 10초 유지 — 서버가 멈췄을 때 빨리 실패하도록)
 - EC2 `nginx/nginx.conf`도 기본 `proxy_read_timeout` 60초라 `location /api/vton`만 180초로 추가 (`nginx -t` 통과)
 
+**커밋/배포 (피팅 탭)**
+- `a5ff97b` 피팅 탭 + VTON 타임아웃 수정 + nginx 설정을 `origin/dev`에 push
+- ⚠️ **EC2 배포는 두 번(913a726, a5ff97b) 모두 실패** — `dial tcp 3.34.48.114:22: i/o timeout`. 코드 문제가 아니라
+  **과금 때문에 EC2 인스턴스를 꺼둔 상태**(사용자 결정, 2026-09-30~). 꺼져 있는 동안 dev push 배포 실패는 정상
+- EC2를 다시 켜면: GitHub Actions에서 최근 실패한 "Deploy to EC2" run을 Re-run(`gh run rerun 36679757349`) → 최신 dev가
+  한 번에 반영됨. 퍼블릭 IP는 DuckDNS 자동 갱신이 처리하므로 `EC2_HOST` 수정 불필요. `deploy.yml`에 `set -e`가 없어
+  pull 실패도 ✓로 뜰 수 있으니 로그에서 pull 성공 여부 확인
+
+**로컬 개발 환경 메모**
+- 로컬 Redis 재시작으로 저장된 refresh token이 사라지면 앱이 "유효하지 않은 리프레시 토큰"으로 로그인 화면에 떨어짐 → 에뮬레이터에서 재로그인 필요
+- 에뮬레이터/adb 재시작 후엔 `adb reverse tcp:8080 tcp:8080` 다시 실행 (OAuth2 로그인용)
+
 **다음에 할 작업**
 1. 에뮬레이터 옷장 다중 등록(상의3/하의3/신발2/아우터2) → 홈 옷장 기반 추천 결과 확인 — 서버 로그상 옷 분류 4건 + `/ai/outfits/recommend/closet` 200은 찍혔으나, 목표 10벌 등록과 추천 카드 화면은 아직 미확인
-2. ⚠️ 유출 키 교체 + S3 IAM 격리 해제 (이월)
-3. EC2 배포 후 가상 피팅이 Nginx 경유로 60초 넘게 걸려도 성공하는지 확인
+2. ⚠️ 유출 키 교체 + S3 IAM 격리 해제 (이월 — EC2를 꺼둬도 공개 저장소에 노출된 Google/Kakao/JWT 키는 여전히 유효하므로 우선순위 높음)
+3. (EC2 재기동 시) 실패한 배포 Re-run → 운영에서 가상 피팅이 Nginx 경유로 60초 넘게 걸려도 성공하는지 확인 + 운영 DB 옛 `clothes` 테이블 처리 결정
 4. 쇼핑 도우미를 피팅 탭에 통합할지 결정
