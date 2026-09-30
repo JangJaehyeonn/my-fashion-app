@@ -32,7 +32,7 @@ OpenAI Vision 연동 기반, Spring Boot 백엔드 구조, EC2/Docker/CI·CD 인
 **제거 대상**: 코디 캘린더 (옷장·옷 사진 자동 분류는 2026-09-29에 새 방식으로 재도입)
 
 **현재 하단 탭 (2026-09-29~)**: 홈(내 옷장 기반 오늘의 코디) / 옷장(등록·AI 분류·카테고리별 그리드) /
-피팅(준비 중 — 가상 피팅 + 쇼핑 도우미 통합 예정) / 마이. 진단·쇼핑 화면은 탭에서 빠짐(코드는 존속)
+피팅(쇼핑몰 URL → 옷 이미지 추출 → 가상 피팅, 2026-09-30) / 마이. 진단·쇼핑 화면은 탭에서 빠짐(코드는 존속)
 
 ---
 
@@ -164,7 +164,8 @@ project-root/
 │           ├── mypage/        # 프로필, 체형/취향 설정
 │           ├── home/          # 홈 탭 — 날씨 + 상황 칩 + 내 옷장 기반 코디 카드(좌우 스와이프) — 2026-09-29 (구 recommend/ 대체)
 │           ├── closet/        # 옷장 탭 — 촬영/갤러리 다중 등록, AI 분류, 카테고리별 그리드 — 2026-09-29
-│           ├── common/        # BottomNavBar, ComingSoonScreen(피팅 탭 임시), CameraImage(촬영 URI 헬퍼)
+│           ├── fitting/       # 피팅 탭 — 쇼핑몰 URL에서 옷 이미지 추출(앱에서 직접, ProductPageRepository) + 전신 사진 → /api/vton — 2026-09-30
+│           ├── common/        # BottomNavBar, CameraImage(촬영 URI 헬퍼)
 │           ├── diagnosis/     # 내 옷 진단 — 2026-09-29부터 탭에서 빠짐(코드 존속)
 │           ├── shopping/      # 쇼핑 도우미 — 2026-09-29부터 탭에서 빠짐, 추후 피팅 탭으로 통합 예정
 │           └── vton/          # 가상 피팅 (전신 사진 + 옷 사진 → 합성 결과) — 2026-09-04 추가
@@ -282,7 +283,7 @@ project-root/
 | 로그인 | 구글 / 카카오 소셜 로그인 (Wearon 브랜딩) |
 | 홈 (탭) | 날씨 카드 + 상황 칩(데일리/출근/데이트/운동/여행/면접) + "오늘의 코디 추천" → 내 옷장 옷들로 만든 조합 카드(LOOK 01, 02… 좌우 스와이프, 아우터→상의→하의→신발 순 옷 사진 + 추천 이유). 옷장이 비면 "옷장에 옷을 등록하면…" 안내 + 옷장으로 가기 버튼 |
 | 옷장 (탭) | + 옷 등록(카메라 촬영 / 갤러리 최대 10장 다중 선택, "3/5 등록 중…" 진행 표시) + 카테고리 탭(전체/상의/하의/아우터/신발/기타, 개수 표시) + 2열 그리드(사진·카테고리·색상·이름, ✕ 삭제) |
-| 피팅 (탭) | 준비 중 — 가상 피팅 + 쇼핑 도우미 통합 예정 |
+| 피팅 (탭) | 쇼핑몰 상품 URL 붙여넣기 → 옷 이미지 후보(og:image 등) 선택 (또는 갤러리) + 전신 사진(촬영/갤러리) → 가상 피팅 결과 이미지 |
 | 마이 (탭) | 프로필 + 체형/취향 설정 + 설정 메뉴 |
 
 > 디자인: 베이지/아이보리 베이스 미니멀 톤 (`ui/theme/Theme.kt`의 `WearonColors`).
@@ -338,7 +339,7 @@ project-root/
 - [x] 옷장 탭 — 촬영/갤러리 다중 등록, AI 자동 분류(gpt-4o-mini Vision), 카테고리별 그리드, 삭제
 - [x] 백엔드 `clothes` 도메인 재도입 (`POST/GET /api/clothes`, `DELETE /api/clothes/{id}`)
 - [x] 홈 코디 추천을 내 옷장 기반으로 전환 (`/api/outfits/recommend/closet`)
-- [ ] 피팅 탭 — 가상 피팅 + 쇼핑 도우미 통합
+- [x] 피팅 탭 — 쇼핑몰 URL 기반 가상 피팅 (2026-09-30, 쇼핑 도우미 통합은 미정)
 - [ ] EC2 운영 DB: 옛 `clothes` 테이블 처리 결정 (`phase0_cleanup.sql`은 새 옷장 배포 **이전**에만 실행 가능 — 이후 실행하면 새로 등록된 옷까지 DROP)
 - [ ] 유출된 AWS/Google/Kakao/JWT 키 교체 + S3 IAM 사용자 격리 정책 해제 (완료 전까지 옷 사진이 presigned URL 403으로 안 보임)
 
@@ -1582,3 +1583,31 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 4. 피팅 탭 설계 (가상 피팅 + 쇼핑 도우미 통합)
 5. `deploy.yml`에 `set -e` 추가 검토 (pull 실패가 성공으로 표시되는 문제)
 
+
+---
+
+### 2026-09-30 — 옷장 커밋/배포, 피팅 탭 구현, VTON 타임아웃 수정
+
+**커밋/배포**
+- `913a726` 옷장 탭 + AI 분류(`detail: low`) + 옷장 기반 코디 추천을 `origin/dev`에 push (EC2 자동 배포)
+- push 전 확인: EC2에 남아 있을 옛 `clothes` 테이블의 추가 컬럼(pattern/season/style_tag)은 전부 nullable이라 새 엔티티 INSERT와 충돌 없음
+
+**피팅 탭 (`ui/fitting/`)**
+- 흐름: 쇼핑몰 상품 URL 입력 → 옷 이미지 후보 추출(첫 후보 자동 선택, 가로 스크롤로 변경 가능) → 전신 사진(촬영/갤러리) → 기존 `POST /api/vton` → 결과 이미지. URL이 안 되면 갤러리 옷 사진으로 대체 가능
+- 추출은 **서버가 아니라 앱에서** 수행(`data/repository/ProductPageRepository.kt`) — 사용자가 넣은 임의 URL을 EC2가 대신 요청하면 SSRF(메타데이터 169.254.169.254 등) 통로가 되기 때문. 백엔드/AI 서버 변경 없음
+- ⚠️ 외부 쇼핑몰 요청엔 `ApiClient`의 OkHttpClient를 쓰면 JWT가 붙어 나가므로 인증 없는 전용 OkHttpClient 사용
+- 후보: `og:image`(+`:url`/`:secure_url`), `twitter:image`, `link rel=image_src`, JSON-LD `"image"`(문자열/배열). 상품명은 `og:title`에서 " | 사이트명", " - 사이즈 & 후기" 꼬리를 잘라 `garmentDesc`로 사용
+- 사이트별 확인(curl): 무신사 실제 상품 페이지 OK, 유니클로 OK, H&M은 403(봇 차단) → 갤러리로 대체. 존재하지 않는 상품 번호면 무신사/29CM는 사이트 로고 og:image가 나옴
+- `VtonScreen`의 `ImagePickerSlot`을 public으로 바꿔 재사용, `ComingSoonScreen` 삭제
+- 에뮬레이터에서 무신사 URL → 전신 사진 → 가상 피팅 결과 표시까지 사용자 확인 완료
+
+**버그 수정 — 가상 피팅 시 앱에서 timeout**
+- AI 서버 로그상 `/ai/vton`은 200으로 성공했는데 앱이 먼저 끊음 — `ApiClient`에 타임아웃 설정이 없어 OkHttp 기본 read 10초 적용. 이전 VTON 검증은 curl로만 해서 못 잡았음
+- `LongRunningTimeoutInterceptor`로 `/api/vton`만 read 180초/write 60초 (다른 API는 10초 유지 — 서버가 멈췄을 때 빨리 실패하도록)
+- EC2 `nginx/nginx.conf`도 기본 `proxy_read_timeout` 60초라 `location /api/vton`만 180초로 추가 (`nginx -t` 통과)
+
+**다음에 할 작업**
+1. 에뮬레이터 옷장 다중 등록(상의3/하의3/신발2/아우터2) → 홈 옷장 기반 추천 결과 확인 — 서버 로그상 옷 분류 4건 + `/ai/outfits/recommend/closet` 200은 찍혔으나, 목표 10벌 등록과 추천 카드 화면은 아직 미확인
+2. ⚠️ 유출 키 교체 + S3 IAM 격리 해제 (이월)
+3. EC2 배포 후 가상 피팅이 Nginx 경유로 60초 넘게 걸려도 성공하는지 확인
+4. 쇼핑 도우미를 피팅 탭에 통합할지 결정

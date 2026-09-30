@@ -18,7 +18,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.fashionapp.ui.closet.ClosetScreen
 import com.fashionapp.ui.common.BottomNavBar
-import com.fashionapp.ui.common.ComingSoonScreen
+import com.fashionapp.ui.fitting.FittingScreen
 import com.fashionapp.ui.diagnosis.DiagnosisScreen
 import com.fashionapp.ui.home.HomeScreen
 import com.fashionapp.ui.login.LoginScreen
@@ -93,7 +93,7 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                     )
                 }
                 composable(Route.CLOSET) { ClosetScreen() }
-                composable(Route.FITTING) { ComingSoonScreen("피팅") }
+                composable(Route.FITTING) { FittingScreen() }
                 composable(Route.DIAGNOSIS) { DiagnosisScreen() }
                 composable(Route.SHOPPING) {
                     ShoppingScreen(

@@ -202,8 +202,9 @@ fun VtonScreen(
     }
 }
 
+// 피팅 탭(ui/fitting)의 전신 사진 칸에서도 재사용
 @Composable
-private fun ImagePickerSlot(
+fun ImagePickerSlot(
     title: String,
     imageUri: Uri?,
     onCameraClick: () -> Unit,

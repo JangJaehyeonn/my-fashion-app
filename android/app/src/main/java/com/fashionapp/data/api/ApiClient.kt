@@ -19,6 +19,7 @@ import okhttp3.Route
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -85,6 +86,21 @@ class TokenAuthenticator @Inject constructor(
     }
 }
 
+/**
+ * 가상 피팅(/api/vton)은 HF Space 대기열 + 합성으로 20초~2분이 걸려 OkHttp 기본 10초에 끊긴다.
+ * 전체 타임아웃을 늘리면 다른 API가 멈췄을 때 사용자가 한참 기다리게 되므로 이 요청에만 늘린다.
+ */
+class LongRunningTimeoutInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val isVton = chain.request().url.encodedPath.trimEnd('/').endsWith("/vton")
+        if (!isVton) return chain.proceed(chain.request())
+        return chain
+            .withWriteTimeout(60, TimeUnit.SECONDS)
+            .withReadTimeout(180, TimeUnit.SECONDS)
+            .proceed(chain.request())
+    }
+}
+
 @Singleton
 class ApiClient @Inject constructor(
     authInterceptor: AuthInterceptor,
@@ -93,6 +109,7 @@ class ApiClient @Inject constructor(
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
+        .addInterceptor(LongRunningTimeoutInterceptor())
         .authenticator(tokenAuthenticator)
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
