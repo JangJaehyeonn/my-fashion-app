@@ -25,4 +25,14 @@ public class OutfitController {
                 outfitService.recommendBySituation(userPrincipal.getId(), request)
         ));
     }
+
+    @PostMapping("/recommend/closet")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ClosetRecommendResponse>> recommendByCloset(
+            @CurrentUser UserPrincipal userPrincipal,
+            @RequestBody SituationRecommendRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                outfitService.recommendByCloset(userPrincipal.getId(), request)
+        ));
+    }
 }

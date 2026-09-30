@@ -59,29 +59,13 @@ data class Weather(
     val windSpeed: Double
 )
 
-// Situation-based recommend (no wardrobe)
+// Recommend request (weather + situation) — 옷장 기반 추천에서도 동일하게 사용
 data class SituationRecommendRequest(
     val temperature: Double,
     val condition: String,
     val situation: String
 )
 
-data class ShoppingSuggestion(
-    val item: String,
-    val site: String,
-    val searchKeyword: String
-)
-
-data class SituationOutfitSuggestion(
-    val description: String,
-    val reason: String,
-    val styleTag: String,
-    val shoppingSuggestions: List<ShoppingSuggestion> = emptyList()
-)
-
-data class SituationRecommendResponse(
-    val outfits: List<SituationOutfitSuggestion>
-)
 
 // Style diagnosis
 data class SimilarStyleSuggestion(
@@ -121,4 +105,29 @@ data class ShoppingRecommendResponse(
 // Virtual try-on
 data class VtonResult(
     val resultImageUrl: String
+)
+
+// Closet (옷장)
+enum class ClothesCategory(val label: String) {
+    TOP("상의"), BOTTOM("하의"), OUTER("아우터"), SHOES("신발"), ETC("기타")
+}
+
+data class Clothes(
+    val id: String,
+    val imageUrl: String,
+    val category: ClothesCategory,
+    val color: String?,
+    val name: String?,
+    val createdAt: String?
+)
+
+// Closet-based recommend (내 옷장 옷들로 코디 조합)
+data class ClosetOutfit(
+    val items: List<Clothes>,
+    val reason: String,
+    val styleTag: String
+)
+
+data class ClosetRecommendResponse(
+    val outfits: List<ClosetOutfit>
 )

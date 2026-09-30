@@ -56,6 +56,22 @@ public class AiServerClient {
         }, aiServerExecutor);
     }
 
+    public CompletableFuture<AiClosetRecommendResponse> recommendOutfitsByCloset(AiClosetRecommendRequest request) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return restClient.post()
+                        .uri(aiServerUrl + "/ai/outfits/recommend/closet")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(request)
+                        .retrieve()
+                        .body(AiClosetRecommendResponse.class);
+            } catch (RestClientException e) {
+                log.error("AI server closet recommend failed: {}", e.getMessage());
+                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+            }
+        }, aiServerExecutor);
+    }
+
     public CompletableFuture<AiShoppingRecommendResponse> recommendShopping(AiShoppingRecommendRequest request) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -106,6 +122,24 @@ public class AiServerClient {
         builder.part(name, resource)
                 .filename(filename)
                 .contentType(MediaType.parseMediaType(contentType));
+    }
+
+    public AiClothesClassifyResponse classifyClothes(MultipartFile file) {
+        try {
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            addImagePart(builder, "image", file);
+
+            return restClient.post()
+                    .uri(aiServerUrl + "/ai/clothes/classify")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(builder.build())
+                    .retrieve()
+                    .body(AiClothesClassifyResponse.class);
+
+        } catch (IOException | RestClientException e) {
+            log.error("AI server clothes classify failed: {}", e.getMessage());
+            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+        }
     }
 
     public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {

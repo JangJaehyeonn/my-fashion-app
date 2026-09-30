@@ -8,6 +8,11 @@
 --   - 반드시 운영 DB 백업 후 실행할 것 (되돌릴 수 없는 DROP)
 --   - 로컬: docker exec -it fashionapp-db psql -U <user> -d <db> -f phase0_cleanup.sql
 --   - EC2:  운영 DB 컨테이너에 동일하게 적용
+--
+-- ⚠️ 2026-09-29: 옷장 기능이 새 스키마의 clothes 테이블로 다시 추가됨.
+--   이 스크립트는 "새 옷장 기능이 배포되기 전"에만 실행할 것 (옛 clothes 테이블 정리 목적).
+--   새 옷장 배포 이후에 실행하면 사용자가 새로 등록한 옷 데이터까지 DROP 된다.
+--   로컬 DB는 2026-07-26에 이미 실행 완료 — 다시 실행하지 말 것.
 
 DROP TABLE IF EXISTS outfit_calendar;
 DROP TABLE IF EXISTS outfit_items;

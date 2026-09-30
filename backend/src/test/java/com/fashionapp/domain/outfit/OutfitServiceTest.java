@@ -1,9 +1,14 @@
 package com.fashionapp.domain.outfit;
 
+import com.fashionapp.domain.clothes.ClothesCategory;
+import com.fashionapp.domain.clothes.ClothesResponse;
+import com.fashionapp.domain.clothes.ClothesService;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
+import com.fashionapp.infra.AiClosetRecommendRequest;
+import com.fashionapp.infra.AiClosetRecommendResponse;
 import com.fashionapp.infra.AiServerClient;
 import com.fashionapp.infra.AiSituationRecommendRequest;
 import com.fashionapp.infra.AiSituationRecommendResponse;
@@ -16,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -39,6 +45,9 @@ class OutfitServiceTest {
     @Mock
     private AiServerClient aiServerClient;
 
+    @Mock
+    private ClothesService clothesService;
+
     private OutfitService outfitService;
 
     private UUID userId;
@@ -46,7 +55,7 @@ class OutfitServiceTest {
 
     @BeforeEach
     void setUp() {
-        outfitService = new OutfitService(userRepository, aiServerClient);
+        outfitService = new OutfitService(userRepository, aiServerClient, clothesService);
         userId = UUID.randomUUID();
         user = User.builder()
                 .id(userId)
@@ -143,5 +152,88 @@ class OutfitServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.AI_SERVER_ERROR);
+    }
+
+    private ClothesResponse clothes(String id, ClothesCategory category, String name) {
+        return ClothesResponse.builder()
+                .id(UUID.fromString(id))
+                .imageUrl("https://presigned/" + id)
+                .category(category)
+                .color("블랙")
+                .name(name)
+                .build();
+    }
+
+    private AiClosetRecommendResponse closetResponse(String json) throws Exception {
+        return new ObjectMapper().readValue(json, AiClosetRecommendResponse.class);
+    }
+
+    private static final String TOP_ID = "00000000-0000-0000-0000-000000000001";
+    private static final String BOTTOM_ID = "00000000-0000-0000-0000-000000000002";
+    private static final String SHOES_ID = "00000000-0000-0000-0000-000000000003";
+
+    @Test
+    @DisplayName("옷장 추천: 내 옷 목록을 AI에 넘기고, 응답 ID를 실제 옷 정보(사진 URL 포함)로 바꿔 반환한다")
+    void recommendByCloset_mapsIdsToClothes() throws Exception {
+        SituationRecommendRequest request = situationRequest(14.0, "맑음", "DATE");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                clothes(TOP_ID, ClothesCategory.TOP, "블랙 티셔츠"),
+                clothes(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙 슬랙스"),
+                clothes(SHOES_ID, ClothesCategory.SHOES, "블랙 로퍼")));
+        given(aiServerClient.recommendOutfitsByCloset(any())).willReturn(CompletableFuture.completedFuture(closetResponse("""
+                {"outfits": [{"clothesIds": ["%s", "%s", "%s"], "reason": "올블랙", "styleTag": "미니멀"}]}
+                """.formatted(TOP_ID, BOTTOM_ID, SHOES_ID))));
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, request);
+
+        assertThat(result.getOutfits()).hasSize(1);
+        assertThat(result.getOutfits().get(0).getItems())
+                .extracting(ClothesResponse::getName)
+                .containsExactly("블랙 티셔츠", "블랙 슬랙스", "블랙 로퍼");
+        assertThat(result.getOutfits().get(0).getItems().get(0).getImageUrl()).isEqualTo("https://presigned/" + TOP_ID);
+
+        ArgumentCaptor<AiClosetRecommendRequest> captor = ArgumentCaptor.forClass(AiClosetRecommendRequest.class);
+        verify(aiServerClient).recommendOutfitsByCloset(captor.capture());
+        assertThat(captor.getValue().getClothes())
+                .extracting(AiClosetRecommendRequest.ClosetItem::getCategory)
+                .containsExactly("TOP", "BOTTOM", "SHOES");
+        assertThat(captor.getValue().getSituation()).isEqualTo("DATE");
+    }
+
+    @Test
+    @DisplayName("옷장 추천: 내 옷장에 없는 ID는 버리고, 남은 옷이 2개 미만인 조합은 제외한다")
+    void recommendByCloset_dropsUnknownIdsAndTooSmallOutfits() throws Exception {
+        SituationRecommendRequest request = situationRequest(20.0, "맑음", "DAILY");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                clothes(TOP_ID, ClothesCategory.TOP, "블랙 티셔츠"),
+                clothes(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙 슬랙스")));
+        given(aiServerClient.recommendOutfitsByCloset(any())).willReturn(CompletableFuture.completedFuture(closetResponse("""
+                {"outfits": [
+                  {"clothesIds": ["%s", "%s", "99999999-9999-9999-9999-999999999999"], "reason": "ok", "styleTag": "캐주얼"},
+                  {"clothesIds": ["%s", "99999999-9999-9999-9999-999999999999"], "reason": "too small", "styleTag": "캐주얼"}
+                ]}
+                """.formatted(TOP_ID, BOTTOM_ID, TOP_ID))));
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, request);
+
+        assertThat(result.getOutfits()).hasSize(1);
+        assertThat(result.getOutfits().get(0).getItems()).hasSize(2);
+        assertThat(result.getOutfits().get(0).getReason()).isEqualTo("ok");
+    }
+
+    @Test
+    @DisplayName("옷장 추천: 옷장이 비어 있으면 CLOSET_EMPTY를 던지고 AI 서버는 호출하지 않는다")
+    void recommendByCloset_throwsClosetEmpty() throws Exception {
+        SituationRecommendRequest request = situationRequest(20.0, "맑음", "DAILY");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of());
+
+        assertThatThrownBy(() -> outfitService.recommendByCloset(userId, request))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CLOSET_EMPTY);
+        verify(aiServerClient, never()).recommendOutfitsByCloset(any());
     }
 }

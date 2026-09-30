@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.fashionapp.ui.closet.ClosetScreen
 import com.fashionapp.ui.common.BottomNavBar
 import com.fashionapp.ui.common.ComingSoonScreen
 import com.fashionapp.ui.diagnosis.DiagnosisScreen
@@ -79,8 +80,19 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 modifier = Modifier.padding(innerPadding)
             ) {
                 composable(Route.LOGIN) { LoginScreen() }
-                composable(Route.HOME) { HomeScreen() }
-                composable(Route.CLOSET) { ComingSoonScreen("옷장") }
+                composable(Route.HOME) {
+                    HomeScreen(
+                        onGoToCloset = {
+                            // 하단 탭 전환과 동일한 방식으로 이동 (BottomNavBar 참고)
+                            navController.navigate(Route.CLOSET) {
+                                popUpTo(Route.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
+                composable(Route.CLOSET) { ClosetScreen() }
                 composable(Route.FITTING) { ComingSoonScreen("피팅") }
                 composable(Route.DIAGNOSIS) { DiagnosisScreen() }
                 composable(Route.SHOPPING) {

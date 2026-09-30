@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.model.Situation
 import com.fashionapp.data.model.SituationRecommendRequest
 import com.fashionapp.data.model.Weather
+import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.OutfitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val outfitRepository: OutfitRepository
+    private val outfitRepository: OutfitRepository,
+    private val clothesRepository: ClothesRepository
 ) : ViewModel() {
 
     private val _weather = MutableStateFlow<Weather?>(null)
@@ -34,6 +36,10 @@ class HomeViewModel @Inject constructor(
 
     private val _isRecommending = MutableStateFlow(false)
     val isRecommending = _isRecommending.asStateFlow()
+
+    // 추천 버튼을 눌렀는데 옷장이 비어 있던 경우 → 옷장 등록 안내 표시
+    private val _isClosetEmpty = MutableStateFlow(false)
+    val isClosetEmpty = _isClosetEmpty.asStateFlow()
 
     init {
         loadWeather()
@@ -57,10 +63,25 @@ class HomeViewModel @Inject constructor(
         val w = _weather.value ?: return
         viewModelScope.launch {
             _isRecommending.value = true
-            outfitRepository.recommendBySituation(
-                SituationRecommendRequest(w.temperature, w.condition, _selectedSituation.value.name)
-            ).onSuccess { response -> _looks.value = response.outfits.map { it.toLookCard() } }
-                .onFailure { _errorMessage.value = "코디 추천에 실패했습니다." }
+            runCatching {
+                // 1) 내 옷장 확인 — 비어 있으면 AI 호출 없이 등록 안내로 전환
+                val closet = clothesRepository.getMyClothes().getOrThrow()
+                _isClosetEmpty.value = closet.isEmpty()
+                if (closet.isEmpty()) {
+                    _looks.value = emptyList()
+                    return@runCatching
+                }
+                // 2) 서버가 DB의 내 옷 목록 + 날씨 + 상황으로 AI 추천을 받아옴
+                val response = outfitRepository.recommendByCloset(
+                    SituationRecommendRequest(w.temperature, w.condition, _selectedSituation.value.name)
+                ).getOrThrow()
+                _looks.value = response.outfits.map { it.toLookCard() }
+                if (response.outfits.isEmpty()) {
+                    _errorMessage.value = "지금 옷장으로는 코디를 만들기 어려워요. 상의·하의를 더 등록해보세요."
+                }
+            }.onFailure {
+                _errorMessage.value = "코디 추천에 실패했습니다."
+            }
             _isRecommending.value = false
         }
     }

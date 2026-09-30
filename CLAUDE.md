@@ -16,7 +16,7 @@
 > 형태의 검색 제안만 제공**하는 방식으로 통일 (오늘의 코디 추천 · 쇼핑 도우미 둘 다 동일).
 > 외부 쇼핑 API 키 발급/연동 부담 없이 기존 OpenAI GPT-4o 프롬프트 엔지니어링만으로 구현.
 
-**서비스명**: AI 스타일리스트 앱
+**서비스명**: Wearon (구 "AI 스타일리스트 앱") — 2026-09-29 리브랜딩. 하단 탭 홈/옷장/피팅/마이로 개편, 옷장 새 방식으로 재도입 (개발 일지 2026-09-29 참고)
 **목표**: 옷에 대한 지식이 없어도 날씨/상황/체형에 맞는 코디를 추천받고,
 자신의 코디를 진단받고, 필요한 옷을 실제로 구매까지 이어갈 수 있는 AI 패션 앱
 **개발 형태**: 1인 개발 (포트폴리오 + 실서비스 출시 목표)
@@ -29,7 +29,10 @@
 **유지하는 기존 자산**: 소셜 로그인(Google/Kakao), 체형·취향 프로필, 날씨 API 연동,
 OpenAI Vision 연동 기반, Spring Boot 백엔드 구조, EC2/Docker/CI·CD 인프라
 
-**제거 대상**: 옷장 등록/관리(`clothes` 도메인), 코디 캘린더, 옷 사진 → 카테고리/색상 자동 분류
+**제거 대상**: 코디 캘린더 (옷장·옷 사진 자동 분류는 2026-09-29에 새 방식으로 재도입)
+
+**현재 하단 탭 (2026-09-29~)**: 홈(내 옷장 기반 오늘의 코디) / 옷장(등록·AI 분류·카테고리별 그리드) /
+피팅(준비 중 — 가상 피팅 + 쇼핑 도우미 통합 예정) / 마이. 진단·쇼핑 화면은 탭에서 빠짐(코드는 존속)
 
 ---
 
@@ -45,7 +48,7 @@ OpenAI Vision 연동 기반, Spring Boot 백엔드 구조, EC2/Docker/CI·CD 인
 | 인프라 | AWS EC2 + Docker + GitHub Actions |
 | 개발 도구 | Claude Code |
 | 인증 | 소셜 로그인 (Google OAuth2, Kakao OAuth2) |
-| AI API | OpenAI Vision API (코디 사진 진단, gpt-4o), OpenAI GPT-4o-mini (텍스트 — 코디/쇼핑 추천 및 검색 제안 생성), Hugging Face IDM-VTON Space API (가상 피팅, gradio_client), 기상청 API (날씨) |
+| AI API | OpenAI Vision API (코디 사진 진단, gpt-4o), OpenAI GPT-4o-mini (텍스트 — 코디/쇼핑 추천 및 검색 제안 생성), OpenAI GPT-4o-mini Vision (옷 사진 카테고리/색상 분류, `detail: low`), Hugging Face IDM-VTON Space API (가상 피팅, gradio_client), OpenWeatherMap Current Weather API (날씨 — 문서엔 기상청으로 적혀 있었으나 2026-09-29 코드 확인 결과 OpenWeatherMap) |
 
 ---
 
@@ -67,7 +70,7 @@ OpenAI Vision 연동 기반, Spring Boot 백엔드 구조, EC2/Docker/CI·CD 인
   - OpenAI Vision API (코디 사진 진단: 점수 + 개선 제안)
   - OpenAI (텍스트) (오늘의 코디 추천 + 쇼핑몰 검색 제안, 쇼핑 도우미 아이템 추천)
   - Hugging Face IDM-VTON Space (가상 피팅: 전신 사진 + 옷 사진 → 합성 결과 이미지)
-  - 기상청 API (날씨)
+  - OpenWeatherMap API (날씨, 서울시청 좌표 고정)
 
 [Redis] ← Spring Boot (세션, 날씨 캐싱)
 [GitHub Actions] → AWS EC2 (CI/CD 자동 배포)
@@ -95,8 +98,22 @@ OpenAI Vision 연동 기반, Spring Boot 백엔드 구조, EC2/Docker/CI·CD 인
 
 > ⚠️ 소셜 로그인 전용이므로 password_hash 없음
 
-> ⚠️ `clothes`, `outfits`, `outfit_items`, `outfit_calendar` 테이블은 제거 대상
-> (옷장 등록/코디 저장/캘린더 기능 자체를 없애므로). 마이그레이션 시 `DROP TABLE`.
+> ⚠️ `outfits`, `outfit_items`, `outfit_calendar` 테이블은 제거 대상 (코디 저장/캘린더 기능 자체를 없앰).
+> `clothes`는 2026-09-29에 아래 새 스키마로 재도입됨.
+
+### clothes (옷장 — 2026-09-29 새 스키마로 재도입)
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | UUID PK | ID |
+| user_id | UUID FK | 사용자 (`idx_clothes_user_id` 인덱스) |
+| image_url | VARCHAR | 옷 사진 S3 URL (응답 시 presigned URL로 변환) |
+| category | VARCHAR | `TOP/BOTTOM/OUTER/SHOES/ETC` 문자열 (AI 분류 결과) |
+| color | VARCHAR | 대표 색상 (한국어, AI 분류 결과) |
+| name | VARCHAR | 짧은 아이템명 (예: "그레이 니트 스웨터", AI 분류 결과 — 옷장 기반 코디 추천 프롬프트 입력으로 사용) |
+| created_at | TIMESTAMP | 등록일 |
+
+> category를 enum 컬럼이 아니라 문자열로 저장하고 읽을 때 `ClothesCategory.from()`으로 모르는 값은 ETC 처리 —
+> EC2 운영 DB에 피봇 이전 옛 `clothes` 테이블(자유 텍스트 category)이 남아 있어도 조회가 깨지지 않게 하기 위함.
 
 ### outfit_recommendations (오늘의 코디 추천 기록 — 조회 전용, 재추천/이력용)
 | 컬럼 | 타입 | 설명 |
@@ -145,9 +162,11 @@ project-root/
 │       └── ui/
 │           ├── login/         # 소셜 로그인
 │           ├── mypage/        # 프로필, 체형/취향 설정
-│           ├── recommend/     # 오늘의 코디 추천 (날씨+상황+체형 → 텍스트+쇼핑몰 검색 제안)
-│           ├── diagnosis/     # 내 옷 진단 (사진 → 점수+피드백) — 신규
-│           ├── shopping/      # 쇼핑 도우미 (예산+상황+체형 → 상품 추천) — 신규
+│           ├── home/          # 홈 탭 — 날씨 + 상황 칩 + 내 옷장 기반 코디 카드(좌우 스와이프) — 2026-09-29 (구 recommend/ 대체)
+│           ├── closet/        # 옷장 탭 — 촬영/갤러리 다중 등록, AI 분류, 카테고리별 그리드 — 2026-09-29
+│           ├── common/        # BottomNavBar, ComingSoonScreen(피팅 탭 임시), CameraImage(촬영 URI 헬퍼)
+│           ├── diagnosis/     # 내 옷 진단 — 2026-09-29부터 탭에서 빠짐(코드 존속)
+│           ├── shopping/      # 쇼핑 도우미 — 2026-09-29부터 탭에서 빠짐, 추후 피팅 탭으로 통합 예정
 │           └── vton/          # 가상 피팅 (전신 사진 + 옷 사진 → 합성 결과) — 2026-09-04 추가
 │
 ├── backend/                   # Spring Boot
@@ -155,7 +174,8 @@ project-root/
 │       ├── domain/
 │       │   ├── user/          # User.java, UserController, UserService, UserRepository
 │       │   ├── weather/       # 날씨 프록시
-│       │   ├── recommend/     # 오늘의 코디 추천 (기존 outfit 도메인에서 정리)
+│       │   ├── outfit/        # 코디 추천 — 상황 기반(/recommend/situation) + 옷장 기반(/recommend/closet)
+│       │   ├── clothes/       # 옷장 (등록 시 AI 분류 → S3 → 저장, 목록, 삭제) — 2026-09-29 재도입
 │       │   ├── diagnosis/     # 내 옷 진단 — 신규
 │       │   ├── shopping/      # 쇼핑 도우미 — 신규
 │       │   └── vton/          # 가상 피팅 (프록시 전용, 영속화 없음) — 2026-09-04 추가
@@ -169,9 +189,9 @@ project-root/
 │
 ├── ai-server/                 # FastAPI (쇼핑몰 검색 제안도 외부 API 없이 OpenAI 프롬프트로 생성)
 │   └── app/
-│       ├── routers/           # diagnosis.py(신규), recommend.py, shopping.py(신규), vton.py(신규), weather.py
-│       ├── services/          # weather_service.py, recommend_service.py, diagnosis_service.py(신규), shopping_service.py(신규), vton_service.py(신규, gradio_client로 HF Space 호출)
-│       ├── schemas/            # Pydantic 모델 (outfit.py, diagnosis.py(신규), shopping.py(신규), vton.py(신규))
+│       ├── routers/           # clothes.py, diagnosis.py, recommend.py, shopping.py, vton.py, weather.py
+│       ├── services/          # weather_service.py, recommend_service.py(상황/옷장 기반), clothes_service.py(옷 분류), diagnosis_service.py, shopping_service.py, vton_service.py(gradio_client로 HF Space 호출)
+│       ├── schemas/            # Pydantic 모델 (outfit.py, clothes.py, diagnosis.py, shopping.py, vton.py)
 │       ├── core/              # config.py (환경변수 — OPENAI_API_KEY, WEATHER_API_KEY, HF_API_TOKEN)
 │       └── main.py
 │
@@ -208,6 +228,21 @@ project-root/
 | POST | /api/recommend/today 🔒 | 날씨(자동) + 상황 + 체형/취향 프로필 → AI 코디 텍스트 + 쇼핑몰 검색 제안(무신사/지그재그 등, AI 텍스트) |
 | GET | /api/recommend/history 🔒 | 내 추천 이력 조회 (선택 구현) |
 
+### Outfit (코디 추천 — 실제 구현 경로)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | /api/outfits/recommend/closet 🔒 | **홈 탭에서 사용.** body `{temperature, condition, situation}` → 서버가 DB에서 내 옷 목록을 직접 조회해 AI에 전달 → 내 옷 ID 조합을 presigned URL 포함 옷 정보로 변환해 응답. 옷장이 비면 `CLOSET_EMPTY`(400). 내 옷장에 없는 ID·2벌 미만 조합은 서버에서 제거 — 2026-09-29 |
+| POST | /api/outfits/recommend/situation 🔒 | 옷장 무관 일반 텍스트 추천. Android에선 더 이상 호출 안 함, k6 측정 스크립트가 사용 중이라 존속 |
+
+> 위 Recommend 섹션의 `/api/recommend/today`는 피봇 당시 목표 경로였고 실제로는 리네이밍되지 않았음 — 실제 경로는 이 섹션 기준.
+
+### Clothes (옷장) — 2026-09-29 재도입
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | /api/clothes 🔒 | 옷 사진(멀티파트 `image`) → AI 분류(category/color/name) → S3 업로드 → 저장. AI 분류 실패 시 S3 업로드 안 함 |
+| GET | /api/clothes 🔒 | 내 옷 목록 (최신순, presigned URL) |
+| DELETE | /api/clothes/{id} 🔒 | 옷 삭제 (DB 먼저 삭제, S3 삭제는 best-effort — 실패해도 요청은 성공) |
+
 ### Diagnosis (내 옷 진단) — 신규
 | Method | Endpoint | 설명 |
 |--------|----------|------|
@@ -230,15 +265,30 @@ project-root/
 |--------|----------|------|
 | POST | /ai/recommend/today | 날씨 + 상황 + 체형 프로필 → 코디 텍스트 추천 + 쇼핑몰 검색 제안 |
 | POST | /ai/diagnosis | 코디 이미지 → 점수 + 개선 제안 (OpenAI Vision) |
+| POST | /ai/clothes/classify | 옷 사진 → `{category(TOP/BOTTOM/SHOES/OUTER/ETC), color, name}` (gpt-4o-mini Vision, `detail: low`) — 2026-09-29 |
+| POST | /ai/outfits/recommend/closet | 날씨 + 상황 + 체형 + 보유 옷 목록 → 옷 ID 조합 코디(최대 3개). 프롬프트엔 UUID 대신 `C1, C2…` 짧은 코드로 전달 후 복원, 목록에 없는 코드는 제거 — 2026-09-29 |
 | POST | /ai/shopping/recommend | 예산 + 상황 + 체형 → AI 아이템 조합 추천 + 쇼핑몰 검색 제안 텍스트 생성 |
 | POST | /ai/vton | 전신 사진 + 옷 사진 + 옷 설명 → Hugging Face IDM-VTON Space(`gradio_client`, `/tryon`) 호출 후 결과 이미지(base64) 반환 |
-| GET | /ai/weather | 현재 날씨 조회 (기상청 API) |
+| GET | /ai/weather | 현재 날씨 조회 (OpenWeatherMap, 서울 고정) |
 
 > 🔒 = JWT 인증 필요
 
 ---
 
-## 화면 구성 (피봇 이후, 하단 탭 3+1구조)
+## 화면 구성 (2026-09-29 Wearon 개편 — 하단 탭: 홈 / 옷장 / 피팅 / 마이)
+
+| 화면 | 설명 |
+|------|------|
+| 로그인 | 구글 / 카카오 소셜 로그인 (Wearon 브랜딩) |
+| 홈 (탭) | 날씨 카드 + 상황 칩(데일리/출근/데이트/운동/여행/면접) + "오늘의 코디 추천" → 내 옷장 옷들로 만든 조합 카드(LOOK 01, 02… 좌우 스와이프, 아우터→상의→하의→신발 순 옷 사진 + 추천 이유). 옷장이 비면 "옷장에 옷을 등록하면…" 안내 + 옷장으로 가기 버튼 |
+| 옷장 (탭) | + 옷 등록(카메라 촬영 / 갤러리 최대 10장 다중 선택, "3/5 등록 중…" 진행 표시) + 카테고리 탭(전체/상의/하의/아우터/신발/기타, 개수 표시) + 2열 그리드(사진·카테고리·색상·이름, ✕ 삭제) |
+| 피팅 (탭) | 준비 중 — 가상 피팅 + 쇼핑 도우미 통합 예정 |
+| 마이 (탭) | 프로필 + 체형/취향 설정 + 설정 메뉴 |
+
+> 디자인: 베이지/아이보리 베이스 미니멀 톤 (`ui/theme/Theme.kt`의 `WearonColors`).
+> 아래는 2026-09-29 이전(피봇 이후) 화면 구성 — 진단/쇼핑/가상 피팅 화면 코드는 남아 있으나 현재 탭에서는 진입 경로가 없음.
+
+### (이전) 피봇 이후 하단 탭 3+1구조
 
 | 화면 | 설명 |
 |------|------|
@@ -281,6 +331,16 @@ project-root/
 - [x] Android 하단 네비게이션 재구성 (오늘의 코디 / 옷 진단 / 쇼핑 / 마이페이지)
 - [x] 전체 E2E 테스트 + k6 성능 측정 재실행 (2026-07-27 실행 완료, 결과는 개발 일지 2026-07-27 (追加) 참고)
 - [ ] EC2 운영 DB에도 `phase0_cleanup.sql` 적용 (로컬은 2026-07-26 완료, EC2는 아직)
+
+### Phase 6 — Wearon 리브랜딩 + 옷장 재도입 (2026-09-29~)
+- [x] 앱 이름 Wearon, 베이지/아이보리 테마, 하단 탭 홈/옷장/피팅/마이로 개편
+- [x] 홈 탭 — 날씨 + 상황 칩 + 코디 카드 좌우 스와이프
+- [x] 옷장 탭 — 촬영/갤러리 다중 등록, AI 자동 분류(gpt-4o-mini Vision), 카테고리별 그리드, 삭제
+- [x] 백엔드 `clothes` 도메인 재도입 (`POST/GET /api/clothes`, `DELETE /api/clothes/{id}`)
+- [x] 홈 코디 추천을 내 옷장 기반으로 전환 (`/api/outfits/recommend/closet`)
+- [ ] 피팅 탭 — 가상 피팅 + 쇼핑 도우미 통합
+- [ ] EC2 운영 DB: 옛 `clothes` 테이블 처리 결정 (`phase0_cleanup.sql`은 새 옷장 배포 **이전**에만 실행 가능 — 이후 실행하면 새로 등록된 옷까지 DROP)
+- [ ] 유출된 AWS/Google/Kakao/JWT 키 교체 + S3 IAM 사용자 격리 정책 해제 (완료 전까지 옷 사진이 presigned URL 403으로 안 보임)
 
 ### Phase 5 — 후속 (추후)
 - [ ] 커뮤니티(코디 공유 피드, 좋아요, 댓글) — 우선순위 낮음, 3가지 핵심 기능 안정화 후 검토
@@ -1432,4 +1492,93 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 1. 백엔드/AI서버/Android 3개 전부 빌드 검증 (컴파일 + 에뮬레이터 실제 탭 조작 E2E)
 2. `HF_API_TOKEN` 등록 후 실제 HF Space 호출로 가상 피팅 결과 이미지 확인
 3. (이월 항목들은 위 2026-07-31 항목과 동일)
+
+---
+
+### 2026-09-29 — VTON 503 해결, 키 유출 발견, Wearon 리브랜딩 + 홈/옷장 탭, 옷장 기반 코디 추천
+
+**VTON(가상 피팅) 503 해결 + 배포**
+- 원인 1: 로컬 `ai-server` 컨테이너가 꺼져 있었고 이미지도 07-26 빌드(VTON 추가 이전)라 `/ai/vton` 자체가 없었음 →
+  Spring Boot가 연결 실패를 `AI_SERVER_ERROR`(503)로 변환. (06-21/07-23과 같은 "재빌드 누락" 재발)
+- 원인 2: `gradio_client` 2.x에서 `Client(..., hf_token=)` 인자가 `token=`으로 바뀜 → `TypeError`. `token=`으로 수정,
+  `requirements.txt`를 `gradio_client>=2.0,<3`으로 고정. `view_api()`로 `/tryon` 시그니처는 기존과 동일함을 확인
+- `vton_service.py`에 HF Space 클라이언트 생성/`predict` 호출부 try-except + `logger.exception`(uvicorn.error 로거) 추가
+- `HF_API_TOKEN`을 선택값으로 변경 — 공개 Space라 토큰 없이도 호출되고, EC2 `.env`에 없을 때 AI 서버 전체가 기동 실패하는 것 방지
+- E2E: ai-server 단독 200(~27s, 합성 결과 이미지 육안 확인) → Spring Boot 경유 200(~21s, S3 업로드·presigned 발급까지)
+- 테스트용으로 임시 추가했던 인증 없는 `/api/vton/try-on`은 커밋 전에 완전히 제거함
+- VTON 화면: 전신 사진도 갤러리 선택 가능하도록 수정
+
+**⚠️ 보안 — 비밀키 유출 발견 (미해결, 사용자 조치 필요)**
+- presigned URL이 403 `AWSCompromisedKeyQuarantineV3` → AWS가 IAM 사용자 `fashion-app-s3-user`를 유출 키로 격리한 상태
+- 원인: `backend/.env`가 2026-06-28 커밋(`82a62f1`)부터 git에 추적되어 **PUBLIC 저장소**의 dev 브랜치에 푸시돼 있었음
+  (AWS 키, Google/Kakao Client Secret, `JWT_SECRET` 포함). `.gitignore`의 `**/.env`는 이미 추적 중인 파일엔 적용 안 됨
+- 조치: `git rm --cached backend/.env`로 추적 해제 (커밋 `a68afab`). 이미 공개된 히스토리의 키는 되돌릴 수 없으므로 **키 교체가 필수**
+- 격리 정책은 액세스 키가 아니라 **IAM 사용자에 붙어 있어** 같은 사용자로 키만 재발급해선 안 풀림 — 정책 분리 또는 새 IAM 사용자 필요
+- 영향: 업로드는 되지만 `GetObject`가 막혀 VTON 결과·옷장 사진이 전부 403 (옷 등록/DB 저장 자체는 정상)
+- 부수 발견: EC2의 `git pull`이 서버에서 수정된 `backend/.env` 때문에 실패하고 있었는데, `deploy.yml`에 `set -e`가 없어
+  **예전 코드로 재빌드한 채 Actions는 성공(✓)으로 표시**되고 있었음. 사용자가 EC2에서 `.env` 백업 → checkout → pull → 복원으로 해결
+
+**로컬 소셜 로그인 "This site can't be reached"**
+- 원인: `adb reverse tcp:8080 tcp:8080` 미설정(에뮬레이터/adb 재시작 시 초기화됨). 설정 자체(debug `OAUTH2_BASE_URL=localhost`)는
+  정상이며, Google은 사설 IP redirect URI를 허용하지 않으므로 콘솔에 `10.0.2.2`를 등록하는 방식은 불가 (06-12 결정 재확인)
+
+**문서 정정 — 날씨 API**
+- 실제 코드는 기상청이 아니라 **OpenWeatherMap Current Weather API**(서울시청 좌표 고정). 기술 스택/아키텍처/AI 서버 API 표 정정
+
+**Wearon 리브랜딩 + 탭 개편 (Android)**
+- 앱 이름 `Wearon`(strings.xml, 로그인 화면), `Theme.kt`에 `WearonColors`(아이보리/베이지/잉크) 팔레트
+- 하단 탭 홈/옷장/피팅/마이 — 피팅은 `ComingSoonScreen` 임시. 진단·쇼핑·가상 피팅 화면은 탭에서 빠짐(코드 존속,
+  사용자 확인: 쇼핑은 추후 피팅 탭 안으로 통합 예정)
+- `ui/home/` 신규(`ui/recommend/` 대체): 날씨 카드 + 상황 칩 + `HorizontalPager` 코디 카드(LOOK 01…) + 페이지 점
+- `Situation.DAILY` 라벨 "일상" → "데일리" (서버 전송값 `DAILY`는 동일)
+- 중첩 Scaffold로 상단 인셋이 이중 적용되던 것 `contentWindowInsets = WindowInsets(0)`으로 해결
+
+**옷장 재도입 (피봇 때 없앤 방식이 아닌 새 방식)**
+- AI 서버 `POST /ai/clothes/classify` — gpt-4o-mini Vision으로 `{category, color, name}`. 목록 밖 카테고리는 ETC로 흡수
+- 백엔드 `domain/clothes` — AI 분류 **먼저** → 성공 시 S3 업로드 → 저장 (분류 실패 시 S3 고아 파일 방지).
+  삭제는 DB 먼저, S3는 best-effort. `ClothesServiceTest` 6건
+- EC2 주의: 운영 DB엔 `phase0_cleanup.sql`이 아직 미실행이라 옛 `clothes` 테이블이 남아 있을 수 있음 →
+  category를 문자열로 저장하고 모르는 값은 ETC로 읽어 조회가 깨지지 않게 함. 스크립트에 "새 옷장 배포 이후 실행 금지" 경고 추가
+- Android `ui/closet/` — 촬영/갤러리 등록, 카테고리 탭(개수 표시), 2열 그리드, ✕ 삭제. 카메라 URI 헬퍼는
+  `ui/common/CameraImage.kt`로 분리해 VTON과 공유
+- 갤러리 **다중 선택**(`PickMultipleVisualMedia`, 최대 10장) → 한 장씩 **순차** 등록(동시 전송 시 OpenAI TPM 한도),
+  "3/5 등록 중…" + 진행 바, 등록되는 대로 그리드 반영, 결과 요약("4벌 등록, 1벌은 실패했어요")
+
+**홈 코디 추천 → 내 옷장 기반으로 전환**
+- 흐름: 앱이 `GET /api/clothes`로 비었는지 확인 → 비면 "옷장에 옷을 등록하면…" + 옷장으로 가기 버튼,
+  아니면 `POST /api/outfits/recommend/closet` → 서버가 **DB에서 내 옷을 직접 조회**해 AI에 전달(클라이언트 목록 불신)
+- AI 프롬프트엔 UUID 대신 `C1, C2…` 코드로 넘기고 복원(긴 ID 오기 방지), 목록 밖 코드 제거. 백엔드에서도 내 옷장에
+  없는 ID·2벌 미만 조합을 한 번 더 제거. 카드엔 실제 옷 사진을 아우터→상의→하의→신발 순으로 표시
+- Android에서 안 쓰게 된 일반 추천 모델(`SituationOutfitSuggestion` 등)·설명 문자열 파싱 코드 삭제. 백엔드
+  `/recommend/situation`은 k6 스크립트가 사용 중이라 존속
+- `OutfitServiceTest`에 옷장 추천 3건 추가 → 백엔드 테스트 총 23건 통과
+
+**옷 분류 토큰 한도 이슈 발견 → `detail: "low"`**
+- 샘플 40장 연속 분류 시 대부분 500 — OpenAI TPM(200k) 초과. gpt-4o-mini는 큰 이미지를 타일로 나눠 타일당 토큰이 커서
+  몇 장 만에 한도 도달. 분류엔 저해상도로 충분하므로 `detail: "low"` 적용 → 40장 연속 에러 0, 등록당 비용도 감소
+
+**테스트용 샘플 이미지 (`vton-test/sample-clothes/`, 커밋 안 함)**
+- Pexels API(`PEXELS_API_KEY`)로 카테고리별 10장씩 40장 + `CREDITS.md`. 스크립트 `vton-test/fetch_sample_clothes.py`
+  (Pexels는 기본 `Python-urllib` UA를 403으로 막아 UA 명시). Unsplash는 비공개 `napi` 엔드포인트가 스크립트 요청을 401로
+  막아 사용하지 않음(차단 우회 안 함)
+- 여러 벌이 쌓인 사진 6장은 ETC로 분류돼 분류 API로 카테고리가 확인된 사진으로 교체. 에뮬레이터 갤러리 `Pictures/WearonSamples/`에 복사
+  (Git Bash가 `/sdcard` 경로를 Windows 경로로 바꾸므로 `MSYS_NO_PATHCONV=1` 필요)
+
+**커밋 이력 (오늘)**
+- `a68afab` VTON 기능 + `backend/.env` 추적 해제 / `ef7d005` VTON 전신 사진 갤러리 선택 /
+  `4bd9507` Wearon 리브랜딩 + 홈 탭 / (이 커밋) 옷장 + 옷장 기반 추천 + 다중 등록 + CLAUDE.md
+- 브랜치: 작업은 `feat/vton-tryon`에서 하고 `origin/dev`로 fast-forward push. 로컬 `dev`에는 push 안 된 커밋
+  `bf07373`(CLAUDE.md 2026-08-04 기록)이 남아 있어 건드리지 않았음 — 필요 시 rebase 후 반영
+
+**현재 상태**
+- 로컬: 홈/옷장 탭 코드 완료, 백엔드 테스트 23건 통과, Android 컴파일·설치 완료. 옷 등록·AI 분류·DB 저장은 실제 동작 확인
+- 사진 표시: S3 격리로 403 — 키 교체 전까지 회색 박스
+- 에뮬레이터에서 홈 탭 옷장 기반 추천 카드·다중 등록 UI는 아직 눈으로 확인 못함 (로그인 필요)
+
+**다음에 할 작업**
+1. ⚠️ 유출 키 교체 (AWS IAM 격리 정책 분리 또는 새 IAM 사용자, Google/Kakao Secret, `JWT_SECRET`) → 로컬/EC2 `.env` 반영
+2. EC2 운영 DB 옛 `clothes` 테이블 처리 결정 (이 커밋 배포 후엔 `phase0_cleanup.sql`의 clothes DROP 실행 금지)
+3. 에뮬레이터에서 옷장 다중 등록 → 홈 옷장 기반 추천 카드 E2E 확인
+4. 피팅 탭 설계 (가상 피팅 + 쇼핑 도우미 통합)
+5. `deploy.yml`에 `set -e` 추가 검토 (pull 실패가 성공으로 표시되는 문제)
 

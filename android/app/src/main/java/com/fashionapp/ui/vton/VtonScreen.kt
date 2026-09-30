@@ -1,7 +1,6 @@
 package com.fashionapp.ui.vton
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -50,10 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import java.io.File
+import com.fashionapp.ui.common.createCameraImageUri
 
 private enum class CameraTarget { PERSON, GARMENT }
 
@@ -243,10 +241,4 @@ private fun ImagePickerSlot(
             }
         }
     }
-}
-
-private fun createCameraImageUri(context: Context): Uri {
-    val cameraDir = File(context.cacheDir, "camera").apply { mkdirs() }
-    val file = File(cameraDir, "capture_${System.currentTimeMillis()}.jpg")
-    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }

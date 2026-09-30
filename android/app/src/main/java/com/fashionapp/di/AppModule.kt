@@ -2,6 +2,7 @@ package com.fashionapp.di
 
 import com.fashionapp.data.api.ApiClient
 import com.fashionapp.data.api.AuthApi
+import com.fashionapp.data.api.ClothesApi
 import com.fashionapp.data.api.DiagnosisApi
 import com.fashionapp.data.api.OutfitApi
 import com.fashionapp.data.api.ShoppingApi
@@ -25,6 +26,11 @@ object AppModule {
     @Singleton
     fun provideOutfitApi(apiClient: ApiClient): OutfitApi =
         apiClient.retrofit.create(OutfitApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideClothesApi(apiClient: ApiClient): ClothesApi =
+        apiClient.retrofit.create(ClothesApi::class.java)
 
     @Provides
     @Singleton

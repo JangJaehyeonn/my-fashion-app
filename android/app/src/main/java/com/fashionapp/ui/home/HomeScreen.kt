@@ -27,7 +27,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -46,6 +45,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
+import coil.compose.AsyncImage
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fashionapp.data.model.Situation
 import com.fashionapp.data.model.Weather
@@ -58,12 +63,16 @@ private val HOME_SITUATIONS = listOf(
 )
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(
+    viewModel: HomeViewModel = hiltViewModel(),
+    onGoToCloset: () -> Unit = {}
+) {
     val weather by viewModel.weather.collectAsState()
     val isWeatherLoading by viewModel.isWeatherLoading.collectAsState()
     val selectedSituation by viewModel.selectedSituation.collectAsState()
     val looks by viewModel.looks.collectAsState()
     val isRecommending by viewModel.isRecommending.collectAsState()
+    val isClosetEmpty by viewModel.isClosetEmpty.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -140,7 +149,10 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
                 }
             }
 
-            if (looks.isNotEmpty()) {
+            if (isClosetEmpty) {
+                Spacer(Modifier.height(24.dp))
+                ClosetEmptyCard(onGoToCloset = onGoToCloset, modifier = Modifier.padding(horizontal = 20.dp))
+            } else if (looks.isNotEmpty()) {
                 Spacer(Modifier.height(32.dp))
                 LookPager(looks = looks, situation = selectedSituation)
             }
@@ -267,79 +279,54 @@ private fun LookCardView(index: Int, look: LookCard) {
             .background(WearonColors.White)
             .border(1.dp, WearonColors.Line, RoundedCornerShape(20.dp))
     ) {
-        // 상단 비주얼 영역 — 실제 상품 이미지가 없는 텍스트 추천이라 룩 번호/스타일 태그로 표지를 구성
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp)
                 .background(WearonColors.Beige)
-                .padding(20.dp)
+                .padding(16.dp)
         ) {
-            Text(
-                look.styleTag.ifBlank { "STYLE" },
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = WearonColors.Ink,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .clip(CircleShape)
-                    .background(WearonColors.White)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            )
-            Text(
-                "LOOK %02d".format(index + 1),
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = (-1).sp,
-                color = WearonColors.Ink,
-                modifier = Modifier.align(Alignment.BottomStart)
-            )
-        }
-
-        Column(modifier = Modifier.padding(20.dp)) {
-            look.pieces.forEachIndexed { i, piece ->
-                if (i > 0) HorizontalDivider(color = WearonColors.Line, modifier = Modifier.padding(vertical = 12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "LOOK %02d".format(index + 1),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.5).sp,
+                    color = WearonColors.Ink
+                )
+                Spacer(Modifier.weight(1f))
+                if (look.styleTag.isNotBlank()) {
                     Text(
-                        piece.category.label,
+                        look.styleTag,
                         fontSize = 12.sp,
-                        color = WearonColors.SubText,
-                        modifier = Modifier.width(52.dp)
-                    )
-                    Text(
-                        piece.name,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = WearonColors.Ink
+                        fontWeight = FontWeight.Bold,
+                        color = WearonColors.Ink,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(WearonColors.White)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
-
-            Spacer(Modifier.height(18.dp))
-            Text(
-                look.reason,
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-                color = WearonColors.SubText,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (look.shoppingSuggestions.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(WearonColors.Ivory)
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("이렇게 검색해보세요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
-                    look.shoppingSuggestions.forEach { s ->
+            Spacer(Modifier.height(14.dp))
+            // 조합을 구성하는 내 옷 사진을 아우터 → 상의 → 하의 → 신발 순으로 나란히 배치
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                look.items.forEach { item ->
+                    Column(modifier = Modifier.weight(1f)) {
+                        AsyncImage(
+                            model = item.imageUrl,
+                            contentDescription = item.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(3f / 4f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(WearonColors.White)
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(item.category.label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
                         Text(
-                            "${s.site} · ${s.searchKeyword}",
-                            fontSize = 12.sp,
+                            item.name ?: item.color ?: "",
+                            fontSize = 11.sp,
                             color = WearonColors.SubText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -347,6 +334,48 @@ private fun LookCardView(index: Int, look: LookCard) {
                     }
                 }
             }
+        }
+
+        Text(
+            look.reason,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            color = WearonColors.SubText,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Composable
+private fun ClosetEmptyCard(onGoToCloset: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(WearonColors.Beige)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("👕", fontSize = 36.sp)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "옷장에 옷을 등록하면\n내 옷으로 코디를 추천해드려요",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 22.sp,
+            color = WearonColors.Ink,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+        OutlinedButton(
+            onClick = onGoToCloset,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, WearonColors.Ink),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = WearonColors.White, contentColor = WearonColors.Ink)
+        ) {
+            Text("옷장으로 가기", fontWeight = FontWeight.Bold)
         }
     }
 }
