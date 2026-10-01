@@ -89,6 +89,7 @@ fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
     val registerProgress by viewModel.registerProgress.collectAsState()
     val isRegistering = registerProgress != null
     val message by viewModel.message.collectAsState()
+    val urlState by viewModel.urlState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showAddMenu by remember { mutableStateOf(false) }
@@ -173,6 +174,13 @@ fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
                                 galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             }
                         )
+                        DropdownMenuItem(
+                            text = { Text("🔗  상품 주소로 등록") },
+                            onClick = {
+                                showAddMenu = false
+                                viewModel.openUrlDialog()
+                            }
+                        )
                     }
                 }
             }
@@ -186,6 +194,7 @@ fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
 
             registerProgress?.let { progress ->
                 val stageLabel = when (progress.stage) {
+                    RegisterStage.DOWNLOADING -> "상품 이미지를 가져오는 중…"
                     RegisterStage.COMPRESSING -> "사진을 최적화하는 중…"
                     RegisterStage.UPLOADING -> "업로드 중 ${progress.uploadPercent}%"
                     RegisterStage.ANALYZING -> "AI가 옷을 분류하는 중…"
@@ -242,6 +251,17 @@ fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
                 }
             }
         }
+    }
+
+    urlState?.let { state ->
+        UrlRegisterDialog(
+            state = state,
+            onUrlChange = viewModel::setUrl,
+            onFetch = viewModel::fetchProduct,
+            onSelectImage = viewModel::selectUrlImage,
+            onRegister = viewModel::registerFromUrl,
+            onDismiss = viewModel::closeUrlDialog
+        )
     }
 
     deleteTarget?.let { target ->
