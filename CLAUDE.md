@@ -341,7 +341,7 @@ project-root/
 - [x] 홈 코디 추천을 내 옷장 기반으로 전환 (`/api/outfits/recommend/closet`)
 - [x] 피팅 탭 — 쇼핑몰 URL 기반 가상 피팅 (2026-09-30, 쇼핑 도우미 통합은 미정)
 - [ ] EC2 운영 DB: 옛 `clothes` 테이블 처리 결정 (`phase0_cleanup.sql`은 새 옷장 배포 **이전**에만 실행 가능 — 이후 실행하면 새로 등록된 옷까지 DROP)
-- [ ] 유출된 AWS/Google/Kakao/JWT 키 교체 + S3 IAM 사용자 격리 정책 해제 (완료 전까지 옷 사진이 presigned URL 403으로 안 보임)
+- [x] 유출된 AWS/Google/Kakao/JWT 키 교체 + S3 IAM 격리 해제 — 사용자 보고로 2026-10-01 완료 (release 테스트에서 presigned 이미지 정상 표시). 이미 공개된 git 히스토리의 옛 키는 폐기된 값이므로 무해하나, 히스토리 정리는 선택 사항
 
 ### Phase 5 — 후속 (추후)
 - [ ] 커뮤니티(코디 공유 피드, 좋아요, 댓글) — 우선순위 낮음, 3가지 핵심 기능 안정화 후 검토
@@ -1654,5 +1654,6 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - 발견·수정: 체형·취향 설정 화면 `TopAppBar`가 바깥 Scaffold와 상태바 인셋을 이중 적용해 제목 위가 비어 보임 → `windowInsets = WindowInsets(0)`
 
 **미완료 / 이월**
-- Kakao 로그인 release E2E, 운영 DB 옛 `clothes` 테이블 처리 결정, 유출 키 교체(AWS/Google/Kakao/JWT) + S3 IAM 격리 해제 여부 확인 (이번 테스트에서 presigned 이미지는 정상 표시됨 — 격리가 풀렸거나 키가 교체됐을 가능성, 미확인)
+- Kakao 로그인 release E2E, 운영 DB 옛 `clothes` 테이블 처리 결정
+- 유출 키(AWS/Google/Kakao/JWT) 교체는 사용자가 전부 완료했다고 보고 (이번 세션에서 키 값 자체는 확인하지 않음)
 - 쇼핑 도우미를 피팅 탭에 통합할지 결정, 플레이스토어 등록 준비
