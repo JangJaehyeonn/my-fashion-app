@@ -1657,3 +1657,14 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - Kakao 로그인 release E2E, 운영 DB 옛 `clothes` 테이블 처리 결정
 - 유출 키(AWS/Google/Kakao/JWT) 교체는 사용자가 전부 완료했다고 보고 (이번 세션에서 키 값 자체는 확인하지 않음)
 - 쇼핑 도우미를 피팅 탭에 통합할지 결정, 플레이스토어 등록 준비
+
+
+---
+
+### 2026-10-02 — Kakao 로그인 수정 (이메일 없는 사용자)
+
+- 증상: release 앱에서 Kakao 로그인 동의 후 `{"success":false,"message":"인증이 필요합니다."}`로 끝남. Kakao 인증 화면까지는 정상(client_id/redirect_uri OK), 키 교체 후 Client Secret도 정상(토큰 교환 통과)
+- 원인: `UserPrincipal`이 `UserDetails`를 구현해 Spring Security가 OAuth2 주체 이름(`OAuth2AuthorizedClient.principalName`)을 `getUsername()`(=이메일)에서 읽는데, Kakao는 이메일 동의 항목을 쓰지 않아 null → `IllegalArgumentException: principalName cannot be empty`. Google은 이메일이 항상 있어 영향 없었음
+- 수정: `getUsername()`이 이메일이 비면 사용자 id 반환 (`UserPrincipal.java`), `UserPrincipalTest` 3건 추가 → 백엔드 테스트 26건 통과 (커밋 `5381cef`, dev push·배포 완료)
+- 검증: 에뮬레이터 release 앱에서 Kakao 로그인 성공, 마이 탭에 닉네임 표시(이메일 없음, Google 계정과 별개 사용자로 생성)
+- 에뮬레이터 메모: `system_server`가 죽어(`Can't find service: package`) 앱을 설치할 수 없을 땐 AVD(`Pixel_8`)를 `-no-snapshot-load`로 Cold Boot 하면 복구됨
