@@ -38,7 +38,9 @@ public class UserPrincipal implements OAuth2User, UserDetails {
     @Override public Map<String, Object> getAttributes() { return attributes; }
     @Override public String getName() { return String.valueOf(id); }
     @Override public String getPassword() { return null; }
-    @Override public String getUsername() { return email; }
+    // Spring Security는 UserDetails 주체의 이름을 getUsername()으로 읽는다(OAuth2AuthorizedClient의 principalName).
+    // 이메일 동의 항목이 없는 Kakao 사용자는 email이 null이라 "principalName cannot be empty"로 로그인이 실패하므로 id로 대체
+    @Override public String getUsername() { return (email != null && !email.isBlank()) ? email : String.valueOf(id); }
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
