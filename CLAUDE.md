@@ -1677,7 +1677,7 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 **전제(사용자 반영 완료)**: 새 Elastic IP `52.78.57.41`, DuckDNS(`fashion-app-jh.duckdns.org`) · GitHub `EC2_HOST` 시크릿 · 보안 그룹 443 인바운드
 
 **서버**
-- 인증서: Let's Encrypt(webroot HTTP-01, ECDSA), `certbot/conf`(개인키 포함, `.gitignore`) — 2026-12-30 만료, 이메일 미등록(`--register-unsafely-without-email`, 만료 알림 메일 없음)
+- 인증서: Let's Encrypt(webroot HTTP-01, ECDSA), `certbot/conf`(개인키 포함, `.gitignore`) — 2026-12-30 만료, 발급 시엔 이메일 없이 등록(`--register-unsafely-without-email`) → 2026-10-02 `update_account`로 사용자 이메일을 계정 연락처에 등록해 만료 알림 메일 수신 (주소는 공개 저장소라 문서에 적지 않음)
 - 2단계 배포로 무중단 전환: ① nginx에 `/.well-known/acme-challenge` + 443 포트/인증서 볼륨 추가 후 배포 → 서버에서 `infra/certbot/issue-cert.sh`로 발급 ② `nginx -t`(실제 인증서로 사전 검증) 후 HTTPS 서버 블록 + `80 → 308 https` 리다이렉트 배포
 - 리다이렉트는 **308**: 301은 OkHttp가 POST를 GET으로 바꿔 옛 앱 버전의 POST가 깨짐
 - Spring `server.forward-headers-strategy: framework` 추가 — 없으면 nginx 뒤에서 OAuth2 `redirect_uri`가 `http://`로 생성돼 HTTPS에서 로그인 실패. 확인: `redirect_uri=https://fashion-app-jh.duckdns.org/login/oauth2/code/{google,kakao}`
