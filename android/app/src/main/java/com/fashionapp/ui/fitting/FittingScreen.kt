@@ -23,14 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -60,7 +56,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.fashionapp.ui.common.createCameraImageUri
 import com.fashionapp.ui.theme.WearonColors
-import com.fashionapp.ui.vton.ImagePickerSlot
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import com.fashionapp.ui.theme.WearonShapes
 
 @Composable
 fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
@@ -125,137 +130,166 @@ fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 32.dp)
         ) {
-            Column {
-                Text("피팅", fontSize = 26.sp, fontWeight = FontWeight.Black, color = WearonColors.Ink)
-                Spacer(Modifier.height(4.dp))
-                Text("쇼핑몰 옷을 내 사진에 입혀보세요", fontSize = 14.sp, color = WearonColors.SubText)
-            }
+            Text("피팅", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+            Spacer(Modifier.height(4.dp))
+            Text("쇼핑몰 옷을 내 사진에 입혀보세요", fontSize = 13.sp, color = WearonColors.SubText)
 
-            // 1. 쇼핑몰 URL → 옷 이미지 추출
-            StepTitle("1", "입어볼 옷")
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = productUrl,
-                    onValueChange = viewModel::setProductUrl,
-                    placeholder = { Text("상품 페이지 주소 붙여넣기", fontSize = 14.sp) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(onGo = { focusManager.clearFocus(); viewModel.extract() }),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = WearonColors.Ink,
-                        unfocusedBorderColor = WearonColors.Line,
-                        focusedContainerColor = WearonColors.White,
-                        unfocusedContainerColor = WearonColors.White
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
+            // 1. 쇼핑몰 URL → 옷 이미지 추출 — 입력창 안에 불러오기 버튼을 넣어 한 줄로
+            Spacer(Modifier.height(24.dp))
+            SectionLabel("상품 주소")
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(WearonShapes.Card)
+                    .background(WearonColors.White)
+                    .border(1.dp, WearonColors.Line, WearonShapes.Card)
+                    .padding(start = 14.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Link, contentDescription = null, tint = WearonColors.SubText, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                PillButton(
-                    text = "불러오기",
-                    enabled = !isExtracting && productUrl.isNotBlank(),
-                    loading = isExtracting,
-                    onClick = { focusManager.clearFocus(); viewModel.extract() }
-                )
-            }
-
-            product?.let { page ->
-                page.title?.let {
-                    Text(it, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (productUrl.isEmpty()) {
+                        Text("무신사·29CM 등 상품 링크 붙여넣기", fontSize = 14.sp, color = WearonColors.SubText)
+                    }
+                    BasicTextField(
+                        value = productUrl,
+                        onValueChange = viewModel::setProductUrl,
+                        singleLine = true,
+                        textStyle = TextStyle(fontSize = 14.sp, color = WearonColors.Ink),
+                        cursorBrush = SolidColor(WearonColors.Ink),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+                        keyboardActions = KeyboardActions(onGo = { focusManager.clearFocus(); viewModel.extract() }),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-                if (page.imageUrls.size > 1) {
-                    Text("피팅할 사진을 골라주세요 — 모델 없이 옷만 나온 사진이 결과가 좋아요", fontSize = 12.sp, color = WearonColors.SubText)
-                }
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                Spacer(Modifier.width(8.dp))
+                val canExtract = !isExtracting && productUrl.isNotBlank()
+                Box(
+                    modifier = Modifier
+                        .height(36.dp)
+                        .clip(WearonShapes.Image)
+                        .background(if (canExtract) WearonColors.Ink else WearonColors.Line)
+                        .clickable(enabled = canExtract) { focusManager.clearFocus(); viewModel.extract() }
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    page.imageUrls.forEach { url ->
-                        val selected = (garment as? GarmentSource.Remote)?.imageUrl == url
-                        AsyncImage(
-                            model = url,
-                            contentDescription = "옷 이미지 후보",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(width = 110.dp, height = 146.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(WearonColors.Beige)
-                                .border(
-                                    if (selected) 2.dp else 1.dp,
-                                    if (selected) WearonColors.Ink else WearonColors.Line,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { viewModel.selectRemoteGarment(url) }
-                        )
+                    if (isExtracting) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = WearonColors.Ink)
+                    } else {
+                        Text("불러오기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     }
                 }
             }
 
-            (garment as? GarmentSource.Local)?.let { local ->
-                AsyncImage(
-                    model = local.uri,
-                    contentDescription = "내 옷 사진",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(width = 110.dp, height = 146.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(2.dp, WearonColors.Ink, RoundedCornerShape(12.dp))
+            product?.let { page ->
+                Spacer(Modifier.height(14.dp))
+                page.title?.let {
+                    Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WearonColors.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (page.imageUrls.size > 1) {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        page.imageUrls.forEach { url ->
+                            val selected = (garment as? GarmentSource.Remote)?.imageUrl == url
+                            AsyncImage(
+                                model = url,
+                                contentDescription = "옷 이미지 후보",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(width = 64.dp, height = 80.dp)
+                                    .clip(WearonShapes.Image)
+                                    .background(WearonColors.Beige)
+                                    .border(
+                                        if (selected) 2.dp else 1.dp,
+                                        if (selected) WearonColors.Ink else WearonColors.Line,
+                                        WearonShapes.Image
+                                    )
+                                    .clickable { viewModel.selectRemoteGarment(url) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("모델 없이 옷만 나온 사진을 고르면 결과가 좋아요", fontSize = 12.sp, color = WearonColors.SubText)
+                }
+            }
+
+            // 2. 옷 사진 + 전신 사진을 나란히 — 무엇이 채워졌고 무엇이 비었는지 한눈에
+            Spacer(Modifier.height(28.dp))
+            SectionLabel("피팅 사진")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val garmentModel: Any? = when (val g = garment) {
+                    is GarmentSource.Remote -> g.imageUrl
+                    is GarmentSource.Local -> g.uri
+                    null -> null
+                }
+                PhotoSlot(
+                    label = "옷",
+                    emptyHint = "상품 주소를 불러오거나\n갤러리에서 골라주세요",
+                    model = garmentModel,
+                    actions = listOf(
+                        "갤러리" to {
+                            garmentGalleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                PhotoSlot(
+                    label = "전신",
+                    emptyHint = "정면 전신 사진이\n가장 잘 나와요",
+                    model = personImageUri,
+                    actions = listOf(
+                        "촬영" to ::requestCamera,
+                        "갤러리" to {
+                            personGalleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    ),
+                    modifier = Modifier.weight(1f)
                 )
             }
 
-            Text(
-                "주소가 안 되면 갤러리에서 옷 사진 고르기",
-                fontSize = 13.sp,
-                color = WearonColors.Ink,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable {
-                    garmentGalleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-            )
-
-            // 2. 전신 사진
-            StepTitle("2", "내 전신 사진")
-            ImagePickerSlot(
-                title = "정면 전신 사진이 가장 잘 나와요",
-                imageUri = personImageUri,
-                onCameraClick = ::requestCamera,
-                onGalleryClick = {
-                    personGalleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-            )
-
             // 3. 피팅
+            Spacer(Modifier.height(24.dp))
+            val canTryOn = !isProcessing && garment != null && personImageUri != null
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (!isProcessing && garment != null && personImageUri != null) WearonColors.Ink else WearonColors.Line)
-                    .clickable(enabled = !isProcessing && garment != null && personImageUri != null) { viewModel.tryOn(context) },
+                    .clip(WearonShapes.Card)
+                    .background(if (canTryOn) WearonColors.Ink else WearonColors.Line)
+                    .clickable(enabled = canTryOn) { viewModel.tryOn(context) },
                 contentAlignment = Alignment.Center
             ) {
                 if (isProcessing) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = WearonColors.Ink)
                 } else {
-                    Text("가상 피팅 시작", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("가상 피팅 시작", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
             }
             if (isProcessing) {
-                Text("가상 피팅 생성 중입니다. 최대 1~2분 정도 걸릴 수 있어요.", fontSize = 13.sp, color = WearonColors.SubText)
+                Spacer(Modifier.height(10.dp))
+                Text("가상 피팅 생성 중입니다. 최대 1~2분 정도 걸릴 수 있어요.", fontSize = 12.sp, color = WearonColors.SubText)
             }
 
             result?.let { vtonResult ->
-                Text("결과", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+                Spacer(Modifier.height(28.dp))
+                SectionLabel("결과")
+                Spacer(Modifier.height(8.dp))
                 AsyncImage(
                     model = vtonResult.resultImageUrl,
                     contentDescription = "가상 피팅 결과",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(WearonShapes.Card)
                         .background(WearonColors.Beige)
                 )
             }
@@ -264,34 +298,81 @@ fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun StepTitle(number: String, title: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier.size(22.dp).clip(CircleShape).background(WearonColors.Ink),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(number, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
-    }
+private fun SectionLabel(text: String) {
+    Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
 }
 
+// 3:4 사진 칸 + 하단 텍스트 액션 — 비어 있으면 베이지 바탕에 안내 문구, 칸을 누르면 마지막 액션(갤러리) 실행
 @Composable
-private fun PillButton(text: String, enabled: Boolean, loading: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .height(52.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) WearonColors.Ink else WearonColors.Line)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = WearonColors.Ink)
-        } else {
-            Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+private fun PhotoSlot(
+    label: String,
+    emptyHint: String,
+    model: Any?,
+    actions: List<Pair<String, () -> Unit>>,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(3f / 4f)
+                .clip(WearonShapes.Card)
+                .background(WearonColors.Beige)
+                .clickable(onClick = actions.last().second),
+            contentAlignment = Alignment.Center
+        ) {
+            if (model != null) {
+                AsyncImage(
+                    model = model,
+                    contentDescription = label,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = WearonColors.SubText, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        emptyHint,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        color = WearonColors.SubText,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            Text(
+                label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .clip(WearonShapes.Image)
+                    .background(WearonColors.Ink)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            actions.forEach { (text, onClick) ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(34.dp)
+                        .clip(WearonShapes.Image)
+                        .border(1.dp, WearonColors.Line, WearonShapes.Image)
+                        .background(WearonColors.White)
+                        .clickable(onClick = onClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = WearonColors.Ink)
+                }
+            }
         }
     }
 }

@@ -22,7 +22,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,7 +30,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fashionapp.data.model.Situation
 import com.fashionapp.data.model.Weather
 import com.fashionapp.ui.theme.WearonColors
+import com.fashionapp.ui.theme.WearonShapes
 
 // 홈 칩 노출 순서 — 가장 자주 쓰는 상황을 앞에 둔다
 private val HOME_SITUATIONS = listOf(
@@ -98,10 +97,10 @@ fun HomeScreen(
                 .animateContentSize()
         ) {
             Text(
-                "Wearon",
-                fontSize = 26.sp,
+                "WEARON",
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = (-0.5).sp,
+                letterSpacing = 2.sp,
                 color = WearonColors.Ink,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
@@ -117,7 +116,7 @@ fun HomeScreen(
             Spacer(Modifier.height(28.dp))
             Text(
                 "오늘은 어떤 날인가요?",
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = WearonColors.Ink,
                 modifier = Modifier.padding(horizontal = 20.dp)
@@ -135,8 +134,8 @@ fun HomeScreen(
                 modifier = Modifier
                     .padding(horizontal = 20.dp)
                     .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(12.dp),
+                    .height(52.dp),
+                shape = WearonShapes.Card,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = WearonColors.Ink,
                     disabledContainerColor = WearonColors.Line
@@ -145,7 +144,7 @@ fun HomeScreen(
                 if (isRecommending) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
                 } else {
-                    Text("오늘의 코디 추천", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("오늘의 코디 추천", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -167,43 +166,54 @@ private fun WeatherCard(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 테두리 없는 베이지 한 줄 — 기온을 크게, 나머지는 보조 정보로
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(WearonColors.White)
-            .border(1.dp, WearonColors.Line, RoundedCornerShape(16.dp))
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .clip(WearonShapes.Card)
+            .background(WearonColors.Beige)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         when {
             isLoading -> {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = WearonColors.BeigeDeep)
-                Spacer(Modifier.width(12.dp))
-                Text("날씨를 불러오는 중…", color = WearonColors.SubText, fontSize = 14.sp)
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = WearonColors.Ink)
+                Spacer(Modifier.width(10.dp))
+                Text("날씨를 불러오는 중…", color = WearonColors.SubText, fontSize = 13.sp)
             }
             weather == null -> {
-                Text("날씨 정보를 불러올 수 없어요", color = WearonColors.SubText, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = onRetry) { Text("다시 시도", color = WearonColors.Ink) }
+                Text("날씨 정보를 불러올 수 없어요", color = WearonColors.SubText, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Text(
+                    "다시 시도",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = WearonColors.Ink,
+                    modifier = Modifier.clickable(onClick = onRetry).padding(4.dp)
+                )
             }
             else -> {
-                Text(weatherEmoji(weather.condition), fontSize = 36.sp)
-                Spacer(Modifier.width(16.dp))
+                Text(
+                    "${weather.temperature.toInt()}°",
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = (-1).sp,
+                    color = WearonColors.Ink
+                )
+                Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("오늘 서울", fontSize = 12.sp, color = WearonColors.SubText)
-                    Text(weather.condition, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+                    Text(
+                        "${weatherEmoji(weather.condition)} ${weather.condition}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = WearonColors.Ink
+                    )
                     Text(
                         "습도 ${weather.humidity}% · 바람 ${"%.1f".format(weather.windSpeed)}m/s",
                         fontSize = 12.sp,
                         color = WearonColors.SubText
                     )
                 }
-                Text(
-                    "${weather.temperature.toInt()}°",
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Light,
-                    color = WearonColors.Ink
-                )
+                Text("서울", fontSize = 12.sp, color = WearonColors.SubText)
             }
         }
     }
@@ -216,22 +226,24 @@ private fun SituationChips(selected: Situation, onSelect: (Situation) -> Unit) {
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         HOME_SITUATIONS.forEach { situation ->
             val isSelected = situation == selected
             Box(
                 modifier = Modifier
-                    .clip(CircleShape)
+                    .height(34.dp)
+                    .clip(WearonShapes.Image)
                     .background(if (isSelected) WearonColors.Ink else WearonColors.White)
-                    .border(1.dp, if (isSelected) WearonColors.Ink else WearonColors.Line, CircleShape)
+                    .border(1.dp, if (isSelected) WearonColors.Ink else WearonColors.Line, WearonShapes.Image)
                     .clickable { onSelect(situation) }
-                    .padding(horizontal = 18.dp, vertical = 10.dp)
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     situation.label,
-                    fontSize = 14.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (isSelected) Color.White else WearonColors.Ink
                 )
             }
@@ -250,7 +262,7 @@ private fun LookPager(looks: List<LookCard>, situation: Situation) {
             modifier = Modifier.padding(horizontal = 20.dp),
             verticalAlignment = Alignment.Bottom
         ) {
-            Text("오늘의 추천 코디", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+            Text("오늘의 추천 코디", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
             Spacer(Modifier.width(6.dp))
             Text("${situation.label} · ${looks.size}", fontSize = 13.sp, color = WearonColors.SubText)
         }
@@ -275,75 +287,76 @@ private fun LookCardView(index: Int, look: LookCard) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(WearonShapes.Card)
             .background(WearonColors.White)
-            .border(1.dp, WearonColors.Line, RoundedCornerShape(20.dp))
+            .border(1.dp, WearonColors.Line, WearonShapes.Card)
+            .padding(14.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(WearonColors.Beige)
-                .padding(16.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "LOOK %02d".format(index + 1),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = WearonColors.Ink
+            )
+            Spacer(Modifier.weight(1f))
+            if (look.styleTag.isNotBlank()) {
                 Text(
-                    "LOOK %02d".format(index + 1),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-0.5).sp,
-                    color = WearonColors.Ink
+                    look.styleTag,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = WearonColors.Ink,
+                    modifier = Modifier
+                        .clip(WearonShapes.Image)
+                        .background(WearonColors.Beige)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 )
-                Spacer(Modifier.weight(1f))
-                if (look.styleTag.isNotBlank()) {
-                    Text(
-                        look.styleTag,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = WearonColors.Ink,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(WearonColors.White)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
             }
-            Spacer(Modifier.height(14.dp))
-            // 조합을 구성하는 내 옷 사진을 아우터 → 상의 → 하의 → 신발 순으로 나란히 배치
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                look.items.forEach { item ->
-                    Column(modifier = Modifier.weight(1f)) {
-                        AsyncImage(
-                            model = item.imageUrl,
-                            contentDescription = item.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(3f / 4f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(WearonColors.White)
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(item.category.label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
-                        Text(
-                            item.name ?: item.color ?: "",
-                            fontSize = 11.sp,
-                            color = WearonColors.SubText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+        }
+        Spacer(Modifier.height(12.dp))
+        // 아우터 → 상의 → 하의 → 신발 순 2열 그리드 — 아이템 수와 무관하게 사진 비율(4:5)이 일정하도록
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            look.items.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { item ->
+                        Column(modifier = Modifier.weight(1f)) {
+                            AsyncImage(
+                                model = item.imageUrl,
+                                contentDescription = item.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(4f / 5f)
+                                    .clip(WearonShapes.Image)
+                                    .background(WearonColors.Beige)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(item.category.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = WearonColors.Ink)
+                            Text(
+                                item.name ?: item.color ?: "",
+                                fontSize = 12.sp,
+                                color = WearonColors.SubText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
 
+        Spacer(Modifier.height(12.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(WearonColors.Line))
+        Spacer(Modifier.height(12.dp))
         Text(
             look.reason,
             fontSize = 13.sp,
             lineHeight = 20.sp,
-            color = WearonColors.SubText,
+            color = WearonColors.Ink.copy(alpha = 0.75f),
             maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(16.dp)
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -353,7 +366,7 @@ private fun ClosetEmptyCard(onGoToCloset: () -> Unit, modifier: Modifier = Modif
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(WearonShapes.Card)
             .background(WearonColors.Beige)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -371,7 +384,7 @@ private fun ClosetEmptyCard(onGoToCloset: () -> Unit, modifier: Modifier = Modif
         Spacer(Modifier.height(16.dp))
         OutlinedButton(
             onClick = onGoToCloset,
-            shape = RoundedCornerShape(12.dp),
+            shape = WearonShapes.Card,
             border = BorderStroke(1.dp, WearonColors.Ink),
             colors = ButtonDefaults.outlinedButtonColors(containerColor = WearonColors.White, contentColor = WearonColors.Ink)
         ) {
@@ -391,9 +404,8 @@ private fun PagerDots(count: Int, current: Int) {
             Box(
                 modifier = Modifier
                     .padding(horizontal = 3.dp)
-                    .height(6.dp)
-                    .width(if (active) 18.dp else 6.dp)
-                    .clip(CircleShape)
+                    .height(2.dp)
+                    .width(if (active) 20.dp else 10.dp)
                     .background(if (active) WearonColors.Ink else WearonColors.BeigeDeep.copy(alpha = 0.5f))
             )
         }

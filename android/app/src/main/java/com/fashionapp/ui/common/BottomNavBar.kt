@@ -1,5 +1,14 @@
 package com.fashionapp.ui.common
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Home
@@ -34,6 +43,8 @@ fun BottomNavBar(navController: NavController) {
         androidx.compose.runtime.remember(state) { androidx.compose.runtime.mutableStateOf(state?.destination?.route) }
     }
 
+    Column {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(WearonColors.Line))
     NavigationBar(containerColor = WearonColors.White, tonalElevation = 0.dp) {
         items.forEach { item ->
             NavigationBarItem(
@@ -48,15 +59,16 @@ fun BottomNavBar(navController: NavController) {
                     }
                 },
                 icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) },
+                label = { Text(item.label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = WearonColors.Ink,
                     selectedTextColor = WearonColors.Ink,
-                    indicatorColor = WearonColors.Beige,
+                    indicatorColor = Color.Transparent,
                     unselectedIconColor = WearonColors.SubText,
                     unselectedTextColor = WearonColors.SubText
                 )
             )
         }
+    }
     }
 }

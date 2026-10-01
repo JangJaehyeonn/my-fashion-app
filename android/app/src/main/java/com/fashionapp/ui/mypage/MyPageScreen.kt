@@ -1,39 +1,34 @@
 package com.fashionapp.ui.mypage
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Checkroom
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,12 +40,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.fashionapp.data.model.BodyType
+import com.fashionapp.data.model.PreferredStyle
+import com.fashionapp.data.model.UserProfile
+import com.fashionapp.ui.theme.WearonColors
+import com.fashionapp.ui.theme.WearonShapes
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyPageScreen(
     onLogout: () -> Unit,
@@ -61,6 +61,9 @@ fun MyPageScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
 
+    // 체형·취향 설정에서 저장 후 돌아오면 다시 컴포지션되므로 여기서 갱신
+    LaunchedEffect(Unit) { viewModel.loadProfile() }
+
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -70,127 +73,171 @@ fun MyPageScreen(
                 TextButton(onClick = {
                     showLogoutDialog = false
                     viewModel.logout(onLogout)
-                }) { Text("로그아웃", color = Color.Red) }
+                }) { Text("로그아웃", color = Color(0xFFD64545)) }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("취소") }
-            }
+                TextButton(onClick = { showLogoutDialog = false }) { Text("취소", color = WearonColors.Ink) }
+            },
+            containerColor = WearonColors.White
         )
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("마이페이지", fontWeight = FontWeight.Bold) }) }
+        containerColor = WearonColors.Ivory,
+        // 바깥 AppNavigation Scaffold가 이미 시스템 바 인셋을 적용하므로 중복 적용 방지
+        contentWindowInsets = WindowInsets(0)
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 32.dp)
         ) {
-            item {
-                if (isLoading) {
-                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-                    ProfileCard(
-                        nickname = profile?.nickname ?: "사용자",
-                        email = profile?.email ?: "",
-                        profileImageUrl = profile?.profileImageUrl
-                    )
+            Text("마이", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+
+            Spacer(Modifier.height(20.dp))
+            if (isLoading) {
+                Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = WearonColors.Ink, strokeWidth = 2.dp)
                 }
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(1.dp)
-                ) {
-                    Column {
-                        MenuRow(label = "체형·취향 설정", icon = Icons.Default.Checkroom) {
-                            onEditBodyProfile()
-                        }
-                        MenuRow(label = "로그아웃", icon = Icons.Default.Logout, tint = Color.Red) {
-                            showLogoutDialog = true
-                        }
-                    }
-                }
-            }
-
-            item {
-                Text(
-                    "AI 패션 코디 앱 v1.0",
-                    fontSize = 12.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfileCard(nickname: String, email: String, profileImageUrl: String?) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (profileImageUrl != null) {
-                AsyncImage(
-                    model = profileImageUrl,
-                    contentDescription = "프로필",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(64.dp).clip(CircleShape)
-                )
             } else {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
+                ProfileHeader(
+                    nickname = profile?.nickname ?: "사용자",
+                    email = profile?.email.orEmpty(),
+                    profileImageUrl = profile?.profileImageUrl
+                )
+                Spacer(Modifier.height(24.dp))
+                BodyProfileCard(profile = profile, onEdit = onEditBodyProfile)
             }
 
-            Spacer(Modifier.width(16.dp))
-
-            Column {
-                Text(nickname, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(email, fontSize = 13.sp, color = Color.Gray)
+            Spacer(Modifier.height(24.dp))
+            Text("설정", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(WearonShapes.Card)
+                    .background(WearonColors.White)
+                    .border(1.dp, WearonColors.Line, WearonShapes.Card)
+            ) {
+                MenuRow(label = "체형·취향 수정", onClick = onEditBodyProfile)
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                MenuRow(label = "로그아웃", color = WearonColors.SubText) { showLogoutDialog = true }
             }
+
+            Spacer(Modifier.height(32.dp))
+            Text(
+                "Wearon v1.0",
+                fontSize = 12.sp,
+                color = WearonColors.SubText,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
 
 @Composable
-private fun MenuRow(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color = Color(0xFF1A1A1A),
-    onClick: () -> Unit
-) {
+private fun ProfileHeader(nickname: String, email: String, profileImageUrl: String?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (profileImageUrl != null) {
+            AsyncImage(
+                model = profileImageUrl,
+                contentDescription = "프로필",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(56.dp).clip(CircleShape).background(WearonColors.Beige)
+            )
+        } else {
+            Box(
+                modifier = Modifier.size(56.dp).clip(CircleShape).background(WearonColors.Beige),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Person, contentDescription = null, tint = WearonColors.Ink, modifier = Modifier.size(28.dp))
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text(nickname, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+            if (email.isNotBlank()) {
+                Text(email, fontSize = 13.sp, color = WearonColors.SubText)
+            }
+        }
+    }
+}
+
+// 키·몸무게·체형·스타일을 한눈에 보는 요약 카드 — 미설정이면 설정 유도
+@Composable
+private fun BodyProfileCard(profile: UserProfile?, onEdit: () -> Unit) {
+    val bodyType = profile?.bodyType?.let { name -> BodyType.entries.find { it.name == name }?.label }
+    val style = profile?.preferredStyle?.let { name -> PreferredStyle.entries.find { it.name == name }?.label }
+    val isEmpty = profile?.height == null && profile?.weight == null && bodyType == null && style == null
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(WearonShapes.Card)
+            .background(WearonColors.Beige)
+            .padding(18.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("내 체형·취향", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink, modifier = Modifier.weight(1f))
+            Text(
+                if (isEmpty) "설정하기" else "수정",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = WearonColors.Ink,
+                modifier = Modifier.clickable(onClick = onEdit).padding(4.dp)
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (isEmpty) "설정하면 체형에 맞는 코디를 추천해드려요" else "코디 추천에 반영되고 있어요",
+            fontSize = 12.sp,
+            color = WearonColors.SubText
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCell("키", profile?.height?.let { "${it}cm" }, Modifier.weight(1f))
+            StatCell("몸무게", profile?.weight?.let { "${it}kg" }, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCell("체형", bodyType, Modifier.weight(1f))
+            StatCell("스타일", style, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun StatCell(label: String, value: String?, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(WearonShapes.Image)
+            .background(WearonColors.White)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Text(label, fontSize = 11.sp, color = WearonColors.SubText)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            value ?: "—",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (value != null) WearonColors.Ink else WearonColors.SubText
+        )
+    }
+}
+
+@Composable
+private fun MenuRow(label: String, color: Color = WearonColors.Ink, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
-        Text(label, color = tint, modifier = Modifier.weight(1f))
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.LightGray)
+        Text(label, fontSize = 14.sp, color = color, modifier = Modifier.weight(1f))
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = WearonColors.BeigeDeep, modifier = Modifier.size(20.dp))
     }
 }
