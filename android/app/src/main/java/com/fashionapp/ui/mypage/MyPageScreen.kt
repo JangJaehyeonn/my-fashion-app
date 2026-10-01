@@ -169,7 +169,7 @@ private fun ProfileHeader(nickname: String, email: String, profileImageUrl: Stri
 @Composable
 private fun BodyProfileCard(profile: UserProfile?, onEdit: () -> Unit) {
     val bodyType = profile?.bodyType?.let { name -> BodyType.entries.find { it.name == name }?.label }
-    val style = profile?.styleList?.takeIf { it.isNotEmpty() }?.joinToString(" · ") { it.label }
+    val style = profile?.styleList?.takeIf { it.isNotEmpty() }?.joinToString(" · ") { style -> style.label.toList().joinToString("\u2060") }  // 단어 중간(예: 스트/릿)에서 줄바꿈되지 않게 글자 사이에 WORD JOINER
     val isEmpty = profile?.height == null && profile?.weight == null && bodyType == null && style == null
 
     Column(
