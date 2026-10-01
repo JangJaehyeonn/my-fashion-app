@@ -3,6 +3,7 @@ package com.fashionapp.domain.user;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -17,7 +18,9 @@ public class UserResponse {
     private Integer height;
     private Integer weight;
     private String bodyType;
+    // 옛 앱 호환용(선택한 스타일 중 첫 번째). 새 앱은 preferredStyles를 사용
     private String preferredStyle;
+    private List<String> preferredStyles;
 
     public static UserResponse from(User user) {
         return UserResponse.builder()
@@ -29,7 +32,8 @@ public class UserResponse {
                 .height(user.getHeight())
                 .weight(user.getWeight())
                 .bodyType(user.getBodyType() != null ? user.getBodyType().name() : null)
-                .preferredStyle(user.getPreferredStyle() != null ? user.getPreferredStyle().name() : null)
+                .preferredStyle(user.getPreferredStyleNames().stream().findFirst().orElse(null))
+                .preferredStyles(user.getPreferredStyleNames())
                 .build();
     }
 }

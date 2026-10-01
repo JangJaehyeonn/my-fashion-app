@@ -15,6 +15,7 @@ class BodyProfile(BaseModel):
     weight: Optional[int] = None
     body_type: Optional[str] = None
     preferred_style: Optional[str] = None
+    preferred_styles: Optional[List[str]] = None
 
 
 class SituationRecommendRequest(BaseModel):

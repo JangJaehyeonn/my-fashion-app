@@ -74,6 +74,21 @@ _SITUATION_PROMPT_TEMPLATE = """당신은 개인 패션 스타일리스트입니
 - 특별한 이유가 없다면 무신사와 지그재그를 우선적으로 추천하세요"""
 
 
+def style_text(profile) -> str:
+    """프롬프트에 넣을 선호 스타일 문구. 여러 개면 모두 나열하고 골고루 반영하도록 안내한다."""
+    if not profile:
+        return "정보 없음"
+    keys = list(profile.preferred_styles or [])
+    if not keys and profile.preferred_style:  # 옛 Spring 요청(단일 값) 호환
+        keys = [profile.preferred_style]
+    labels = [_STYLE_LABELS[k] for k in keys if k in _STYLE_LABELS]
+    if not labels:
+        return "정보 없음"
+    if len(labels) == 1:
+        return labels[0]
+    return f"{', '.join(labels)} (여러 스타일을 모두 반영해, 한 가지에 치우치지 않고 골고루 섞어서 추천)"
+
+
 def _parse_json(content: str) -> dict:
     content = content.strip()
     content = re.sub(r"```(?:json)?\n?", "", content).strip()
@@ -90,7 +105,7 @@ async def recommend_outfit_by_situation(request: SituationRecommendRequest) -> S
         height=f"{profile.height}cm" if profile and profile.height else "정보 없음",
         weight=f"{profile.weight}kg" if profile and profile.weight else "정보 없음",
         body_type=_BODY_TYPE_LABELS.get(profile.body_type, "정보 없음") if profile and profile.body_type else "정보 없음",
-        preferred_style=_STYLE_LABELS.get(profile.preferred_style, "정보 없음") if profile and profile.preferred_style else "정보 없음",
+        preferred_style=style_text(profile),
     )
 
     response = await client.chat.completions.create(
@@ -179,7 +194,7 @@ async def recommend_outfit_by_closet(request: ClosetRecommendRequest) -> ClosetR
         height=f"{profile.height}cm" if profile and profile.height else "정보 없음",
         weight=f"{profile.weight}kg" if profile and profile.weight else "정보 없음",
         body_type=_BODY_TYPE_LABELS.get(profile.body_type, "정보 없음") if profile and profile.body_type else "정보 없음",
-        preferred_style=_STYLE_LABELS.get(profile.preferred_style, "정보 없음") if profile and profile.preferred_style else "정보 없음",
+        preferred_style=style_text(profile),
         closet=closet_lines,
     )
 

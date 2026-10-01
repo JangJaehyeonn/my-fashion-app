@@ -48,7 +48,7 @@ class BodyProfileViewModel @Inject constructor(
         height: Int?,
         weight: Int?,
         bodyType: BodyType?,
-        preferredStyle: PreferredStyle?,
+        preferredStyles: List<PreferredStyle>,
         onSaved: () -> Unit
     ) {
         val current = _profile.value ?: return
@@ -60,7 +60,8 @@ class BodyProfileViewModel @Inject constructor(
                     height = height,
                     weight = weight,
                     bodyType = bodyType?.name,
-                    preferredStyle = preferredStyle?.name
+                    // 빈 목록도 그대로 보내야 서버가 "모두 해제"로 처리함 (null이면 옛 단일 값 경로로 해석)
+                    preferredStyles = preferredStyles.map { it.name }
                 )
             ).onSuccess {
                 _profile.value = it

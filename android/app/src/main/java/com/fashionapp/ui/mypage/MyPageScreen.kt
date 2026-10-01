@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.fashionapp.data.model.BodyType
-import com.fashionapp.data.model.PreferredStyle
 import com.fashionapp.data.model.UserProfile
 import com.fashionapp.ui.theme.WearonColors
 import com.fashionapp.ui.theme.WearonShapes
@@ -170,7 +169,7 @@ private fun ProfileHeader(nickname: String, email: String, profileImageUrl: Stri
 @Composable
 private fun BodyProfileCard(profile: UserProfile?, onEdit: () -> Unit) {
     val bodyType = profile?.bodyType?.let { name -> BodyType.entries.find { it.name == name }?.label }
-    val style = profile?.preferredStyle?.let { name -> PreferredStyle.entries.find { it.name == name }?.label }
+    val style = profile?.styleList?.takeIf { it.isNotEmpty() }?.joinToString(" · ") { it.label }
     val isEmpty = profile?.height == null && profile?.weight == null && bodyType == null && style == null
 
     Column(

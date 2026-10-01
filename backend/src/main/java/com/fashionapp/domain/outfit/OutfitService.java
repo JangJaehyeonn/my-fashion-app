@@ -97,7 +97,8 @@ public class OutfitService {
                 user.getHeight(),
                 user.getWeight(),
                 user.getBodyType() != null ? user.getBodyType().name() : null,
-                user.getPreferredStyle() != null ? user.getPreferredStyle().name() : null
+                user.getPreferredStyleNames().stream().findFirst().orElse(null),
+                user.getPreferredStyleNames()
         );
     }
 

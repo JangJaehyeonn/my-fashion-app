@@ -26,15 +26,23 @@ data class UserProfile(
     val height: Int?,
     val weight: Int?,
     val bodyType: String?,
-    val preferredStyle: String?
-)
+    // 옛 서버 호환용 단일 값(선택한 스타일 중 첫 번째). 다중 선택은 preferredStyles
+    val preferredStyle: String?,
+    val preferredStyles: List<String>? = null
+) {
+    /** 선택한 선호 스타일 (서버가 아직 preferredStyles를 안 주면 단일 값으로 폴백) */
+    val styleList: List<PreferredStyle>
+        get() = (preferredStyles ?: listOfNotNull(preferredStyle))
+            .mapNotNull { name -> PreferredStyle.entries.find { it.name == name } }
+}
 
 data class UpdateProfileRequest(
     val nickname: String?,
     val height: Int?,
     val weight: Int?,
     val bodyType: String?,
-    val preferredStyle: String?
+    val preferredStyle: String? = null,
+    val preferredStyles: List<String>? = null
 )
 
 enum class BodyType(val label: String) {

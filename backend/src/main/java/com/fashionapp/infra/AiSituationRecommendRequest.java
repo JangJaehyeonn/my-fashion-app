@@ -3,6 +3,8 @@ package com.fashionapp.infra;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 @AllArgsConstructor
 public class AiSituationRecommendRequest {
@@ -24,5 +26,6 @@ public class AiSituationRecommendRequest {
         private Integer weight;
         private String bodyType;
         private String preferredStyle;
+        private List<String> preferredStyles;
     }
 }

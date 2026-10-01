@@ -74,9 +74,8 @@ fun BodyProfileScreen(
     var bodyType by remember(profile) {
         mutableStateOf(profile?.bodyType?.let { name -> BodyType.entries.find { it.name == name } })
     }
-    var preferredStyle by remember(profile) {
-        mutableStateOf(profile?.preferredStyle?.let { name -> PreferredStyle.entries.find { it.name == name } })
-    }
+    // 선택한 순서를 유지하는 목록 — 첫 번째 값이 옛 앱/서버의 단일 값으로도 기록됨
+    var preferredStyles by remember(profile) { mutableStateOf(profile?.styleList ?: emptyList()) }
 
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -128,8 +127,10 @@ fun BodyProfileScreen(
                 ChoiceChips(BodyType.entries, bodyType, { it.label }) { bodyType = it }
             }
 
-            SettingCard(title = "선호 스타일") {
-                ChoiceChips(PreferredStyle.entries, preferredStyle, { it.label }) { preferredStyle = it }
+            SettingCard(title = "선호 스타일", subtitle = "여러 개 선택할 수 있어요") {
+                MultiChoiceChips(PreferredStyle.entries, preferredStyles, { it.label }) { toggled ->
+                    preferredStyles = if (toggled in preferredStyles) preferredStyles - toggled else preferredStyles + toggled
+                }
             }
 
             Box(
@@ -143,7 +144,7 @@ fun BodyProfileScreen(
                             height = height.toIntOrNull(),
                             weight = weight.toIntOrNull(),
                             bodyType = bodyType,
-                            preferredStyle = preferredStyle,
+                            preferredStyles = preferredStyles,
                             onSaved = onSaved
                         )
                     },
@@ -160,7 +161,7 @@ fun BodyProfileScreen(
 }
 
 @Composable
-private fun SettingCard(title: String, content: @Composable () -> Unit) {
+private fun SettingCard(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,6 +171,10 @@ private fun SettingCard(title: String, content: @Composable () -> Unit) {
             .padding(16.dp)
     ) {
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+        subtitle?.let {
+            Spacer(Modifier.height(2.dp))
+            Text(it, fontSize = 12.sp, color = WearonColors.SubText)
+        }
         Spacer(Modifier.height(12.dp))
         content()
     }
@@ -232,6 +237,42 @@ private fun <T> ChoiceChips(
                     .background(if (isSelected) WearonColors.Ink else WearonColors.White)
                     .border(1.dp, if (isSelected) WearonColors.Ink else WearonColors.Line, WearonShapes.Image)
                     .clickable { onSelect(if (isSelected) null else option) }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label(option),
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) Color.White else WearonColors.Ink
+                )
+            }
+        }
+    }
+}
+
+// 여러 개를 켜고 끌 수 있는 칩 (선호 스타일)
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> MultiChoiceChips(
+    options: List<T>,
+    selected: List<T>,
+    label: (T) -> String,
+    onToggle: (T) -> Unit
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { option ->
+            val isSelected = option in selected
+            Box(
+                modifier = Modifier
+                    .height(38.dp)
+                    .clip(WearonShapes.Image)
+                    .background(if (isSelected) WearonColors.Ink else WearonColors.White)
+                    .border(1.dp, if (isSelected) WearonColors.Ink else WearonColors.Line, WearonShapes.Image)
+                    .clickable { onToggle(option) }
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {

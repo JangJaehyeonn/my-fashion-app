@@ -7,7 +7,7 @@ from app.services.recommend_service import (
     client,
     _parse_json,
     _BODY_TYPE_LABELS,
-    _STYLE_LABELS,
+    style_text,
 )
 
 _SHOPPING_PROMPT_TEMPLATE = """당신은 예산에 맞춰 옷을 추천하는 개인 쇼핑 도우미입니다.
@@ -57,7 +57,7 @@ async def recommend_shopping(request: ShoppingRecommendRequest) -> ShoppingRecom
         height=f"{profile.height}cm" if profile and profile.height else "정보 없음",
         weight=f"{profile.weight}kg" if profile and profile.weight else "정보 없음",
         body_type=_BODY_TYPE_LABELS.get(profile.body_type, "정보 없음") if profile and profile.body_type else "정보 없음",
-        preferred_style=_STYLE_LABELS.get(profile.preferred_style, "정보 없음") if profile and profile.preferred_style else "정보 없음",
+        preferred_style=style_text(profile),
     )
 
     response = await client.chat.completions.create(

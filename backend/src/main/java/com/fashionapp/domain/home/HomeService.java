@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -30,18 +31,19 @@ public class HomeService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         String bodyType = user.getBodyType() != null ? user.getBodyType().name() : null;
-        String preferredStyle = user.getPreferredStyle() != null ? user.getPreferredStyle().name() : null;
+        List<String> preferredStyles = user.getPreferredStyleNames();
+        String preferredStyle = preferredStyles.stream().findFirst().orElse(null);
 
         AiSituationRecommendRequest outfitRequest = new AiSituationRecommendRequest(
                 new AiSituationRecommendRequest.WeatherInfo(request.getTemperature(), request.getCondition()),
                 request.getSituation(),
-                new AiSituationRecommendRequest.BodyProfile(user.getHeight(), user.getWeight(), bodyType, preferredStyle)
+                new AiSituationRecommendRequest.BodyProfile(user.getHeight(), user.getWeight(), bodyType, preferredStyle, preferredStyles)
         );
 
         AiShoppingRecommendRequest shoppingRequest = new AiShoppingRecommendRequest(
                 request.getBudget(),
                 request.getSituation(),
-                new AiShoppingRecommendRequest.BodyProfile(user.getHeight(), user.getWeight(), bodyType, preferredStyle)
+                new AiShoppingRecommendRequest.BodyProfile(user.getHeight(), user.getWeight(), bodyType, preferredStyle, preferredStyles)
         );
 
         CompletableFuture<AiSituationRecommendResponse> outfitFuture = aiServerClient.recommendOutfitsBySituation(outfitRequest);
