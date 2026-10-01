@@ -35,9 +35,15 @@ class ProductPageRepository @Inject constructor() {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    // 공유 링크(onelink.me) 해석 전용 — 리다이렉트를 자동으로 따라가지 않고 매 단계 도메인을 검증하며 따라간다
+    private val noRedirectClient = client.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .build()
+
     suspend fun fetchProductPage(rawUrl: String): Result<ProductPage> = withContext(Dispatchers.IO) {
         runCatching {
-            val url = normalizeUrl(rawUrl) ?: error("올바른 상품 페이지 주소가 아니에요.")
+            val url = resolveShareLink(normalizeUrl(rawUrl) ?: error("올바른 상품 페이지 주소가 아니에요."))
             // 리다이렉트(예: 단축 URL, 모바일 페이지) 후 최종 주소 기준으로 상대 경로를 풀어야 함
             val (finalUrl, html) = execute(url).use { response ->
                 if (!response.isSuccessful) error("페이지를 불러오지 못했어요. (HTTP ${response.code})")
@@ -63,6 +69,45 @@ class ProductPageRepository @Inject constructor() {
             }
         }
     }
+
+    /**
+     * 앱 공유 링크(AppsFlyer OneLink, 예: musinsa.onelink.me/xxxx/yyyy)를 실제 상품 페이지 URL로 바꾼다.
+     * 모바일 UA로 요청하면 리다이렉트 없이 JS로 앱 실행(intent://)만 시도하는 중계 HTML(og:image 없음)이 오고,
+     * 데스크톱 UA로 요청하면 웹 상품 페이지로 301 리다이렉트되므로 데스크톱 UA로 한 단계씩 따라간다.
+     * 따라가는 주소는 https + (onelink.me 또는 허용된 쇼핑몰 도메인)으로 제한하고, 최대 [MAX_SHARE_HOPS]번만 따라간다.
+     * onelink가 아닌 일반 상품 URL은 그대로 반환한다.
+     */
+    private fun resolveShareLink(start: HttpUrl): HttpUrl {
+        if (!isOneLinkHost(start.host)) return start
+        var current = start
+        repeat(MAX_SHARE_HOPS) {
+            if (!isOneLinkHost(current.host)) return current
+            val next = noRedirectClient.newCall(
+                Request.Builder()
+                    .url(current)
+                    .header("User-Agent", DESKTOP_UA)
+                    .header("Accept-Language", "ko-KR,ko;q=0.9")
+                    .build()
+            ).execute().use { response ->
+                if (!response.isRedirect) error(SHARE_LINK_UNSUPPORTED)
+                val location = response.header("Location")?.let { response.request.url.resolve(it) }
+                    ?: error(SHARE_LINK_UNSUPPORTED)
+                if (location.scheme != "https" || !(isOneLinkHost(location.host) || isAllowedShopHost(location.host))) {
+                    error(SHARE_LINK_UNSUPPORTED)
+                }
+                location
+            }
+            current = next
+        }
+        // 여전히 onelink 중계 단계에 머물러 있으면 해석 실패
+        if (isOneLinkHost(current.host)) error(SHARE_LINK_UNSUPPORTED)
+        return current
+    }
+
+    private fun isOneLinkHost(host: String) = host == "onelink.me" || host.endsWith(".onelink.me")
+
+    private fun isAllowedShopHost(host: String) =
+        ALLOWED_SHOP_DOMAINS.any { host == it || host.endsWith(".$it") }
 
     private fun execute(url: HttpUrl): Response =
         client.newCall(
@@ -137,6 +182,12 @@ class ProductPageRepository @Inject constructor() {
 
     companion object {
         private const val MAX_CANDIDATES = 6
+        private const val MAX_SHARE_HOPS = 3
+        // 공유 링크 해석 중 따라가도 되는 쇼핑몰 도메인 (서브도메인 포함)
+        private val ALLOWED_SHOP_DOMAINS = listOf("musinsa.com", "29cm.co.kr", "zigzag.kr", "a-bly.com")
+        private const val SHARE_LINK_UNSUPPORTED = "앱 공유 링크는 지원하지 않아요. 브라우저에서 상품 페이지 주소를 복사해 주세요."
+        private const val DESKTOP_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
         private const val MAX_HTML_BYTES = 3L * 1024 * 1024
         private const val MAX_IMAGE_BYTES = 10L * 1024 * 1024 // AI 서버 /ai/vton 한도와 동일
         // AI 서버 /ai/vton 허용 형식과 동일

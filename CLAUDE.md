@@ -1691,3 +1691,15 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 
 **콘솔 등록 후 검증 완료 (2026-10-02)**: 에뮬레이터 release 앱에서 Google · Kakao 로그인 모두 성공 (nginx 로그상 `/login/oauth2/code/{google,kakao}` 콜백이 HTTP/2(HTTPS)로 도착, `principalName`/OAuth2 오류 0건). Google 계정은 저장된 체형·취향 유지, Kakao는 이메일 없는 별도 사용자
 **미검증**: 인증서 실제 갱신 (11월 말 `~/wearon-certbot.log` 확인)
+
+
+---
+
+### 2026-10-02 — 피팅 탭: 무신사 앱 공유 링크(onelink.me) 지원
+
+- 증상: 무신사 앱에서 공유한 `musinsa.onelink.me/...` 링크를 붙여 넣으면 "옷 이미지를 찾지 못했어요 → 갤러리" 안내로 떨어짐 (`products/숫자` URL은 정상)
+- 추출 로직은 서버가 아니라 **앱**(`ProductPageRepository`)에 있음 (SSRF 방지로 서버 요청을 피한 설계)
+- 원인: AppsFlyer OneLink는 UA에 따라 응답이 다름 — Android 모바일 UA는 **리다이렉트 없는 200 중계 HTML**(JS `intent://`로 앱 실행 시도, `og:image` 없음), 데스크톱 UA는 **301 → 실제 `www.musinsa.com` 페이지**, iPhone UA는 App Store로 301. 앱이 모바일 UA만 써서 이미지 없는 중계 페이지를 받음
+- 수정(`ProductPageRepository` 한 파일): `*.onelink.me`일 때만 **데스크톱 UA + 리다이렉트 비자동 추적**으로 한 단계씩 따라감 (최대 3단계, 매 단계 `https` + `onelink.me` 또는 허용 쇼핑몰 도메인(`musinsa.com`, `29cm.co.kr`, `zigzag.kr`, `a-bly.com`)만 허용). 해석 실패·허용 밖 도메인이면 "앱 공유 링크는 지원하지 않아요. 브라우저에서 상품 페이지 주소를 복사해 주세요." 안내. 일반 상품 URL 경로는 변경 없음(기존 모든 쇼핑몰 URL 허용 유지)
+- 검증(에뮬레이터 release): 실제 무신사 onelink → 웹 페이지로 해석돼 제목·이미지 추출 ✓ / 존재하지 않는 onelink(404) → 안내 문구 ✓ / 일반 상품 URL 회귀 ✓. ⚠️ 검증에 쓴 링크는 상품이 아닌 캠페인 공유 링크 — 상품 공유 링크도 같은 OneLink 방식이라 동일하게 동작할 것으로 보나 직접 확인은 못 함 (웹 대체 주소가 없는 링크는 안내 문구로 떨어짐)
+- 단위 테스트는 없음 (Android 단위 테스트 환경 미구성 — 추가는 범위 밖으로 판단)
