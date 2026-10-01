@@ -185,6 +185,13 @@ fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
             )
 
             registerProgress?.let { progress ->
+                val stageLabel = when (progress.stage) {
+                    RegisterStage.COMPRESSING -> "사진을 최적화하는 중…"
+                    RegisterStage.UPLOADING -> "업로드 중 ${progress.uploadPercent}%"
+                    RegisterStage.ANALYZING -> "AI가 옷을 분류하는 중…"
+                }
+                // 여러 장일 때만 "3/5 ·" 앞붙임
+                val label = if (progress.total > 1) "${progress.current}/${progress.total} · $stageLabel" else stageLabel
                 Column(
                     modifier = Modifier
                         .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -196,19 +203,19 @@ fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = WearonColors.Ink)
                         Spacer(Modifier.width(12.dp))
-                        Text(
-                            if (progress.total > 1) "${progress.current}/${progress.total} 등록 중… AI가 옷을 분류하고 있어요"
-                            else "AI가 옷을 분류하고 있어요…",
-                            fontSize = 13.sp,
-                            color = WearonColors.Ink
-                        )
+                        Text(label, fontSize = 13.sp, color = WearonColors.Ink)
                     }
-                    if (progress.total > 1) {
-                        Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(10.dp))
+                    val barModifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape)
+                    if (progress.stage == RegisterStage.ANALYZING) {
+                        // 서버가 AI 분류하는 동안은 끝을 알 수 없으므로 불확정 바
+                        LinearProgressIndicator(modifier = barModifier, color = WearonColors.Ink, trackColor = WearonColors.White)
+                    } else {
+                        // 앞서 끝낸 장수 + 지금 장의 압축/업로드 진행분(전체의 절반까지, 나머지 절반은 AI 분류)
+                        val within = if (progress.stage == RegisterStage.UPLOADING) 0.05f + 0.45f * progress.uploadPercent / 100f else 0.02f
                         LinearProgressIndicator(
-                            // 완료된 장수 기준 진행률 (처리 중인 사진은 아직 미포함)
-                            progress = { (progress.current - 1).toFloat() / progress.total },
-                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                            progress = { ((progress.current - 1) + within) / progress.total },
+                            modifier = barModifier,
                             color = WearonColors.Ink,
                             trackColor = WearonColors.White
                         )

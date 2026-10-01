@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fashionapp.data.api.ProgressRequestBody
+import com.fashionapp.data.image.ImageCompressor
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
 import com.fashionapp.data.repository.ClothesRepository
@@ -15,7 +17,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -98,14 +103,33 @@ class ClosetViewModel @Inject constructor(
     }
 
     private suspend fun uploadOne(context: Context, uri: Uri): Clothes {
-        // 실제 MIME 타입을 보내야 서버 허용 목록(jpeg/png/webp/heic)을 통과함 — "image/*" 금지
-        val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error("파일을 열 수 없습니다")
-        val part = MultipartBody.Part.createFormData(
-            "image", "clothes.jpg", bytes.toRequestBody(mimeType.toMediaType())
-        )
+        setStage(RegisterStage.COMPRESSING)
+        // 카메라 원본(수 MB)을 그대로 올리면 모바일 회선에서 업로드가 가장 오래 걸리므로 긴 변 1024px JPEG로 줄여서 올림
+        val (bytes, mimeType) = withContext(Dispatchers.Default) { prepareImage(context, uri) }
+
+        setStage(RegisterStage.UPLOADING, percent = 0)
+        val body = ProgressRequestBody(bytes.toRequestBody(mimeType.toMediaType())) { written, total ->
+            // 본문을 다 보냈으면 이후는 서버의 AI 분류 대기
+            if (total > 0 && written >= total) setStage(RegisterStage.ANALYZING)
+            else if (total > 0) setStage(RegisterStage.UPLOADING, percent = (written * 100 / total).toInt())
+        }
+        val part = MultipartBody.Part.createFormData("image", "clothes.jpg", body)
         return clothesRepository.register(part).getOrThrow()
+    }
+
+    // 압축에 실패하면(예: 구형 기기의 HEIC) 예전처럼 원본을 그대로 보냄. 실제 MIME 타입을 보내야 서버 허용 목록을 통과함 — "image/*" 금지
+    private fun prepareImage(context: Context, uri: Uri): Pair<ByteArray, String> =
+        runCatching { ImageCompressor.compress { context.contentResolver.openInputStream(uri) } to "image/jpeg" }
+            .getOrElse {
+                val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("파일을 열 수 없습니다")
+                raw to mime
+            }
+
+    // 진행률 콜백은 OkHttp 스레드에서 오므로 StateFlow.update로 안전하게 갱신하고, 값이 같으면 갱신하지 않음
+    private fun setStage(stage: RegisterStage, percent: Int = 0) {
+        _registerProgress.update { it?.copy(stage = stage, uploadPercent = percent)?.takeIf { next -> next != it } ?: it }
     }
 
     private fun resultMessage(added: List<Clothes>, failed: Int): String = when {
@@ -131,4 +155,12 @@ class ClosetViewModel @Inject constructor(
     fun clearMessage() { _message.value = null }
 }
 
-data class RegisterProgress(val current: Int, val total: Int)
+// 한 장을 등록하는 동안의 단계: 사진 줄이기 → 업로드(%) → 서버 AI 분류 대기
+enum class RegisterStage { COMPRESSING, UPLOADING, ANALYZING }
+
+data class RegisterProgress(
+    val current: Int,
+    val total: Int,
+    val stage: RegisterStage = RegisterStage.COMPRESSING,
+    val uploadPercent: Int = 0
+)
