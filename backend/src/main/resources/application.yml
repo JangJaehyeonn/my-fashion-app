@@ -1,3 +1,8 @@
+server:
+  # nginx가 TLS를 종료하고 X-Forwarded-Proto/Host를 넘겨주므로, 이를 신뢰해야 OAuth2 redirect_uri({baseUrl})가
+  # http가 아닌 https로 만들어진다 (설정이 없으면 HTTPS 뒤에서도 http://... redirect_uri가 생성되어 로그인 실패)
+  forward-headers-strategy: framework
+
 spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/fashionapp}

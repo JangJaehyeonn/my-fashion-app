@@ -3,8 +3,12 @@ services:
     image: nginx:alpine
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Let's Encrypt 인증서(개인키 포함 — git에는 올리지 않음)와 HTTP-01 챌린지용 웹루트
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
     depends_on:
       - spring-boot
     restart: unless-stopped

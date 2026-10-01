@@ -23,4 +23,6 @@ jobs:
             cd ~/my-fashion-app
             git pull origin dev
             docker compose -f docker-compose.prod.yml up -d --build
+            # nginx.conf는 단일 파일 바인드 마운트라 git pull로 파일이 교체돼도 컨테이너가 옛 파일을 잡고 있음 → 재시작해 반영
+            docker compose -f docker-compose.prod.yml restart nginx
             docker image prune -f

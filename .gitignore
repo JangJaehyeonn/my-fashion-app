@@ -33,3 +33,7 @@ android/keystore.properties
 *.keystore 
  
  
+
+# Let's Encrypt 인증서·개인키 (서버에서만 보관)
+certbot/conf/
+certbot/www/
