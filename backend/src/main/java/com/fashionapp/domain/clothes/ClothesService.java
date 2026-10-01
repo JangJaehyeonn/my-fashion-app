@@ -32,8 +32,11 @@ public class ClothesService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         // AI 분류를 먼저 해서, 분류 실패 시 S3에 고아 파일이 남지 않도록 함
+        long t0 = System.nanoTime();
         AiClothesClassifyResponse aiResult = aiServerClient.classifyClothes(image);
+        long t1 = System.nanoTime();
         String imageUrl = s3Uploader.upload(image, "clothes");
+        long t2 = System.nanoTime();
 
         Clothes clothes = Clothes.builder()
                 .user(user)
@@ -43,7 +46,12 @@ public class ClothesService {
                 .name(aiResult.getName())
                 .build();
 
-        return toResponse(clothesRepository.save(clothes));
+        ClothesResponse response = toResponse(clothesRepository.save(clothes));
+        long t3 = System.nanoTime();
+        // 옷 등록이 느릴 때 어느 구간(AI 분류 / S3 업로드 / DB·presign)인지 가려내기 위한 구간별 소요 시간
+        log.info("clothes.register size={}KB classify={}ms s3={}ms db={}ms",
+                image.getSize() / 1024, (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000, (t3 - t2) / 1_000_000);
+        return response;
     }
 
     @Transactional(readOnly = true)
