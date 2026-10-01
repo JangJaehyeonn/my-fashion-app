@@ -49,8 +49,8 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "BASE_URL", "\"http://fashion-app-jh.duckdns.org/api/\"")
-            buildConfigField("String", "OAUTH2_BASE_URL", "\"http://fashion-app-jh.duckdns.org\"")
+            buildConfigField("String", "BASE_URL", "\"https://fashion-app-jh.duckdns.org/api/\"")
+            buildConfigField("String", "OAUTH2_BASE_URL", "\"https://fashion-app-jh.duckdns.org\"")
             signingConfig = signingConfigs.getByName("release")
         }
     }

@@ -1668,3 +1668,25 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - 수정: `getUsername()`이 이메일이 비면 사용자 id 반환 (`UserPrincipal.java`), `UserPrincipalTest` 3건 추가 → 백엔드 테스트 26건 통과 (커밋 `5381cef`, dev push·배포 완료)
 - 검증: 에뮬레이터 release 앱에서 Kakao 로그인 성공, 마이 탭에 닉네임 표시(이메일 없음, Google 계정과 별개 사용자로 생성)
 - 에뮬레이터 메모: `system_server`가 죽어(`Can't find service: package`) 앱을 설치할 수 없을 땐 AVD(`Pixel_8`)를 `-no-snapshot-load`로 Cold Boot 하면 복구됨
+
+
+---
+
+### 2026-10-02 — 서버 HTTPS 전환 (Let's Encrypt)
+
+**전제(사용자 반영 완료)**: 새 Elastic IP `52.78.57.41`, DuckDNS(`fashion-app-jh.duckdns.org`) · GitHub `EC2_HOST` 시크릿 · 보안 그룹 443 인바운드
+
+**서버**
+- 인증서: Let's Encrypt(webroot HTTP-01, ECDSA), `certbot/conf`(개인키 포함, `.gitignore`) — 2026-12-30 만료, 이메일 미등록(`--register-unsafely-without-email`, 만료 알림 메일 없음)
+- 2단계 배포로 무중단 전환: ① nginx에 `/.well-known/acme-challenge` + 443 포트/인증서 볼륨 추가 후 배포 → 서버에서 `infra/certbot/issue-cert.sh`로 발급 ② `nginx -t`(실제 인증서로 사전 검증) 후 HTTPS 서버 블록 + `80 → 308 https` 리다이렉트 배포
+- 리다이렉트는 **308**: 301은 OkHttp가 POST를 GET으로 바꿔 옛 앱 버전의 POST가 깨짐
+- Spring `server.forward-headers-strategy: framework` 추가 — 없으면 nginx 뒤에서 OAuth2 `redirect_uri`가 `http://`로 생성돼 HTTPS에서 로그인 실패. 확인: `redirect_uri=https://fashion-app-jh.duckdns.org/login/oauth2/code/{google,kakao}`
+- 자동 갱신: EC2 사용자 crontab `17 3 * * * infra/certbot/renew-certs.sh` (갱신 후 `nginx -s reload`, 로그 `~/wearon-certbot.log`). 만료 30일 전부터만 실제 갱신. 실제 갱신 동작은 아직 한 번도 안 일어남 — `renew --dry-run`은 staging 응답 대기로 멈춰 검증 못함(저장된 갱신 설정이 webroot + `/var/www/certbot`인 것만 확인)
+- `deploy.yml`에 `restart nginx` 추가 (단일 파일 바인드 마운트 inode 문제, 2026-10-01 기록 참고)
+- HSTS는 일부러 안 켬 (인증서/도메인 문제 시 앱·브라우저가 복구 불가능하게 막히는 위험)
+
+**앱**: release `BASE_URL`/`OAUTH2_BASE_URL`을 https로, `network_security_config`에서 운영 도메인 cleartext 허용 제거(로컬 `10.0.2.2`/`localhost`만 유지). 에뮬레이터에서 인증이 필요한 날씨 API가 HTTPS로 정상 호출됨
+
+**⚠️ 사용자 조치 필요 (콘솔은 직접 수정 불가)**: Google Cloud Console / Kakao Developers에 redirect URI 추가 — `https://fashion-app-jh.duckdns.org/login/oauth2/code/google`, `.../kakao`. 서버가 이제 https redirect_uri를 보내므로 등록 전까지 **Google/Kakao 로그인 모두 실패**(redirect_uri_mismatch / KOE006). 확인 후 기존 `http://` URI는 제거 가능
+
+**미검증**: 소셜 로그인 HTTPS E2E(콘솔 등록 후), 인증서 실제 갱신

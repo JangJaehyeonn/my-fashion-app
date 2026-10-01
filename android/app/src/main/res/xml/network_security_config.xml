@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- 로컬 개발(에뮬레이터)용 HTTP만 허용. 운영 도메인(fashion-app-jh.duckdns.org)은 HTTPS 전용이라 cleartext 허용을 제거함 -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">10.0.2.2</domain>
         <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">fashion-app-jh.duckdns.org</domain>
     </domain-config>
 </network-security-config>
