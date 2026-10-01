@@ -1689,4 +1689,5 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 
 **⚠️ 사용자 조치 필요 (콘솔은 직접 수정 불가)**: Google Cloud Console / Kakao Developers에 redirect URI 추가 — `https://fashion-app-jh.duckdns.org/login/oauth2/code/google`, `.../kakao`. 서버가 이제 https redirect_uri를 보내므로 등록 전까지 **Google/Kakao 로그인 모두 실패**(redirect_uri_mismatch / KOE006). 확인 후 기존 `http://` URI는 제거 가능
 
-**미검증**: 소셜 로그인 HTTPS E2E(콘솔 등록 후), 인증서 실제 갱신
+**콘솔 등록 후 검증 완료 (2026-10-02)**: 에뮬레이터 release 앱에서 Google · Kakao 로그인 모두 성공 (nginx 로그상 `/login/oauth2/code/{google,kakao}` 콜백이 HTTP/2(HTTPS)로 도착, `principalName`/OAuth2 오류 0건). Google 계정은 저장된 체형·취향 유지, Kakao는 이메일 없는 별도 사용자
+**미검증**: 인증서 실제 갱신 (11월 말 `~/wearon-certbot.log` 확인)
