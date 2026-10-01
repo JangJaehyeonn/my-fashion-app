@@ -1623,3 +1623,36 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 2. ⚠️ 유출 키 교체 + S3 IAM 격리 해제 (이월 — EC2를 꺼둬도 공개 저장소에 노출된 Google/Kakao/JWT 키는 여전히 유효하므로 우선순위 높음)
 3. (EC2 재기동 시) 실패한 배포 Re-run → 운영에서 가상 피팅이 Nginx 경유로 60초 넘게 걸려도 성공하는지 확인 + 운영 DB 옛 `clothes` 테이블 처리 결정
 4. 쇼핑 도우미를 피팅 탭에 통합할지 결정
+
+
+---
+
+### 2026-10-01 — EC2 배포 완료, UI 전면 개선, 앱 아이콘, release 빌드 E2E 테스트
+
+**EC2 배포**
+- 실패했던 "Deploy to EC2" run(`36679757349`)을 Re-run → 성공, EC2에 최신 dev 반영 (EC2 재기동 완료, IP 변경은 DuckDNS 자동 갱신이 처리)
+- ⚠️ **nginx.conf 바인드 마운트 함정**: `docker-compose.prod.yml`이 `./nginx/nginx.conf`를 단일 파일로 마운트하는데, `git pull`이 파일을 교체하면 컨테이너가 옛 inode를 계속 잡고 있어 **새 설정이 반영되지 않음** (`/api/vton` 180초 설정이 호스트엔 있고 컨테이너엔 없었음). `docker compose up -d --build`는 nginx 컨테이너를 재생성하지 않으므로, nginx.conf를 바꾼 배포 후엔 `docker compose -f docker-compose.prod.yml restart nginx` 필요. 이번엔 `nginx -t` 검증 후 재시작해 적용 완료
+- 배포 후 spring-boot 메모리 약 286MB (JVM 튜닝 유지)
+
+**UI 디자인 개선 (Android, 커밋 `27ed366`)**
+- 팔레트: 아이보리 `#FAFAF7` / 베이지 `#F5F0E8` / 블랙 `#1A1A1A`, `WearonShapes`(모서리 4·8dp) + 자간 조정한 Typography
+- 홈: 테두리 없는 베이지 날씨 한 줄, 각진 상황 칩, 코디 카드를 2열 4:5 이미지 그리드로
+- 옷장: 밑줄 인디케이터 카테고리 탭, 좌우 여백 12dp·간격 6dp의 4:5 대형 그리드
+- 피팅: 입력창 안에 "불러오기" 버튼, 옷/전신 사진 칸을 나란히(3:4), 비어 있으면 안내 문구
+- 마이: 프로필 헤더 + 키·몸무게·체형·스타일 요약 카드, 편집 화면은 드롭다운 대신 선택 칩. 진입 때마다 `loadProfile()` 재호출
+- 하단 탭: 위쪽 헤어라인, 선택 배경 제거
+- 앱 아이콘: 베이지 배경 + 블랙 "W" 모노그램 (어댑티브 + 모노크롬)
+
+**release 빌드 E2E 테스트 (에뮬레이터, 운영 서버 HTTP)**
+- ⚠️ **처음 설치돼 있던 release APK는 2026-07-27에 빌드된 옛 버전**(로그인 화면이 "AI 스타일리스트")이었음 — `android/app/release/app-release.apk`(Android Studio 출력)가 그 날짜. Gradle CLI(`gradle assembleRelease`, 캐시된 8.10.2)로 최신 소스를 직접 빌드해 설치. 키스토어는 `Documents\fashionapp-keystore`(확장자 없음, PKCS12), 비밀번호는 `keystore.properties`(gitignore)
+- cleartext: `network_security_config.xml`에 `fashion-app-jh.duckdns.org`가 허용돼 있어 HTTP 호출 문제 없음 (`isMinifyEnabled=false` 유지)
+- 1) Google 로그인: OAuth redirect_uri가 `http://fashion-app-jh.duckdns.org/login/oauth2/code/{google,kakao}`로 정상 생성, 로그인 완료 ✓ (Kakao는 이번에 미실행)
+- 2) 홈: 날씨 표시, 옷장 비었을 땐 안내 카드, 옷 4벌 등록 후 옷장 기반 추천 LOOK 카드 정상 ✓ (아우터 2벌만 있을 땐 AI가 조합을 못 만들어 "코디를 만들기 어려워요" 안내 — 의도된 동작)
+- 3) 옷장: 갤러리 등록 → AI 분류(아우터/브라운/varsity 자켓 등) → S3 업로드 → presigned 이미지 표시 ✓
+- 4) 피팅: 무신사 URL → 상품명·이미지 추출 → 전신 사진 → 가상 피팅 결과 ✓, 타임아웃 없이 완료 (Nginx 180초 설정 적용 후). 모델이 나온 상품 사진을 고르면 얼굴이 옷에 찍히는 건 IDM-VTON 특성 — 화면 안내문대로 "옷만 나온 사진" 선택 필요
+- 5) 마이: 체형/취향 저장 → 재진입 시 서버에서 다시 읽어 요약 카드 반영 ✓
+- 발견·수정: 체형·취향 설정 화면 `TopAppBar`가 바깥 Scaffold와 상태바 인셋을 이중 적용해 제목 위가 비어 보임 → `windowInsets = WindowInsets(0)`
+
+**미완료 / 이월**
+- Kakao 로그인 release E2E, 운영 DB 옛 `clothes` 테이블 처리 결정, 유출 키 교체(AWS/Google/Kakao/JWT) + S3 IAM 격리 해제 여부 확인 (이번 테스트에서 presigned 이미지는 정상 표시됨 — 격리가 풀렸거나 키가 교체됐을 가능성, 미확인)
+- 쇼핑 도우미를 피팅 탭에 통합할지 결정, 플레이스토어 등록 준비
