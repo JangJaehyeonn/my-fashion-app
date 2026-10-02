@@ -9,7 +9,7 @@ import anthropic
 import requests
 
 # claude-opus-5는 현재 사용 가능한 실제 모델 ID. 필요 시 CLAUDE_MODEL 환경변수로 오버라이드.
-MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-5")
+MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5")
 MAX_DIFF_CHARS = 60000
 COMMENT_MARKER = "<!-- claude-pr-review -->"
 MAX_COMMENT_CHARS = 65000  # GitHub 이슈 코멘트 65,536자 제한에 여유를 둠
