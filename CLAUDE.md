@@ -1260,8 +1260,8 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
   - ⚠️ 아직 미실행 — 실제 JWT 토큰으로 `k6 run` 필요
 
 - **EC2 운영 DB `phase0_cleanup.sql` 적용 — 착수했으나 이 세션(Claude Code)에서는 직접 실행 불가로 사용자에게 인계**
-  - `~/.ssh/known_hosts`에 `3.35.9.48`(EC2 퍼블릭 IP, `fashion-app-jh.duckdns.org`) 접속 이력 확인, `Downloads/fashion-app-key.pem` 키 확인
-  - `ssh ubuntu@3.35.9.48`, `curl http://fashion-app-jh.duckdns.org` 모두 타임아웃 — 이 Claude Code 세션의 네트워크 환경(샌드박스 해제 후에도 동일)에서는 EC2로 아웃바운드 연결 자체가 안 되는 것으로 판단, EC2/보안그룹 자체 문제인지는 미확인
+  - SSH `known_hosts`에 `<EC2 IP>`(EC2 퍼블릭 IP, `fashion-app-jh.duckdns.org`) 접속 이력 확인, 로컬에 SSH 키 파일 존재 확인
+  - `ssh ubuntu@<EC2 IP>`, `curl http://fashion-app-jh.duckdns.org` 모두 타임아웃 — 이 Claude Code 세션의 네트워크 환경(샌드박스 해제 후에도 동일)에서는 EC2로 아웃바운드 연결 자체가 안 되는 것으로 판단, EC2/보안그룹 자체 문제인지는 미확인
   - 사용자가 직접 SSH 접속해서 진행하기로 결정 — 절차 안내: (1) `docker ps`로 postgres 컨테이너명 확인 (2) `clothes`/`outfits`/`outfit_items`/`outfit_calendar` row count 확인 (3) `pg_dump`로 해당 4개 테이블 백업 (4) `git pull` 후 `docker cp`+`psql -f`로 `phase0_cleanup.sql` 실행 (5) `\dt`로 `users` 테이블만 남았는지 확인
   - ⚠️ **아직 미완료** — row count 확인 결과와 스크립트 실행 결과 모두 사용자로부터 회신 대기 중
 
@@ -1403,7 +1403,7 @@ k6 run -e JWT_TOKEN=<토큰> performance/k6-load.js
   - `update-duckdns.sh` — `DUCKDNS_DOMAIN`/`DUCKDNS_TOKEN` 환경변수로 DuckDNS update API 호출
   - `duckdns-update.service` — systemd oneshot 유닛, `After=network-online.target`으로 매 부팅 시 1회 실행
   - `duckdns.env.example`(플레이스홀더만) + `README.md`(설치 절차)
-  - ⚠️ **보안**: 사용자가 대화 중 실제 DuckDNS 토큰을 평문으로 전달했으나, 레포에 커밋되는 파일에는 절대 하드코딩하지 않음 — 스크립트는 `/etc/duckdns/duckdns.env`(EC2에서 직접 생성, git 추적 대상 아님)에서 토큰을 읽도록 설계. 실제 토큰 값은 채팅 응답에만 안내(SSH로 직접 실행할 명령어 형태)하고 파일로는 남기지 않음
+  - ⚠️ **보안**: 사용자가 대화 중 실제 DuckDNS 토큰을 평문으로 전달했으나, 레포에 커밋되는 파일에는 절대 하드코딩하지 않음 — 스크립트는 서버의 `/etc/duckdns/` 아래 env 파일(EC2에서 직접 생성, git 추적 대상 아님)에서 토큰을 읽도록 설계. 실제 토큰 값은 채팅 응답에만 안내(SSH로 직접 실행할 명령어 형태)하고 파일로는 남기지 않음
   - 이 세션 환경은 2026-07-27부터 EC2로 아웃바운드 연결이 안 되는 상태라 Claude가 직접 실행/검증 불가 — 사용자가 SSH로 직접 설치·실행
   - **사용자가 EC2에 직접 설치·실행 완료** (2026-07-31) — `duckdns-update.service` 정상 동작 확인
 
@@ -1510,7 +1510,7 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - VTON 화면: 전신 사진도 갤러리 선택 가능하도록 수정
 
 **⚠️ 보안 — 비밀키 유출 발견 (미해결, 사용자 조치 필요)**
-- presigned URL이 403 `AWSCompromisedKeyQuarantineV3` → AWS가 IAM 사용자 `fashion-app-s3-user`를 유출 키로 격리한 상태
+- presigned URL이 403 `AWSCompromisedKeyQuarantineV3` → AWS가 S3 전용 IAM 사용자를 유출 키로 격리한 상태
 - 원인: `backend/.env`가 2026-06-28 커밋(`82a62f1`)부터 git에 추적되어 **PUBLIC 저장소**의 dev 브랜치에 푸시돼 있었음
   (AWS 키, Google/Kakao Client Secret, `JWT_SECRET` 포함). `.gitignore`의 `**/.env`는 이미 추적 중인 파일엔 적용 안 됨
 - 조치: `git rm --cached backend/.env`로 추적 해제 (커밋 `a68afab`). 이미 공개된 히스토리의 키는 되돌릴 수 없으므로 **키 교체가 필수**
@@ -1608,7 +1608,7 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 
 **커밋/배포 (피팅 탭)**
 - `a5ff97b` 피팅 탭 + VTON 타임아웃 수정 + nginx 설정을 `origin/dev`에 push
-- ⚠️ **EC2 배포는 두 번(913a726, a5ff97b) 모두 실패** — `dial tcp 3.34.48.114:22: i/o timeout`. 코드 문제가 아니라
+- ⚠️ **EC2 배포는 두 번(913a726, a5ff97b) 모두 실패** — `dial tcp <EC2 IP>:22: i/o timeout`. 코드 문제가 아니라
   **과금 때문에 EC2 인스턴스를 꺼둔 상태**(사용자 결정, 2026-09-30~). 꺼져 있는 동안 dev push 배포 실패는 정상
 - EC2를 다시 켜면: GitHub Actions에서 최근 실패한 "Deploy to EC2" run을 Re-run(`gh run rerun 36679757349`) → 최신 dev가
   한 번에 반영됨. 퍼블릭 IP는 DuckDNS 자동 갱신이 처리하므로 `EC2_HOST` 수정 불필요. `deploy.yml`에 `set -e`가 없어
@@ -1644,7 +1644,7 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - 앱 아이콘: 베이지 배경 + 블랙 "W" 모노그램 (어댑티브 + 모노크롬)
 
 **release 빌드 E2E 테스트 (에뮬레이터, 운영 서버 HTTP)**
-- ⚠️ **처음 설치돼 있던 release APK는 2026-07-27에 빌드된 옛 버전**(로그인 화면이 "AI 스타일리스트")이었음 — `android/app/release/app-release.apk`(Android Studio 출력)가 그 날짜. Gradle CLI(`gradle assembleRelease`, 캐시된 8.10.2)로 최신 소스를 직접 빌드해 설치. 키스토어는 `Documents\fashionapp-keystore`(확장자 없음, PKCS12), 비밀번호는 `keystore.properties`(gitignore)
+- ⚠️ **처음 설치돼 있던 release APK는 2026-07-27에 빌드된 옛 버전**(로그인 화면이 "AI 스타일리스트")이었음 — `android/app/release/app-release.apk`(Android Studio 출력)가 그 날짜. Gradle CLI(`gradle assembleRelease`, 캐시된 8.10.2)로 최신 소스를 직접 빌드해 설치. 키스토어는 로컬 문서 폴더의 키스토어 파일(확장자 없음, PKCS12), 비밀번호는 `keystore.properties`(gitignore)
 - cleartext: `network_security_config.xml`에 `fashion-app-jh.duckdns.org`가 허용돼 있어 HTTP 호출 문제 없음 (`isMinifyEnabled=false` 유지)
 - 1) Google 로그인: OAuth redirect_uri가 `http://fashion-app-jh.duckdns.org/login/oauth2/code/{google,kakao}`로 정상 생성, 로그인 완료 ✓ (Kakao는 이번에 미실행)
 - 2) 홈: 날씨 표시, 옷장 비었을 땐 안내 카드, 옷 4벌 등록 후 옷장 기반 추천 LOOK 카드 정상 ✓ (아우터 2벌만 있을 땐 AI가 조합을 못 만들어 "코디를 만들기 어려워요" 안내 — 의도된 동작)
@@ -1674,14 +1674,14 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 
 ### 2026-10-02 — 서버 HTTPS 전환 (Let's Encrypt)
 
-**전제(사용자 반영 완료)**: 새 Elastic IP `52.78.57.41`, DuckDNS(`fashion-app-jh.duckdns.org`) · GitHub `EC2_HOST` 시크릿 · 보안 그룹 443 인바운드
+**전제(사용자 반영 완료)**: 새 Elastic IP `<EC2 IP>`, DuckDNS(`fashion-app-jh.duckdns.org`) · GitHub `EC2_HOST` 시크릿 · 보안 그룹 443 인바운드
 
 **서버**
 - 인증서: Let's Encrypt(webroot HTTP-01, ECDSA), `certbot/conf`(개인키 포함, `.gitignore`) — 2026-12-30 만료, 발급 시엔 이메일 없이 등록(`--register-unsafely-without-email`) → 2026-10-02 `update_account`로 사용자 이메일을 계정 연락처에 등록해 만료 알림 메일 수신 (주소는 공개 저장소라 문서에 적지 않음)
 - 2단계 배포로 무중단 전환: ① nginx에 `/.well-known/acme-challenge` + 443 포트/인증서 볼륨 추가 후 배포 → 서버에서 `infra/certbot/issue-cert.sh`로 발급 ② `nginx -t`(실제 인증서로 사전 검증) 후 HTTPS 서버 블록 + `80 → 308 https` 리다이렉트 배포
 - 리다이렉트는 **308**: 301은 OkHttp가 POST를 GET으로 바꿔 옛 앱 버전의 POST가 깨짐
 - Spring `server.forward-headers-strategy: framework` 추가 — 없으면 nginx 뒤에서 OAuth2 `redirect_uri`가 `http://`로 생성돼 HTTPS에서 로그인 실패. 확인: `redirect_uri=https://fashion-app-jh.duckdns.org/login/oauth2/code/{google,kakao}`
-- 자동 갱신: EC2 사용자 crontab `17 3 * * * infra/certbot/renew-certs.sh` (갱신 후 `nginx -s reload`, 로그 `~/wearon-certbot.log`). 만료 30일 전부터만 실제 갱신. 실제 갱신 동작은 아직 한 번도 안 일어남 — `renew --dry-run`은 staging 응답 대기로 멈춰 검증 못함(저장된 갱신 설정이 webroot + `/var/www/certbot`인 것만 확인)
+- 자동 갱신: EC2 사용자 crontab `17 3 * * * infra/certbot/renew-certs.sh` (갱신 후 `nginx -s reload`, 로그는 EC2 사용자 홈의 certbot 로그 파일). 만료 30일 전부터만 실제 갱신. 실제 갱신 동작은 아직 한 번도 안 일어남 — `renew --dry-run`은 staging 응답 대기로 멈춰 검증 못함(저장된 갱신 설정이 webroot + `/var/www/certbot`인 것만 확인)
 - `deploy.yml`에 `restart nginx` 추가 (단일 파일 바인드 마운트 inode 문제, 2026-10-01 기록 참고)
 - HSTS는 일부러 안 켬 (인증서/도메인 문제 시 앱·브라우저가 복구 불가능하게 막히는 위험)
 
@@ -1690,7 +1690,7 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 **⚠️ 사용자 조치 필요 (콘솔은 직접 수정 불가)**: Google Cloud Console / Kakao Developers에 redirect URI 추가 — `https://fashion-app-jh.duckdns.org/login/oauth2/code/google`, `.../kakao`. 서버가 이제 https redirect_uri를 보내므로 등록 전까지 **Google/Kakao 로그인 모두 실패**(redirect_uri_mismatch / KOE006). 확인 후 기존 `http://` URI는 제거 가능
 
 **콘솔 등록 후 검증 완료 (2026-10-02)**: 에뮬레이터 release 앱에서 Google · Kakao 로그인 모두 성공 (nginx 로그상 `/login/oauth2/code/{google,kakao}` 콜백이 HTTP/2(HTTPS)로 도착, `principalName`/OAuth2 오류 0건). Google 계정은 저장된 체형·취향 유지, Kakao는 이메일 없는 별도 사용자
-**미검증**: 인증서 실제 갱신 (11월 말 `~/wearon-certbot.log` 확인)
+**미검증**: 인증서 실제 갱신 (11월 말 EC2의 certbot 로그 확인)
 
 
 ---
@@ -1730,9 +1730,9 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - 테스트: 백엔드 34건 통과 (`UserPreferredStylesTest` 8건 — 폴백, 레거시 단일 값 요청, 빈 목록 해제, 잘못된 값, 로그인 시 보존 등)
 - **배포 순서 주의**: 서버를 먼저 배포해야 함 — 새 앱이 옛 서버에 저장하면 `preferredStyles`가 무시되고 기존 단일 스타일이 지워질 수 있음
 
-**운영 DB 백업**: push 직전 사용자 요청으로 `pg_dump` → EC2 `~/backups/fashionapp-20261001-163302.sql.gz` (2,633B · gzip 무결성 OK · 181줄, 내용 미확인/미출력, 권한 600). 요청이 push 명령 실행 직후에 도착해 push가 먼저 나갔으나, 백업 시각(16:33:02Z)은 새 Spring 기동(16:34:15Z) **이전**이라 DDL 전 상태의 백업임 (백업 후 배포가 이어져 컬럼 추가는 그 다음). 이후 백업 주기·보관 정책은 따로 없음 — 필요하면 cron 추가 검토
+**운영 DB 백업**: push 직전 사용자 요청으로 `pg_dump` → EC2 사용자 홈의 백업 디렉터리(`fashionapp-<타임스탬프>.sql.gz`) (2,633B · gzip 무결성 OK · 181줄, 내용 미확인/미출력, 권한 600). 요청이 push 명령 실행 직후에 도착해 push가 먼저 나갔으나, 백업 시각(16:33:02Z)은 새 Spring 기동(16:34:15Z) **이전**이라 DDL 전 상태의 백업임 (백업 후 배포가 이어져 컬럼 추가는 그 다음). 이후 백업 주기·보관 정책은 따로 없음 — 필요하면 cron 추가 검토
 
 **검증(release, 에뮬레이터)**: 2장 선택 등록 시 진행 표시·EXIF 회전 유지 ✓ / URL 등록 → "상의·핑크·핑크 원피스" ✓ / Kakao 계정 다중 선택 저장·표시·코디 추천 ✓ / 이전 방식(단일 값)으로 저장돼 있던 Google 계정이 재로그인 후에도 "미니멀"·175/70/보통 유지 ✓ (폴백 + 로그인 보존). 검증용으로 만든 테스트 옷(스웨터 3 · 원피스 1)은 Kakao 계정에서 삭제, 사용자의 기존 옷 3벌은 그대로. Google 계정 옷장에 남은 이전 테스트 항목은 건드리지 않음
 - 이 push에 포함된 이전 커밋: onelink 공유 링크 해석(`ddac0d7`), HTTPS 문서/커밋들
 
-**미검증/이월**: 코디 추천 프롬프트가 다중 스타일을 실제로 얼마나 잘 섞는지는 정성적 확인만(응답 200·룩 2개·스타일 태그 "캐주얼") — 테스트 옷장이 빈약해 품질 판단은 못 함 / 인증서 실제 갱신(11월 말 `~/wearon-certbot.log` 확인) / 운영 DB 옛 `clothes` 테이블 처리 / 쇼핑 도우미의 피팅 탭 통합 여부
+**미검증/이월**: 코디 추천 프롬프트가 다중 스타일을 실제로 얼마나 잘 섞는지는 정성적 확인만(응답 200·룩 2개·스타일 태그 "캐주얼") — 테스트 옷장이 빈약해 품질 판단은 못 함 / 인증서 실제 갱신(11월 말 EC2의 certbot 로그 확인) / 운영 DB 옛 `clothes` 테이블 처리 / 쇼핑 도우미의 피팅 탭 통합 여부
