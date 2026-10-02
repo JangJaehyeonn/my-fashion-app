@@ -1736,3 +1736,22 @@ IDM-VTON의 `garment_des`(옷 설명) 파라미터로 넘겨 결과 품질을 �
 - 이 push에 포함된 이전 커밋: onelink 공유 링크 해석(`ddac0d7`), HTTPS 문서/커밋들
 
 **미검증/이월**: 코디 추천 프롬프트가 다중 스타일을 실제로 얼마나 잘 섞는지는 정성적 확인만(응답 200·룩 2개·스타일 태그 "캐주얼") — 테스트 옷장이 빈약해 품질 판단은 못 함 / 인증서 실제 갱신(11월 말 EC2의 certbot 로그 확인) / 운영 DB 옛 `clothes` 테이블 처리 / 쇼핑 도우미의 피팅 탭 통합 여부
+
+
+---
+
+### 2026-10-03 — 코디 추천 모델 설정화 · JSON 출력 안정화 · 프롬프트 개선 · 모델 비교 스크립트
+
+**완료한 작업** (커밋 `61923f5`, AI 서버만 변경 — 백엔드/Android/API 계약 변경 없음)
+- **모델명 설정 분리**: `core/config.py`에 `openai_model`(기본 `gpt-4o-mini`, 환경변수 `OPENAI_MODEL`로 교체) 추가, `.env.example`에 주석 항목 추가. `recommend_service.py`의 상황/옷장 추천이 `settings.openai_model`을 사용. 진단(Vision)·옷 분류·쇼핑 도우미 모델은 이번 범위 밖이라 그대로
+- **JSON 출력 안정화**: 공통 헬퍼 `_request_json`으로 통합 — `response_format={"type": "json_object"}`, 파싱 실패 시 1회 재시도, 끝내 실패하면 빈 `outfits` 반환(`_parse_json`은 폴백으로 유지, `shopping_service.py`가 import해 쓰므로 존속)
+- **호출 파라미터 한곳 관리**: `_TOKEN_PARAM`/`_SEND_TEMPERATURE`/`_TEMPERATURE` 상수 + `_completion_kwargs`. 모델이 `max_tokens`/`temperature`를 거부해 `BadRequestError`가 나면 `max_completion_tokens` + temperature 생략으로 자동 1회 재시도
+- **프롬프트**: 상황 추천에 기온 구간 가이드(5°C 미만 패딩/두꺼운 코트 … 28°C 이상 반팔/린넨, 아우터 제외)와 "조합끼리 아이템·분위기 겹치지 않게" 규칙 추가. 옷장 추천은 C1/C2 코드 치환·환각 제거 로직은 건드리지 않고 기온 가이드 문구만 일관되게 정렬
+- **모델 비교 스크립트** `ai-server/scripts/compare_models.py`: 서비스 함수를 import해 `settings.openai_model`만 바꿔가며 호출, 샘플 5개(3°C 비/14°C 맑음/24°C 흐림/31°C 폭염/체형 정보 없음) × 상황·옷장(옷 12벌)별 상태·시간·결과를 표로 출력. 실행법은 파일 상단 주석 (`python -m scripts.compare_models --models ...`)
+
+**검증**: `py_compile` 통과, 두 프롬프트 템플릿 `.format()` 정상(중괄호 이스케이프 유지). **실제 OpenAI 호출·모델 비교는 미실행** (스크립트는 사용자가 직접 실행하기로 함, 기본 설정이면 호출 30회 발생). AI 서버 테스트 코드는 원래 없음
+
+**다음에 할 작업**
+1. `python -m scripts.compare_models` 실행해 모델별 품질·속도·파싱 실패 비교 후 `OPENAI_MODEL` 결정
+2. 배포 시 `docker compose build ai-server && docker compose up -d ai-server` 재빌드 필수, 서버 `.env`에 `OPENAI_MODEL`을 넣으면 모델 교체
+3. (이월) 인증서 실제 갱신 확인(11월 말), 운영 DB 옛 `clothes` 테이블 처리, 쇼핑 도우미의 피팅 탭 통합 여부
