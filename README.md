@@ -9,13 +9,9 @@
 
 > 비용 관리를 위해 EC2 인스턴스를 중지해 두는 기간이 있어, 그동안은 API가 응답하지 않을 수 있습니다.
 
-<!--
-스크린샷 (새 화면 캡처 후 아래 주석을 풀고 파일명을 맞춰 주세요)
-
 | 홈 | 옷장 | 피팅 | 마이 |
 |:---:|:---:|:---:|:---:|
 | <img src="docs/screenshots/wearon-home.png" width="200"/> | <img src="docs/screenshots/wearon-closet.png" width="200"/> | <img src="docs/screenshots/wearon-fitting.png" width="200"/> | <img src="docs/screenshots/wearon-my.png" width="200"/> |
--->
 
 ---
 
