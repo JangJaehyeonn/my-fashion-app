@@ -37,3 +37,19 @@ android/keystore.properties
 # Let's Encrypt 인증서·개인키 (서버에서만 보관)
 certbot/conf/
 certbot/www/
+
+# 릴리스 산출물 / 로컬 설정
+android/app/release/
+android/local.properties
+
+# 로그
+*.log
+*.log.err
+*.err
+
+# IDE (루트와 하위 모듈)
+.idea/
+backend/.idea/
+
+# 루트에 떨어지는 임시 스크린샷 (README용은 docs/screenshots/)
+/screen*.png
