@@ -13,6 +13,8 @@
 |:---:|:---:|:---:|:---:|
 | <img src="docs/screenshots/wearon-home.png" width="200"/> | <img src="docs/screenshots/wearon-closet.png" width="200"/> | <img src="docs/screenshots/wearon-fitting.png" width="200"/> | <img src="docs/screenshots/wearon-my.png" width="200"/> |
 
+> 스크린샷의 모델·옷 사진은 **예시 이미지(스톡 사진, Pexels)**이며 출처는 [`docs/screenshots/CREDITS.md`](docs/screenshots/CREDITS.md)에 있습니다. 피팅 화면의 결과 이미지는 IDM-VTON이 합성한 것입니다.
+
 ---
 
 ## 목차

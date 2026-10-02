@@ -11,8 +11,10 @@ README 스크린샷(`wearon-*.png`)에 쓰인 스톡 사진의 출처입니다. 
 
 ## 옷장·홈 화면 (`wearon-closet.png`, `wearon-home.png`)
 
-옷장에 등록한 샘플 옷입니다. 이 외에 옷장의 상의 2벌은 직접 촬영한 사진입니다.
+옷장에 등록한 샘플 옷 8벌입니다.
 
+- 흰 코튼 티셔츠 — "t-shirt on hanger" — Photo by Berna on Pexels — https://www.pexels.com/photo/minimalist-plant-design-t-shirts-on-wooden-hangers-31995223/
+- 니트 스웨터(카디건으로 분류됨) — "knit sweater folded" — Photo by Nati on Pexels — https://www.pexels.com/photo/a-close-up-shot-of-a-knitted-clothing-14642651/
 - 흰 티셔츠 — "plain t-shirt product" — Photo by dayong tien on Pexels — https://www.pexels.com/photo/white-t-shirt-hanging-on-a-hanger-18257675/
 - 가죽 재킷 — "jacket on hanger" — Photo by Daniel Maurício Bertoli on Pexels — https://www.pexels.com/photo/black-leather-jacket-on-hangers-in-closet-37595197/
 - 갈색 팬츠 — "slacks trousers clothing" — Photo by Engin Akyurt on Pexels — https://www.pexels.com/photo/stylish-brown-trousers-on-white-background-39457749/
