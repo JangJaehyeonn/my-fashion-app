@@ -36,11 +36,12 @@ fun LoginScreen(
     val context = LocalContext.current
     val oauth2BaseUrl = BuildConfig.OAUTH2_BASE_URL
 
+    // client=app: 로그인이 실패하면 서버가 웹이 아니라 앱 딥링크(?error=...)로 돌려보내도록 표시
     fun launchLogin(provider: String) {
         onLoginStart()
         CustomTabsIntent.Builder().build().launchUrl(
             context,
-            Uri.parse("$oauth2BaseUrl/oauth2/authorization/$provider")
+            Uri.parse("$oauth2BaseUrl/oauth2/authorization/$provider?client=app")
         )
     }
 
