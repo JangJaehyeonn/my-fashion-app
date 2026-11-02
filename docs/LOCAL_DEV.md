@@ -69,8 +69,10 @@ docker compose up -d postgres redis
 ### 3. 실행
 ```bash
 cd backend
-./gradlew bootRun
+SERVER_ADDRESS=127.0.0.1 ./gradlew bootRun   # 이 PC 밖에서 접근 못 하게 localhost에만 열기
 ```
+- `SERVER_ADDRESS`를 빼면 Spring이 0.0.0.0:8080에 열립니다. **이 PC는 공인 IP라** 방화벽 Java 허용 규칙이 있으면 외부에 그대로 노출됩니다(2026-11-02 Redis 침입 기록, AUDIT.md "보안 사고" 참고). `adb reverse`는 PC의 localhost로 연결하므로 127.0.0.1로 충분합니다.
+- `docker-compose.yml`의 postgres·redis·ai-server 포트도 127.0.0.1에만 열려 있습니다. `"5432:5432"`처럼 IP 없이 바꾸지 마세요.
 
 ## AI 서버 없이 백엔드가 뜨는가
 
