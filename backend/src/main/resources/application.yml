@@ -32,6 +32,8 @@ spring:
       # 애플리케이션 로그/모니터링에서 풀을 구분하기 위한 이름.
       pool-name: FashionAppHikariCP
   jpa:
+    # 요청 내내 영속성 컨텍스트(와 DB 커넥션)를 열어두지 않음 — AI 서버를 기다리는 동안 커넥션이 묶이지 않게 하기 위함
+    open-in-view: false
     hibernate:
       ddl-auto: update
     properties:
@@ -88,6 +90,14 @@ cloud:
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
   ai-server-url: ${AI_SERVER_URL:http://localhost:8000}
+  # Spring → AI 서버(FastAPI) 호출 타임아웃. 초과 시 AI_SERVER_TIMEOUT(504) 응답
+  ai-server:
+    connect-timeout: ${AI_SERVER_CONNECT_TIMEOUT:3s}
+    # 옷 분류·진단·코디/쇼핑 추천·날씨 (평소 2~6초)
+    read-timeout: ${AI_SERVER_READ_TIMEOUT:30s}
+    # 가상 피팅은 HF Space 대기열 + 합성으로 1~2분. nginx(/api/vton 180s)·앱 OkHttp(180s)보다 짧게 잡아
+    # 클라이언트가 끊기 전에 서버가 먼저 504로 응답하게 함
+    vton-read-timeout: ${AI_SERVER_VTON_READ_TIMEOUT:170s}
   oauth2-redirect-base: ${OAUTH2_REDIRECT_BASE:fashionapp://app}
 
 spring.servlet.multipart:

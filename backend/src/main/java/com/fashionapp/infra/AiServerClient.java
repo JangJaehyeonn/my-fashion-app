@@ -1,9 +1,10 @@
 package com.fashionapp.infra;
 
+import com.fashionapp.global.config.RestClientConfig;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
@@ -14,19 +15,50 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AiServerClient {
 
     private final RestClient restClient;
+    // 가상 피팅 전용 — read 타임아웃이 일반 호출보다 김 (RestClientConfig 참고)
+    private final RestClient vtonRestClient;
     private final Executor aiServerExecutor;
+    private final String aiServerUrl;
 
-    @Value("${app.ai-server-url}")
-    private String aiServerUrl;
+    public AiServerClient(@Qualifier(RestClientConfig.AI_REST_CLIENT) RestClient restClient,
+                          @Qualifier(RestClientConfig.AI_VTON_REST_CLIENT) RestClient vtonRestClient,
+                          Executor aiServerExecutor,
+                          @Value("${app.ai-server-url}") String aiServerUrl) {
+        this.restClient = restClient;
+        this.vtonRestClient = vtonRestClient;
+        this.aiServerExecutor = aiServerExecutor;
+        this.aiServerUrl = aiServerUrl;
+    }
+
+    /**
+     * 연결·응답 타임아웃이면 AI_SERVER_TIMEOUT(504), 그 밖의 통신 실패·AI 서버 오류 응답은 AI_SERVER_ERROR(503).
+     * 타임아웃은 SocketTimeoutException이 감싸져서 온다 — 연결 단계면 ResourceAccessException,
+     * 응답(헤더·본문)을 읽는 도중이면 "Error while extracting response" RestClientException 안에 들어 있어 원인 체인 전체를 본다.
+     */
+    static CustomException toAiException(String operation, Exception e) {
+        if (isTimeout(e)) {
+            log.warn("AI server {} timed out: {}", operation, e.getMessage());
+            return new CustomException(ErrorCode.AI_SERVER_TIMEOUT);
+        }
+        log.error("AI server {} failed: {}", operation, e.getMessage());
+        return new CustomException(ErrorCode.AI_SERVER_ERROR);
+    }
+
+    private static boolean isTimeout(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SocketTimeoutException) return true;
+        }
+        return false;
+    }
 
     public AiWeatherResponse getWeather() {
         try {
@@ -35,8 +67,7 @@ public class AiServerClient {
                     .retrieve()
                     .body(AiWeatherResponse.class);
         } catch (RestClientException e) {
-            log.error("AI server weather failed: {}", e.getMessage());
-            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+            throw toAiException("weather", e);
         }
     }
 
@@ -50,8 +81,7 @@ public class AiServerClient {
                         .retrieve()
                         .body(AiSituationRecommendResponse.class);
             } catch (RestClientException e) {
-                log.error("AI server situation recommend failed: {}", e.getMessage());
-                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+                throw toAiException("situation recommend", e);
             }
         }, aiServerExecutor);
     }
@@ -66,8 +96,7 @@ public class AiServerClient {
                         .retrieve()
                         .body(AiClosetRecommendResponse.class);
             } catch (RestClientException e) {
-                log.error("AI server closet recommend failed: {}", e.getMessage());
-                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+                throw toAiException("closet recommend", e);
             }
         }, aiServerExecutor);
     }
@@ -82,8 +111,7 @@ public class AiServerClient {
                         .retrieve()
                         .body(AiShoppingRecommendResponse.class);
             } catch (RestClientException e) {
-                log.error("AI server shopping recommend failed: {}", e.getMessage());
-                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+                throw toAiException("shopping recommend", e);
             }
         }, aiServerExecutor);
     }
@@ -96,7 +124,7 @@ public class AiServerClient {
                 addImagePart(builder, "garment_image", garmentImage);
                 builder.part("garment_desc", garmentDesc != null ? garmentDesc : "");
 
-                return restClient.post()
+                return vtonRestClient.post()
                         .uri(aiServerUrl + "/ai/vton")
                         .contentType(MediaType.MULTIPART_FORM_DATA)
                         .body(builder.build())
@@ -104,8 +132,7 @@ public class AiServerClient {
                         .body(AiVtonResponse.class);
 
             } catch (IOException | RestClientException e) {
-                log.error("AI server VTON failed: {}", e.getMessage());
-                throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+                throw toAiException("VTON", e);
             }
         }, aiServerExecutor);
     }
@@ -137,8 +164,7 @@ public class AiServerClient {
                     .body(AiClothesClassifyResponse.class);
 
         } catch (IOException | RestClientException e) {
-            log.error("AI server clothes classify failed: {}", e.getMessage());
-            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+            throw toAiException("clothes classify", e);
         }
     }
 
@@ -165,8 +191,7 @@ public class AiServerClient {
                     .body(AiDiagnosisResponse.class);
 
         } catch (IOException | RestClientException e) {
-            log.error("AI server diagnosis failed: {}", e.getMessage());
-            throw new CustomException(ErrorCode.AI_SERVER_ERROR);
+            throw toAiException("diagnosis", e);
         }
     }
 }
