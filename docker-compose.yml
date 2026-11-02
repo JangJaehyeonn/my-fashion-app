@@ -1,11 +1,15 @@
 # 로컬 개발용. 백엔드는 ./gradlew bootRun으로 직접 띄우고, 여기서는 DB/Redis만 쓴다:
 #   docker compose up -d postgres redis
 # ai-server는 OpenAI·HF 유료 API를 호출하므로 필요할 때만 명시적으로 띄운다.
+#
+# 포트는 반드시 127.0.0.1에만 연다. "6379:6379"처럼 쓰면 Docker가 0.0.0.0(모든 네트워크)에 열어,
+# 비밀번호 없는 Redis에 외부에서 접속할 수 있게 된다 — 2026-11-02 로컬 Redis에 crontab 악성코드 키
+# (backup1~4, kworker 다운로드)가 써진 것을 발견해 바꿈.
 services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: fashionapp
       POSTGRES_USER: fashionapp
@@ -21,12 +25,12 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   ai-server:
     build: ./ai-server
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - ./ai-server/.env
 
