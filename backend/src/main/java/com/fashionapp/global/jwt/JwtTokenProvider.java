@@ -38,6 +38,9 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim(TOKEN_TYPE_CLAIM, ACCESS_TYPE)
+                // 같은 초에 발급해도 토큰이 서로 달라지도록 고유 ID — 없으면 재발급한 토큰이 이전 토큰과 똑같아
+                // 비밀번호 변경 등으로 "이전 리프레시 토큰 폐기"가 무력화될 수 있음
+                .id(UUID.randomUUID().toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpiry))
                 .signWith(key)
@@ -48,6 +51,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim(TOKEN_TYPE_CLAIM, REFRESH_TYPE)
+                .id(UUID.randomUUID().toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshTokenExpiry))
                 .signWith(key)
