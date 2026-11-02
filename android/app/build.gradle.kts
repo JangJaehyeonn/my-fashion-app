@@ -42,8 +42,10 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/api/\"")
-            // OAuth2 redirect_uri는 Google/Kakao 콘솔에 IP를 등록할 수 없어 localhost 고정 (에뮬레이터에서 adb reverse tcp:8080 tcp:8080 필요)
+            // API·OAuth2 모두 localhost:8080 → 에뮬레이터/실기기에서 `adb reverse tcp:8080 tcp:8080` 필요 (docs/LOCAL_DEV.md).
+            // OAuth2 redirect_uri는 Google/Kakao 콘솔에 IP를 등록할 수 없어 localhost여야 하고, API도 같은 주소로 맞춰
+            // 에뮬레이터 전용 10.0.2.2 없이 USB로 연결한 실기기에서도 같은 빌드로 쓸 수 있게 함
+            buildConfigField("String", "BASE_URL", "\"http://localhost:8080/api/\"")
             buildConfigField("String", "OAUTH2_BASE_URL", "\"http://localhost:8080\"")
         }
         release {

@@ -4,15 +4,38 @@
 
 | 빌드 | `BASE_URL` | `OAUTH2_BASE_URL` | HTTP(cleartext) |
 |---|---|---|---|
-| debug | `http://10.0.2.2:8080/api/` (에뮬레이터 → PC의 localhost) | `http://localhost:8080` | `10.0.2.2`, `localhost`만 허용 (`app/src/debug/res/xml/network_security_config.xml`) |
+| debug | `http://localhost:8080/api/` (`adb reverse`로 PC의 8080에 연결) | `http://localhost:8080` | `localhost`, `10.0.2.2`만 허용 (`app/src/debug/res/xml/network_security_config.xml`) |
 | release | `https://fashion-app-jh.duckdns.org/api/` | `https://fashion-app-jh.duckdns.org` | 전부 차단 (`app/src/main/res/xml/network_security_config.xml`) |
 
 - `BASE_URL`과 `OAUTH2_BASE_URL`은 `app/build.gradle.kts`의 `buildTypes`에서 `buildConfigField`로 나눠 둡니다. 빌드 시점에 고정되므로, 바꾸면 APK를 다시 빌드해 설치해야 합니다.
 - 백엔드 포트는 8080입니다. `application.yml`에 `server.port`가 없어 Spring 기본값을 씁니다.
-- OAuth2 로그인은 Google/Kakao 콘솔에 IP 주소를 redirect URI로 등록할 수 없어서 `localhost`를 씁니다. 그래서 에뮬레이터를 켤 때마다 다음 명령이 필요합니다. 에뮬레이터나 adb를 재시작하면 설정이 초기화됩니다.
-  ```bash
-  adb reverse tcp:8080 tcp:8080
-  ```
+- 디버그 빌드는 API와 OAuth2 모두 `localhost:8080`을 씁니다. OAuth2 redirect URI에는 IP 주소(`10.0.2.2`)를 등록할 수 없어 `localhost`여야 하기 때문입니다. 기기의 `localhost:8080`을 PC의 8080으로 연결하는 `adb reverse`가 필요합니다.
+
+### adb reverse
+
+```bash
+adb devices                       # 에뮬레이터(또는 USB 연결 기기)가 device 상태인지 확인
+adb reverse tcp:8080 tcp:8080     # 기기 localhost:8080 → PC localhost:8080
+adb reverse --list                # "host-xx tcp:8080 tcp:8080"이 보이면 적용된 것
+```
+- 에뮬레이터나 adb 서버를 다시 시작하면 사라집니다. 앱에서 로그인 페이지가 "This site can't be reached"이거나 API가 연결 실패하면 가장 먼저 확인하세요.
+- 기기가 여러 대면 `adb -s <serial> reverse tcp:8080 tcp:8080`.
+- 해제: `adb reverse --remove tcp:8080`.
+- USB로 연결한 실기기에서도 같은 디버그 빌드로 동작합니다.
+
+### Google·Kakao 콘솔에 등록할 redirect URI (로컬)
+
+Spring이 `{baseUrl}/login/oauth2/code/{registrationId}` 형식으로 만듭니다. 로컬에서는 `baseUrl`이 `http://localhost:8080`입니다.
+
+| 콘솔 | 위치 | 추가할 값 (정확히 이대로, 끝에 `/` 없음) |
+|---|---|---|
+| Google Cloud Console | API 및 서비스 → 사용자 인증 정보 → `backend/.env`의 `GOOGLE_CLIENT_ID`와 같은 OAuth 2.0 클라이언트(웹 애플리케이션) → 승인된 리디렉션 URI | `http://localhost:8080/login/oauth2/code/google` |
+| Kakao Developers | 내 애플리케이션 → `backend/.env`의 `KAKAO_CLIENT_ID`(REST API 키)인 앱 → 카카오 로그인 → Redirect URI | `http://localhost:8080/login/oauth2/code/kakao` |
+
+- 운영용 `https://fashion-app-jh.duckdns.org/login/oauth2/code/{google,kakao}`는 그대로 두고 **추가**만 합니다.
+- Google: 동의 화면이 "테스트" 상태면 로그인할 계정이 테스트 사용자 목록에 있어야 합니다. 반영까지 몇 분 걸릴 수 있습니다.
+- 등록이 안 됐을 때 증상: Google은 `400 redirect_uri_mismatch`, Kakao는 `KOE006`.
+- 확인 방법: 백엔드를 띄운 뒤 `curl -s -o /dev/null -D - "http://localhost:8080/oauth2/authorization/google?client=app" | grep -i location` → `redirect_uri=http://localhost:8080/login/oauth2/code/google`이 보이면 위 값과 일치하는 것입니다.
 
 ## 로컬 백엔드 실행
 
