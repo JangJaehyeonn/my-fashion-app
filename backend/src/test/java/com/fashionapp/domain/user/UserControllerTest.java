@@ -59,6 +59,9 @@ class UserControllerTest {
     @MockBean
     private UserService userService;
 
+    @MockBean
+    private AccountDeletionService accountDeletionService;
+
     private UUID userId;
 
     @BeforeEach

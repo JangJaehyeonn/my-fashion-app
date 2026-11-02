@@ -23,6 +23,12 @@ public class VtonService {
     private final AiServerClient aiServerClient;
     private final S3Uploader s3Uploader;
 
+    // 결과 이미지는 DB에 기록이 없어 사용자별 경로에 저장 → 회원 탈퇴 시 prefix로 한꺼번에 삭제
+    // (이 변경 이전에 vton/ 바로 아래 저장된 결과는 사용자를 알 수 없어 탈퇴 시 지워지지 않음)
+    public static String storageDir(UUID userId) {
+        return "vton/" + userId;
+    }
+
     @Transactional(readOnly = true)
     public VtonResponse tryOn(UUID userId, MultipartFile personImage, MultipartFile garmentImage, String garmentDesc) {
         userRepository.findById(userId)
@@ -39,7 +45,7 @@ public class VtonService {
         }
 
         byte[] resultBytes = Base64.getDecoder().decode(aiResult.getResultImageBase64());
-        String imageUrl = s3Uploader.uploadBytes(resultBytes, "image/png", "vton");
+        String imageUrl = s3Uploader.uploadBytes(resultBytes, "image/png", storageDir(userId));
 
         return VtonResponse.builder()
                 .resultImageUrl(s3Uploader.generatePresignedUrl(imageUrl))

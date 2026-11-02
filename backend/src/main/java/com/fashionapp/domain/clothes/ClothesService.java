@@ -6,6 +6,7 @@ import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiClothesClassifyResponse;
 import com.fashionapp.infra.AiServerClient;
+import com.fashionapp.infra.ImageStorage;
 import com.fashionapp.infra.S3Uploader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ public class ClothesService {
     private final UserRepository userRepository;
     private final S3Uploader s3Uploader;
     private final AiServerClient aiServerClient;
+    private final ImageStorage imageStorage;
 
     @Transactional
     public ClothesResponse register(UUID userId, MultipartFile image) {
@@ -69,7 +71,7 @@ public class ClothesService {
 
         clothesRepository.delete(clothes);
         try {
-            s3Uploader.delete(clothes.getImageUrl());
+            imageStorage.delete(clothes.getImageUrl());
         } catch (RuntimeException e) {
             // DB 행은 이미 지웠으므로 S3 정리 실패가 사용자 요청을 실패시키지 않게 로그만 남김
             log.warn("S3 image delete failed for clothes {}: {}", clothesId, e.getMessage());

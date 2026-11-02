@@ -6,6 +6,7 @@ import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiClothesClassifyResponse;
 import com.fashionapp.infra.AiServerClient;
+import com.fashionapp.infra.ImageStorage;
 import com.fashionapp.infra.S3Uploader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,9 @@ class ClothesServiceTest {
     @Mock
     private AiServerClient aiServerClient;
 
+    @Mock
+    private ImageStorage imageStorage;
+
     private ClothesService clothesService;
 
     private UUID userId;
@@ -59,7 +63,7 @@ class ClothesServiceTest {
 
     @BeforeEach
     void setUp() {
-        clothesService = new ClothesService(clothesRepository, userRepository, s3Uploader, aiServerClient);
+        clothesService = new ClothesService(clothesRepository, userRepository, s3Uploader, aiServerClient, imageStorage);
         userId = UUID.randomUUID();
         user = User.builder()
                 .id(userId)
@@ -175,7 +179,7 @@ class ClothesServiceTest {
                 .category("TOP")
                 .build();
         given(clothesRepository.findByIdAndUser_Id(clothesId, userId)).willReturn(Optional.of(clothes));
-        willThrow(new RuntimeException("AccessDenied")).given(s3Uploader).delete(clothes.getImageUrl());
+        willThrow(new RuntimeException("AccessDenied")).given(imageStorage).delete(clothes.getImageUrl());
 
         clothesService.delete(userId, clothesId);
 

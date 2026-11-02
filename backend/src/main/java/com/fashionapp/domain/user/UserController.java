@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final AccountDeletionService accountDeletionService;
 
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
@@ -26,5 +27,12 @@ public class UserController {
             @CurrentUser UserPrincipal userPrincipal,
             @RequestBody UpdateProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.success(userService.updateProfile(userPrincipal.getId(), request)));
+    }
+
+    @DeleteMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Void>> deleteMyAccount(@CurrentUser UserPrincipal userPrincipal) {
+        accountDeletionService.deleteAccount(userPrincipal.getId());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 }

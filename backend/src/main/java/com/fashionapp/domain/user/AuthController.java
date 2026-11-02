@@ -21,6 +21,7 @@ public class AuthController {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTemplate<String, String> redisTemplate;
+    private final UserRepository userRepository;
 
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
@@ -44,6 +45,11 @@ public class AuthController {
         String storedToken = redisTemplate.opsForValue().get("refresh:" + userId);
 
         if (!refreshToken.equals(storedToken)) {
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+        // 탈퇴한 사용자: 탈퇴 시 Redis 토큰 삭제가 실패했더라도 재발급되지 않게 함
+        if (!userRepository.existsById(userId)) {
+            redisTemplate.delete("refresh:" + userId);
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
 
