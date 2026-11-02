@@ -111,8 +111,10 @@ class ApiClient @Inject constructor(
         .addInterceptor(authInterceptor)
         .addInterceptor(LongRunningTimeoutInterceptor())
         .authenticator(tokenAuthenticator)
+        // 릴리즈에선 본문(토큰·presigned URL·이미지)이 logcat에 남지 않도록 로깅을 끄고, 디버그에서도 인증 헤더는 가린다
         .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
+            redactHeader("Authorization")
         })
         .build()
 
