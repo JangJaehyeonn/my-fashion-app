@@ -2,6 +2,7 @@ package com.fashionapp.data.api
 
 import com.fashionapp.data.model.ApiResponse
 import com.fashionapp.data.model.ExchangeRequest
+import com.fashionapp.data.model.LoginRequest
 import com.fashionapp.data.model.RefreshRequest
 import com.fashionapp.data.model.TokenResponse
 import com.fashionapp.data.model.UpdateProfileRequest
@@ -16,6 +17,10 @@ interface AuthApi {
     // 인증 불필요(/api/auth/**). 코드는 60초 안에 한 번만 교환 가능 — 만료·재사용이면 401
     @POST("auth/exchange")
     suspend fun exchange(@Body request: ExchangeRequest): ApiResponse<TokenResponse>
+
+    // 아이디·비밀번호 로그인. 아이디 없음·비밀번호 틀림 모두 401 "아이디 또는 비밀번호가 틀렸어요", 5회 실패 시 429(5분 잠금)
+    @POST("auth/login")
+    suspend fun login(@Body request: LoginRequest): ApiResponse<TokenResponse>
 
     @POST("auth/refresh")
     suspend fun refreshToken(@Body request: RefreshRequest): ApiResponse<TokenResponse>

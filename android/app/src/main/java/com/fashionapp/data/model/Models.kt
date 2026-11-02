@@ -16,6 +16,13 @@ data class RefreshRequest(
     val refreshToken: String
 )
 
+// 아이디·비밀번호 로그인 (data class라 toString에 비밀번호가 나오지만, 앱은 이 객체를 로그로 남기지 않음 —
+// 디버그 빌드의 HTTP 본문 로그에는 보이므로 디버그 로그를 외부에 공유하지 말 것)
+data class LoginRequest(
+    val loginId: String,
+    val password: String
+)
+
 // OAuth 로그인 딥링크(fashionapp://app/oauth2/callback?code=...)로 받은 1회용 코드 → 토큰 교환
 data class ExchangeRequest(
     val code: String
@@ -24,10 +31,14 @@ data class ExchangeRequest(
 // User
 data class UserProfile(
     val id: String,
-    val email: String,
+    // 아이디 가입·카카오 사용자는 이메일이 없을 수 있음
+    val email: String?,
     val nickname: String,
     val profileImageUrl: String?,
+    // google / kakao / local
     val provider: String,
+    // 아이디·비밀번호 가입 사용자만 값이 있음
+    val loginId: String? = null,
     val height: Int?,
     val weight: Int?,
     val bodyType: String?,

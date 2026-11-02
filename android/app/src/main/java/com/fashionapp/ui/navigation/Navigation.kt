@@ -73,7 +73,10 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                     LoginScreen(
                         message = loginMessage,
                         isLoggingIn = isLoggingIn,
-                        onLoginStart = mainViewModel::clearLoginMessage
+                        onLoginStart = mainViewModel::clearLoginMessage,
+                        onLoggedIn = {
+                            navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
+                        }
                     )
                 }
                 composable(Route.HOME) {
