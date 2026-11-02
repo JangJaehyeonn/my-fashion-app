@@ -5,14 +5,12 @@ import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.global.jwt.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -22,9 +20,7 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTemplate<String, String> redisTemplate;
     private final UserRepository userRepository;
-
-    @Value("${jwt.refresh-token-expiry}")
-    private long refreshTokenExpiry;
+    private final AuthTokenService authTokenService;
 
     // Google/Kakao 로그인은 Spring Security OAuth2 리다이렉트 방식으로 처리
     // GET /oauth2/authorization/google
@@ -53,20 +49,17 @@ public class AuthController {
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
 
-        String newAccessToken = jwtTokenProvider.createAccessToken(userId);
-        String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
+        return ResponseEntity.ok(ApiResponse.success(authTokenService.issueTokens(userId)));
+    }
 
-        redisTemplate.opsForValue().set(
-                "refresh:" + userId,
-                newRefreshToken,
-                refreshTokenExpiry,
-                TimeUnit.MILLISECONDS
-        );
-
-        return ResponseEntity.ok(ApiResponse.success(Map.of(
-                "accessToken", newAccessToken,
-                "refreshToken", newRefreshToken
-        )));
+    /**
+     * OAuth 로그인 성공 딥링크(fashionapp://app/oauth2/callback?code=...)로 받은 1회용 코드를 토큰으로 교환.
+     * 코드는 60초 안에 한 번만 쓸 수 있고, 만료·재사용·없는 코드는 401(INVALID_AUTH_CODE).
+     */
+    @PostMapping("/exchange")
+    public ResponseEntity<ApiResponse<Map<String, String>>> exchange(@RequestBody(required = false) Map<String, String> body) {
+        String code = body != null ? body.get("code") : null;
+        return ResponseEntity.ok(ApiResponse.success(authTokenService.exchangeCode(code)));
     }
 
     @PostMapping("/logout")

@@ -99,6 +99,9 @@ app:
     # 클라이언트가 끊기 전에 서버가 먼저 504로 응답하게 함
     vton-read-timeout: ${AI_SERVER_VTON_READ_TIMEOUT:170s}
   oauth2-redirect-base: ${OAUTH2_REDIRECT_BASE:fashionapp://app}
+  auth:
+    # OAuth 성공 딥링크에 싣는 1회용 코드의 유효 시간 (POST /api/auth/exchange로 토큰 교환)
+    exchange-code-ttl: 60s
 
 spring.servlet.multipart:
   max-file-size: 10MB

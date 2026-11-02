@@ -13,6 +13,7 @@ public enum ErrorCode {
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
     EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "만료된 토큰입니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
+    INVALID_AUTH_CODE(HttpStatus.UNAUTHORIZED, "로그인 코드가 만료되었거나 이미 사용되었습니다. 다시 로그인해 주세요."),
     INVALID_BODY_PROFILE(HttpStatus.BAD_REQUEST, "유효하지 않은 체형/스타일 값입니다."),
 
     INVALID_IMAGE_FORMAT(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다."),
