@@ -33,7 +33,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Map<String, String>>> refresh(@RequestBody Map<String, String> body) {
         String refreshToken = body.get("refreshToken");
 
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
+        // 액세스 토큰으로는 재발급 불가. typ이 없는 옛 리프레시 토큰은 아래 Redis 일치 검사로만 판단
+        // (Redis에는 리프레시 토큰만 저장되므로 일치하면 리프레시 토큰임이 보장됨)
+        if (!jwtTokenProvider.validateToken(refreshToken)
+                || JwtTokenProvider.ACCESS_TYPE.equals(jwtTokenProvider.getTokenType(refreshToken))) {
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
 
@@ -65,7 +68,8 @@ public class AuthController {
             @RequestBody(required = false) Map<String, String> body) {
         if (body != null) {
             String refreshToken = body.get("refreshToken");
-            if (refreshToken != null && jwtTokenProvider.validateToken(refreshToken)) {
+            if (refreshToken != null && jwtTokenProvider.validateToken(refreshToken)
+                    && !JwtTokenProvider.ACCESS_TYPE.equals(jwtTokenProvider.getTokenType(refreshToken))) {
                 UUID userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
                 redisTemplate.delete("refresh:" + userId);
             }
