@@ -1,5 +1,6 @@
 package com.fashionapp.domain.user;
 
+import com.fashionapp.domain.auth.LoginAttemptLimiter;
 import com.fashionapp.domain.clothes.ClothesRepository;
 import com.fashionapp.domain.diagnosis.StyleDiagnosisRepository;
 import com.fashionapp.domain.vton.VtonService;
@@ -18,6 +19,8 @@ import java.util.UUID;
 
 /**
  * 회원 탈퇴 (DELETE /api/users/me).
+ *
+ * <p>아이디·비밀번호(local) 사용자도 같은 흐름으로 삭제한다 — login_id가 users 행과 함께 사라지므로 같은 아이디로 다시 가입할 수 있다.
  *
  * <p>삭제 대상: 옷(clothes) 행·사진, 진단 기록(style_diagnoses) 행·사진, 가상 피팅 결과 사진(S3 vton/{userId}/),
  * Redis 리프레시 토큰, 사용자 행. 코디 추천은 저장하지 않고(요청마다 생성) 피팅 결과도 DB 기록이 없어 지울 행은 없다.
@@ -46,13 +49,15 @@ public class AccountDeletionService {
     private final ImageStorage imageStorage;
     private final RedisTemplate<String, String> redisTemplate;
     private final TransactionTemplate transactionTemplate;
+    private final LoginAttemptLimiter loginAttemptLimiter;
 
     public void deleteAccount(UUID userId) {
         // 1) DB — 실패 시 전부 롤백
+        String[] loginId = new String[1];
         List<String> imageUrls = transactionTemplate.execute(status -> {
-            if (!userRepository.existsById(userId)) {
-                throw new CustomException(ErrorCode.USER_NOT_FOUND);
-            }
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+            loginId[0] = user.getLoginId();
             List<String> urls = new ArrayList<>(clothesRepository.findImageUrlsByUserId(userId));
             urls.addAll(styleDiagnosisRepository.findImageUrlsByUserId(userId));
 
@@ -62,9 +67,13 @@ public class AccountDeletionService {
             return urls;
         });
 
-        // 2) Redis 리프레시 토큰 — 실패해도 재발급 시 사용자 존재 확인으로 막힘
+        // 2) Redis 리프레시 토큰 — 실패해도 재발급 시 사용자 존재 확인으로 막힘.
+        //    아이디 가입 사용자면 로그인 실패·잠금 기록도 지워, 같은 아이디로 재가입했을 때 이전 기록이 남지 않게 함
         try {
             redisTemplate.delete("refresh:" + userId);
+            if (loginId[0] != null) {
+                loginAttemptLimiter.clear(loginId[0]);
+            }
         } catch (RuntimeException e) {
             log.warn("account.delete userId={} refresh token delete failed: {}", userId, e.getMessage());
         }
