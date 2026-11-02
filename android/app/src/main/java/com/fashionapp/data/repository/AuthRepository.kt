@@ -29,6 +29,13 @@ class AuthRepository @Inject constructor(
         tokenDataStore.clearTokens()
     }
 
+    // 서버 삭제가 성공했을 때만 로컬 토큰을 지움 — 실패 시 로그인 상태를 유지해 다시 시도할 수 있게 함
+    suspend fun deleteAccount(): Result<Unit> = runCatching {
+        val response = authApi.deleteAccount()
+        check(response.success) { response.message ?: "회원 탈퇴 실패" }
+        tokenDataStore.clearTokens()
+    }
+
     suspend fun getMyProfile(): Result<UserProfile> = runCatching {
         authApi.getMyProfile().data ?: error("프로필 없음")
     }

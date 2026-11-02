@@ -32,6 +32,26 @@ class MyPageViewModel @Inject constructor(
         }
     }
 
+    private val _isDeleting = MutableStateFlow(false)
+    val isDeleting = _isDeleting.asStateFlow()
+
+    private val _deleteError = MutableStateFlow<String?>(null)
+    val deleteError = _deleteError.asStateFlow()
+
+    fun clearDeleteError() { _deleteError.value = null }
+
+    fun deleteAccount(onDone: () -> Unit) {
+        if (_isDeleting.value) return
+        viewModelScope.launch {
+            _isDeleting.value = true
+            _deleteError.value = null
+            authRepository.deleteAccount()
+                .onSuccess { onDone() }
+                .onFailure { _deleteError.value = "탈퇴 처리에 실패했어요. 잠시 후 다시 시도해 주세요." }
+            _isDeleting.value = false
+        }
+    }
+
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {
             authRepository.logout()

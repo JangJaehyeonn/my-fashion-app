@@ -6,6 +6,7 @@ import com.fashionapp.data.model.TokenResponse
 import com.fashionapp.data.model.UpdateProfileRequest
 import com.fashionapp.data.model.UserProfile
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -23,4 +24,9 @@ interface AuthApi {
 
     @PUT("users/me")
     suspend fun updateProfile(@Body request: UpdateProfileRequest): ApiResponse<UserProfile>
+
+    // TODO(backend): DELETE /api/users/me 미구현 — 서버에 생길 때까지 호출하면 실패 응답(현재 500)이 온다.
+    //  서버 구현 시 옷장·진단 기록·S3 사진·Redis 리프레시 토큰까지 함께 삭제해야 함
+    @DELETE("users/me")
+    suspend fun deleteAccount(): ApiResponse<Unit>
 }

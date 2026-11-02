@@ -58,10 +58,60 @@ fun MyPageScreen(
 ) {
     val profile by viewModel.profile.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isDeleting by viewModel.isDeleting.collectAsState()
+    val deleteError by viewModel.deleteError.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     // 체형·취향 설정에서 저장 후 돌아오면 다시 컴포지션되므로 여기서 갱신
     LaunchedEffect(Unit) { viewModel.loadProfile() }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeleting) {
+                    showDeleteDialog = false
+                    viewModel.clearDeleteError()
+                }
+            },
+            title = { Text("회원 탈퇴") },
+            text = {
+                Column {
+                    Text(
+                        "탈퇴하면 등록한 옷 사진, 체형·취향 정보, 진단 기록이 모두 삭제되며 되돌릴 수 없어요.\n정말 탈퇴하시겠어요?",
+                        fontSize = 14.sp,
+                        color = WearonColors.Ink
+                    )
+                    deleteError?.let {
+                        Spacer(Modifier.height(10.dp))
+                        Text(it, fontSize = 13.sp, color = Color(0xFFD64545))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = { viewModel.deleteAccount(onLogout) }
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(color = Color(0xFFD64545), strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("탈퇴하기", color = Color(0xFFD64545))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.clearDeleteError()
+                    }
+                ) { Text("취소", color = WearonColors.Ink) }
+            },
+            containerColor = WearonColors.White
+        )
+    }
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -124,6 +174,16 @@ fun MyPageScreen(
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 MenuRow(label = "로그아웃", color = WearonColors.SubText) { showLogoutDialog = true }
             }
+
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "회원 탈퇴",
+                fontSize = 12.sp,
+                color = WearonColors.SubText,
+                modifier = Modifier
+                    .clickable { showDeleteDialog = true }
+                    .padding(vertical = 6.dp, horizontal = 4.dp)
+            )
 
             Spacer(Modifier.height(32.dp))
             Text(
