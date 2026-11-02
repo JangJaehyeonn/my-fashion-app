@@ -34,7 +34,7 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 | 항목 | 앱 (`fix/app-local`) | 백엔드 (`fix/backend-p0`) | 남은 일 |
 |---|---|---|---|
 | 로그아웃 시 리프레시 토큰 폐기 (M-2) + 리프레시 토큰을 Bearer로 사용 차단 (M-1) | ✅ 본문에 토큰 전송 | ✅ `typ` 클레임 구분, 필터는 access만 허용 | 운영 확인. 기기별 키(L-10)는 선택 |
-| 딥링크 1회용 코드 교환 (H-7) | ❌ 아직 토큰을 딥링크에서 읽음 | ✅ 코드 리다이렉트 + `POST /api/auth/exchange` | **앱 수정 필요** (아래 "앱 쪽 수정 방법"). 실패 핸들러를 앱 스킴으로 보내기(M-9)는 미처리 |
+| 딥링크 1회용 코드 교환 (H-7) | ✅ 코드 교환(`5e7f750`), 콜드 스타트 크래시 수정(`d83e56d`) | ✅ 코드 리다이렉트 + `POST /api/auth/exchange` | 에뮬레이터 Google 로그인으로 확인 완료. Kakao는 계정 입력 단계에서 중단 |
 | 회원 탈퇴 API (H-2) | ✅ UI와 호출부 | ✅ `DELETE /api/users/me` | 웹용 삭제 안내 페이지(Play 요구사항). 운영 DB에 옛 테이블이 있으면 FK 충돌 가능 (아래 주의) |
 | AI 서버 호출 타임아웃 (H-4) + 트랜잭션 분리 (H-5) | 해당 없음 | ✅ 연결 3초 / 읽기 30초 / VTON 170초, 초과 시 504. AI 호출을 트랜잭션 밖으로, `open-in-view: false` | `AsyncConfig` 고정 8스레드 풀의 큐 상한은 그대로 |
 | 위치 기반 날씨 | ✅ `GET /api/weather?lat=&lon=` 전송 | ❌ 이번 범위에서 제외 (AI 서버 수정 필요) | `WeatherController`가 lat/lon을 받아 `/ai/weather?lat=&lon=`로 전달, 좌표별 캐시 키. 그 전까지는 카드에 "내 위치"로 표시돼도 서울 날씨 |
@@ -66,7 +66,7 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 - 이번 변경 이전에 `vton/` 바로 아래에 저장된 피팅 결과는 주인을 알 수 없어 지워지지 않습니다. S3 Lifecycle 규칙으로 정리하는 것을 권장합니다.
 - **운영 DB**에 `phase0_cleanup.sql`을 아직 실행하지 않아 옛 `outfits`·`outfit_items`·`outfit_calendar` 테이블이 `users`를 FK로 참조하고 있을 수 있습니다. 해당 사용자의 행이 남아 있으면 탈퇴가 FK 위반(500)으로 실패합니다 [추정, 운영 DB 확인 필요]. 옛 테이블을 정리하거나, 탈퇴 로직에서 함께 삭제해야 합니다.
 
-### 앱 쪽 수정 방법 — 딥링크 1회용 코드 (코드는 아직 안 고침)
+### 앱 쪽 수정 방법 — 딥링크 1회용 코드 (✅ `fix/app-auth-exchange`의 `5e7f750`에서 반영)
 
 서버가 이제 `fashionapp://app/oauth2/callback?code=<1회용 코드>`로 리다이렉트합니다. 현재 앱(`MainViewModel.handleDeepLink`)은 `accessToken`·`refreshToken` 쿼리만 읽기 때문에, **이 백엔드를 배포하면 앱 로그인이 막힙니다.**
 
@@ -81,41 +81,54 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 
 **배포 순서:** 앱 출시 전이라 순서 제약은 개발 기기에만 해당합니다. 그래도 로그인이 끊기지 않으려면 앱을 먼저 고치고, 서버와 앱을 같은 시점에 반영하세요. 옛 앱을 받쳐야 한다면 서버에 "토큰 직접 전달" 모드를 임시로 남기는 방법도 있지만, 이번에는 구현하지 않았습니다.
 
-### 로컬 백엔드 + 에뮬레이터 확인 체크리스트
+### 로컬 백엔드 + 에뮬레이터 확인 체크리스트 — 실행 결과 (2026-11-02, `fix/app-auth-exchange`)
+
+환경: `docker compose up -d postgres redis`(AI 서버 없음), `./gradlew bootRun`, AVD `Pixel_8`(Android 16), 디버그 APK(`BASE_URL=http://localhost:8080/api/`), `adb reverse tcp:8080 tcp:8080`. 유료 API 호출 0건. 화면 조작은 `adb shell input tap`, 확인은 스크린샷·백엔드 로그·`psql`·`redis-cli`로 했습니다.
+- 에뮬레이터에 있던 **릴리즈 서명 앱은 서명이 달라 덮어쓸 수 없어 삭제**하고 디버그 앱을 설치했습니다. 에뮬레이터의 로컬 로그인 상태만 사라졌고 서버 데이터와는 무관합니다.
 
 준비:
-- [ ] `docker compose up -d postgres redis` (AI 서버는 띄우지 않음)
-- [ ] `cd backend && ./gradlew bootRun`, 로그에 `Started FashionAppApplication`
-- [ ] 에뮬레이터 실행 후 `adb reverse tcp:8080 tcp:8080`
-- [ ] 앱 **디버그** 빌드 설치 (`BASE_URL=http://10.0.2.2:8080/api/`)
-- [ ] 딥링크 코드 교환 앱 수정(위 1~5)이 반영된 빌드인지 확인. 반영 전이면 로그인 단계에서 막히는 게 정상
+- [x] postgres·redis만 실행, AI 서버 없음
+- [x] `bootRun` 5.1초 기동
+- [x] `adb reverse --list` → `tcp:8080 tcp:8080`
+- [x] 디버그 앱 설치·실행 → 로그인 화면
 
-로그인:
-- [ ] Google 로그인 → 동의 후 앱으로 복귀 → 홈 진입
-- [ ] Kakao 로그인 → 동의 후 앱으로 복귀 → 홈 진입 (이메일 없는 계정)
-- [ ] 백엔드 로그에 `/api/auth/exchange` 200. 같은 딥링크를 다시 열면(`adb shell am start -d "fashionapp://app/oauth2/callback?code=<같은 코드>"`) 401, 앱은 로그인 화면 유지
-- [ ] 로그인 후 60초가 지난 코드로 교환하면 401
-- [ ] 마이 탭에 닉네임 표시. 날씨는 AI 서버가 없으므로 "날씨 정보를 불러올 수 없어요"가 정상
-- [ ] 옷장 목록(`GET /api/clothes`) 정상(빈 목록). 옷 등록·코디 추천·피팅은 AI 서버가 없어 실패하는 게 정상이며, 오류 안내만 확인
+딥링크 실패 처리 (계정 없이 확인):
+- [x] 없는 코드 `fashionapp://app/oauth2/callback?code=bogus-code-123` → 서버 401 `INVALID_AUTH_CODE` → 로그인 화면에 "로그인 시간이 지났어요. 다시 시도해 주세요."
+- [x] `?error=access_denied` → "로그인을 취소했어요."
+- [x] 실제 Google 동의 화면에서 **취소** → 서버 로그 `error=access_denied app=true` → 앱 로그인 화면에 "로그인을 취소했어요." (웹 `localhost:3000`으로 가지 않음)
 
-토큰:
-- [ ] Redis에서 `refresh:{userId}` 확인 (`docker compose exec redis redis-cli keys 'refresh:*'`)
-- [ ] (선택) 액세스 토큰 만료 상황: Redis는 그대로 두고 앱 DataStore의 액세스 토큰만 손상시키거나 1시간 대기 → 자동 재발급 후 화면 정상
+로그인 (Google):
+- [x] Google 계정 선택 → 동의 "계속" → 앱 홈 진입. 비밀번호 입력은 필요 없었음(에뮬레이터에 Google 계정이 이미 등록돼 있었음)
+- [x] DB `users`에 google 사용자 1건 생성, Redis `refresh:{id}` 생성, `auth:code:*` 키는 교환 후 남지 않음
+- [x] 위치 안내 다이얼로그 표시 → "서울 날씨로 볼게요". 날씨는 AI 서버가 없어 "날씨 정보를 불러올 수 없어요"가 나왔고, 이는 예상한 결과
+- [x] 마이 탭: 닉네임·이메일·프로필 사진 표시(`GET /api/users/me` 200)
+- [ ] **Kakao 로그인: 미완료.** Kakao 로그인 페이지(accounts.kakao.com)까지는 열렸지만 계정 ID·비밀번호 입력이 필요해 지시대로 멈춤. 페이지가 열렸으므로 redirect URI가 Kakao에 등록돼 있는 것으로 추정(미등록이면 KOE006이 보통 먼저 뜸). 에뮬레이터에 해당 화면을 띄워 둠
+
+코드 재사용:
+- [x] 로그인에 쓴 코드로 `curl POST /api/auth/exchange` → 401
+- [x] **버그 발견 → 수정(`d83e56d`)**: 앱을 강제 종료한 뒤 이미 쓴 코드의 딥링크로 앱을 시작하면 크래시. 로그는 `IllegalArgumentException: Cannot navigate to login. Navigation graph has not been set for NavController` (Navigation.kt:62). 원인은 NavHost가 그래프를 설정하기 전에 이동 이벤트를 받은 것. 이동 이벤트를 NavHost 구성 이후에만 받도록 하고 Channel로 바꿨으며, 이미 로그인된 상태에서 지난 로그인 딥링크는 무시하도록 함. 재설치 후 같은 시나리오 → 크래시 0건, 홈 유지
+- [ ] 60초 만료는 에뮬레이터에서 따로 확인하지 않음(통합 테스트 `AuthCodeExchangeIntegrationTest.expiredCodeFails`로만 검증)
+- 참고: 같은 시각 crash 로그의 네이티브 크래시(SIGILL)는 에뮬레이터의 `com.android.chrome` 프로세스로, 앱과 무관
 
 로그아웃:
-- [ ] 마이 → 로그아웃 → 로그인 화면
-- [ ] 백엔드 로그에 `/api/auth/logout` 200, Redis `refresh:{userId}` 키 삭제됨
-- [ ] 로그아웃 전의 리프레시 토큰으로 `curl -X POST localhost:8080/api/auth/refresh -H 'Content-Type: application/json' -d '{"refreshToken":"..."}'` → 401
+- [x] 마이 → 로그아웃 → 확인 → 로그인 화면
+- [x] Redis `refresh:{id}` 삭제됨
+- [x] 로그아웃 전 리프레시 토큰으로 `POST /api/auth/refresh` → 401 "유효하지 않은 리프레시 토큰입니다."
+
+재로그인:
+- [x] Google 재로그인 → 홈. DB 사용자는 그대로 1건, 같은 id(신규 가입 아님)
 
 탈퇴:
-- [ ] 다시 로그인 → (가능하면) 옷 1벌 이상 있는 상태 만들기. AI 서버 없이는 등록이 안 되므로 `psql`로 `clothes` 행을 직접 넣어도 됨
-- [ ] 마이 → 회원 탈퇴 → 확인 다이얼로그 문구 확인 → 탈퇴하기 → 로그인 화면
-- [ ] DB: `select count(*) from users where id='<id>'`, `clothes`, `style_diagnoses` 모두 0 (`docker compose exec postgres psql -U fashionapp`)
-- [ ] Redis `refresh:{userId}` 없음
-- [ ] 백엔드 로그 `account.delete userId=... images=N s3Failures=M`. 로컬 S3 자격 증명이 운영 버킷을 가리키면 실제로 삭제되므로, 테스트 계정 데이터인지 확인할 것
-- [ ] 탈퇴 전 토큰으로 `GET /api/users/me` → 401
-- [ ] 같은 소셜 계정으로 다시 로그인하면 새 사용자로 가입됨(체형·옷장 비어 있음)
-- [ ] 탈퇴 실패 경로: 백엔드를 끈 상태에서 탈퇴 → 다이얼로그에 "탈퇴 처리에 실패했어요" 표시, 로그인 유지
+- [x] 탈퇴 전: `clothes` 행 1건을 `psql`로 직접 추가(AI 분류 없이), 앱 DataStore의 토큰(디버그 빌드라 `run-as`로 읽음)으로 `GET /api/users/me` 200 확인
+- [x] 마이 → 회원 탈퇴 → 확인 다이얼로그 문구 확인 → 탈퇴하기 → 로그인 화면
+- [x] DB: 해당 id의 `users`·`clothes`·`style_diagnoses` 모두 0건, Redis 키 없음
+- [x] 탈퇴 전 액세스 토큰으로 `GET /api/users/me` → 401, 리프레시 토큰으로 `POST /api/auth/refresh` → 401
+- [x] 로그 `account.delete ... images=1 s3Failures=2`: S3 삭제 2건 실패. 원인은 **로컬 `backend/.env`의 AWS 키가 교체 전 옛 키**(`The AWS Access Key Id you provided does not exist in our records`, 403). 설계대로 S3 실패가 탈퇴를 막지 않음을 실제로 확인. 운영 키로 로컬 S3 삭제를 확인하려면 로컬 `.env`의 AWS 키를 교체해야 함
+- [ ] 탈퇴 실패 경로(백엔드 중지 상태에서 탈퇴)는 이번에 확인하지 않음
+
+탈퇴 후 재로그인:
+- [x] 같은 Google 계정으로 로그인 → **새 사용자로 가입**(새 id `ea187…`, 옷장 0건, 체형·취향 비어 있음)
+- [x] 이어서 로그아웃 → Redis 비어 있음 확인
 
 ### 앱이 호출하는 API 점검 (5번, 수정 안 함)
 
@@ -198,7 +211,7 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 | H-4 ✅ | `backend/.../RestClientConfig.java` | `SimpleClientHttpRequestFactory`에 **connect·read 타임아웃이 없음** [확인]. AI 서버나 HF Space가 멈추면 요청 스레드가 무한 대기함. 비동기 호출도 고정 8스레드 풀(`AsyncConfig`)이라 VTON 몇 건만 걸려도 추천 API까지 막힘 | 연결 5초 / 읽기(일반 30초, VTON 180초)를 설정하고 엔드포인트별로 RestClient 분리. 풀 크기와 큐 상한도 명시 |
 | H-5 ✅ | `backend/.../VtonService.tryOn`, `ClothesService.register`, `DiagnosisService.diagnose`, `OutfitService` | `@Transactional` 안에서 AI 호출(수 초~최대 180초)을 기다림 → 그동안 DB 커넥션을 붙잡고 있음 (Hikari 최대 10개) [확인]. 동시 VTON 몇 건으로 커넥션 풀이 고갈될 수 있음 [추정] | 사용자 조회만 짧은 트랜잭션으로 하고 AI 호출은 트랜잭션 밖에서. VTON은 `readOnly` 트랜잭션 자체를 제거 |
 | H-6 | `ai-server/.../vton_service.py` (`yisol/IDM-VTON`) | ① IDM-VTON 모델 라이선스가 **CC BY-NC-SA 4.0(비상업)** 으로 알려져 있음 [추정, 확인 필요]. ② 공개 Space라 대기열·ZeroGPU 할당량을 모든 사용자가 EC2 IP 하나로 공유함 [추정]. ③ Space 소유자가 내리거나 시그니처를 바꾸면 즉시 장애 | 라이선스 확인. 상용 출시라면 상용 가능한 VTON API나 자체 호스팅 검토. 최소한 장애 시 안내 문구 |
-| H-7 🟡(서버만, 앱 남음) | `MainViewModel.handleDeepLink`, `OAuth2AuthenticationSuccessHandler` | 토큰을 커스텀 스킴 `fashionapp://app/oauth2/callback?accessToken=…&refreshToken=…`의 쿼리로 전달함 [확인]. ① 다른 앱이 같은 스킴을 등록하면 토큰을 가로챌 수 있음. ② 아무 웹페이지나 이 링크로 공격자 토큰을 주입할 수 있음(로그인 CSRF). 앱은 state 검증 없이 그대로 저장 | 일회용 코드를 발급하고 앱이 POST로 교환하는 방식(+PKCE·state). 또는 App Links(https + `assetlinks.json`) |
+| H-7 ✅ | `MainViewModel.handleDeepLink`, `OAuth2AuthenticationSuccessHandler` | 토큰을 커스텀 스킴 `fashionapp://app/oauth2/callback?accessToken=…&refreshToken=…`의 쿼리로 전달함 [확인]. ① 다른 앱이 같은 스킴을 등록하면 토큰을 가로챌 수 있음. ② 아무 웹페이지나 이 링크로 공격자 토큰을 주입할 수 있음(로그인 CSRF). 앱은 state 검증 없이 그대로 저장 | 일회용 코드를 발급하고 앱이 POST로 교환하는 방식(+PKCE·state). 또는 App Links(https + `assetlinks.json`) |
 
 ### 중
 
@@ -212,7 +225,7 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 | M-6 | `.github/workflows/deploy.yml` | `set -e`/`script_stop`이 없어서 `git pull`이 실패해도 예전 코드로 재빌드하고 ✓로 표시됨. **배포 전 빌드·테스트 단계가 없음**. t3.small에서 직접 빌드 | `script_stop: true`. `./gradlew test`를 돌리는 job을 먼저 실행하고 `needs`로 연결. 장기적으로는 이미지를 CI에서 빌드 |
 | M-7 | 백엔드 전체 | AI 엔드포인트(OpenAI·HF 비용 발생)에 **사용자별 호출 제한(rate limit)이 없음** [확인]. 토큰 하나로 비용 폭주가 가능 | nginx `limit_req` 또는 Redis 기반 사용자별 쿼터 |
 | M-8 | `DiagnosisService`, `VtonService`, `S3Uploader` | 진단 사진(전신)과 VTON 결과가 S3에 **무기한 보관**됨(문서에는 "임시 저장"). presigned URL 유효기간 7일 [확인] | S3 Lifecycle 규칙(예: 30일). presigned URL 유효기간 단축 |
-| M-9 | `OAuth2AuthenticationFailureHandler` | 로그인 실패 시 앱 스킴이 아니라 `app.frontend-url`(기본값 `http://localhost:3000`)로 리다이렉트함. 운영 `.env`의 `FRONTEND_URL` 값은 확인 못 함 → Android 사용자는 브라우저에서 막힐 것으로 추정 [추정] | 실패도 `oauth2-redirect-base`(앱 스킴)로 보내고 앱에서 에러 표시 |
+| M-9 ✅(`a63d0f8`) | `OAuth2AuthenticationFailureHandler` | 로그인 실패 시 앱 스킴이 아니라 `app.frontend-url`(기본값 `http://localhost:3000`)로 리다이렉트함. 운영 `.env`의 `FRONTEND_URL` 값은 확인 못 함 → Android 사용자는 브라우저에서 막힐 것으로 추정 [추정] | 실패도 `oauth2-redirect-base`(앱 스킴)로 보내고 앱에서 에러 표시 |
 | M-10 | `android/app/build.gradle.kts` | `targetSdk = 35`. Play는 매년 8월 31일부터 신규 앱에 최신 API 수준을 요구하므로 지금(2026-11)은 **36 이상이 필요할 가능성이 높음** [추정, 정책 확인 필요]. `applicationId = "com.fashionapp"`은 지나치게 일반적이라 이미 사용 중일 수 있고, 출시 후에는 바꿀 수 없음 [추정] | targetSdk 36으로 올리고 회귀 테스트. 패키지명 확정(예: `com.<본인도메인>.wearon`) |
 | M-11 | `AndroidManifest.xml` `allowBackup="true"` | 토큰이 든 DataStore가 기기 백업에 포함됨 [확인] | `dataExtractionRules`·`fullBackupContent`에서 `datastore/` 제외 |
 | M-12 | `frontend/` 전체 | `api/outfit.js`가 존재하지 않는 `/outfits`, `/calendar`, `/outfits/recommend`를 호출함. OAuth 성공 리다이렉트도 앱 스킴이라 **웹 로그인이 불가능**할 것으로 추정 [호출 경로는 확인, 로그인은 추정]. 빌드는 성공 | 웹을 유지할지 결정. 유지하지 않는다면 레포에서 제거하거나 archived로 명시 |
@@ -262,7 +275,7 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 | 개인정보처리방침 작성·호스팅, 앱에 링크, 데이터 보안 양식 작성 (H-3) | M | 신규 페이지, `ui/mypage/MyPageScreen.kt`, Play Console |
 | IDM-VTON 라이선스 확인 → 상업 사용이 불가하면 대체 방안 결정 (H-6) | S(확인) / L(교체) | `ai-server/app/services/vton_service.py` |
 | targetSdk 정책 확인 후 36으로 상향, 패키지명 확정 (M-10) | M | `android/app/build.gradle.kts` |
-| 🟡 OAuth 토큰 전달 방식 개선 — 서버 `3ebad66`, 앱 남음 (처리 현황의 "앱 쪽 수정 방법") (일회용 코드 교환 또는 App Links) (H-7) | M | `OAuth2AuthenticationSuccessHandler`, `AuthController`, `MainViewModel`, `AndroidManifest.xml` |
+| ✅ OAuth 토큰 전달 방식 개선 — 서버 `3ebad66`, 앱 `5e7f750`·`d83e56d` (일회용 코드 교환 또는 App Links) (H-7) | M | `OAuth2AuthenticationSuccessHandler`, `AuthController`, `MainViewModel`, `AndroidManifest.xml` |
 | 🟡 리프레시 토큰을 Bearer로 못 쓰게 하기, 로그아웃 시 무효화 (M-1, M-2) — M-2 앱 `e2dadaf`, M-1 `098ec59` ✅ | S | `JwtTokenProvider`, `JwtAuthenticationFilter`, `AuthApi.kt`, `AuthRepository.kt` |
 | AI 생성 이미지(VTON) 신고 기능 — Play의 AI 생성 콘텐츠 정책 해당 여부 확인 [추정] | S~M | `ui/fitting/FittingScreen.kt` |
 | `bundleRelease`(AAB) 빌드와 Play App Signing 설정 | S | `android/app/build.gradle.kts` |
@@ -277,7 +290,7 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 | 피팅 업로드 이미지 압축, 허용 MIME 통일 (M-5) | S | `FittingViewModel.kt`, `S3Uploader.java`, `ai-server/app/routers/*.py` |
 | 예외 핸들러 보강(400·404·413) (M-4) | S | `GlobalExceptionHandler.java` |
 | 토큰 갱신 동시성 처리 (M-3) | S | `ApiClient.kt` |
-| OAuth 실패 시 앱으로 복귀 (M-9) | S | `OAuth2AuthenticationFailureHandler.java` |
+| ✅ OAuth 실패 시 앱으로 복귀 (M-9) — `a63d0f8` | S | `OAuth2AuthenticationFailureHandler.java` |
 | AI 엔드포인트 사용자별 rate limit (M-7) | M | `nginx/nginx.conf` 또는 Spring 필터 |
 | 진단 사진·VTON 결과 S3 보관 기한 (M-8) | S | S3 Lifecycle, `S3Uploader.generatePresignedUrl` |
 | 🟡 날씨를 사용자 위치 기반으로 (현재 서울 고정), 기상청 전환 여부 결정 — 앱 `9cb4e6e`, 백엔드 남음 | M | `weather_service.py`, `WeatherService.java`, `HomeViewModel.kt` |
