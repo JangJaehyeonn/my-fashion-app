@@ -43,6 +43,8 @@ class TokenAuthenticator @Inject constructor(
 
     override fun authenticate(route: Route?, response: Response): Request? {
         if (responseCount(response) >= 2) return null
+        // 로그인·재발급 같은 /auth/ 요청의 401은 토큰 만료가 아니라 요청 자체의 실패(코드 만료 등) — 재발급 시도 안 함
+        if (response.request.url.encodedPath.contains("/auth/")) return null
 
         val refreshToken = runBlocking { tokenDataStore.refreshToken.firstOrNull() } ?: return null
 

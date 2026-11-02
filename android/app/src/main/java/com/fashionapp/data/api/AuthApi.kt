@@ -1,6 +1,7 @@
 package com.fashionapp.data.api
 
 import com.fashionapp.data.model.ApiResponse
+import com.fashionapp.data.model.ExchangeRequest
 import com.fashionapp.data.model.RefreshRequest
 import com.fashionapp.data.model.TokenResponse
 import com.fashionapp.data.model.UpdateProfileRequest
@@ -12,6 +13,10 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 
 interface AuthApi {
+    // 인증 불필요(/api/auth/**). 코드는 60초 안에 한 번만 교환 가능 — 만료·재사용이면 401
+    @POST("auth/exchange")
+    suspend fun exchange(@Body request: ExchangeRequest): ApiResponse<TokenResponse>
+
     @POST("auth/refresh")
     suspend fun refreshToken(@Body request: RefreshRequest): ApiResponse<TokenResponse>
 

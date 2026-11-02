@@ -2,6 +2,7 @@ package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.AuthApi
 import com.fashionapp.data.datastore.TokenDataStore
+import com.fashionapp.data.model.ExchangeRequest
 import com.fashionapp.data.model.RefreshRequest
 import com.fashionapp.data.model.UpdateProfileRequest
 import com.fashionapp.data.model.UserProfile
@@ -17,8 +18,10 @@ class AuthRepository @Inject constructor(
     val accessToken = tokenDataStore.accessToken
     val refreshToken = tokenDataStore.refreshToken
 
-    suspend fun saveTokens(accessToken: String, refreshToken: String) {
-        tokenDataStore.saveTokens(accessToken, refreshToken)
+    // OAuth 딥링크의 1회용 코드를 토큰으로 바꿔 저장
+    suspend fun exchangeCode(code: String): Result<Unit> = runCatching {
+        val tokens = authApi.exchange(ExchangeRequest(code)).data ?: error("토큰 교환 실패")
+        tokenDataStore.saveTokens(tokens.accessToken, tokens.refreshToken)
     }
 
     suspend fun logout() {

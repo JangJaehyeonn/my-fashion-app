@@ -16,6 +16,11 @@ data class RefreshRequest(
     val refreshToken: String
 )
 
+// OAuth 로그인 딥링크(fashionapp://app/oauth2/callback?code=...)로 받은 1회용 코드 → 토큰 교환
+data class ExchangeRequest(
+    val code: String
+)
+
 // User
 data class UserProfile(
     val id: String,
