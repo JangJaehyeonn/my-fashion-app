@@ -47,6 +47,34 @@ public class LocalAuthService {
         return authTokenService.issueTokens(user.getId());
     }
 
+    /**
+     * 아이디·비밀번호 로그인. 아이디가 없든 비밀번호가 틀리든 같은 LOGIN_FAILED(401)로 응답한다.
+     * 아이디가 없을 때도 더미 해시와 비교해 BCrypt 한 번만큼 시간을 써서, 응답 시간으로 아이디 존재를 추측하기 어렵게 한다.
+     */
+    public Map<String, String> login(LoginRequest request) {
+        String loginId = request.getLoginId() == null ? "" : request.getLoginId().trim();
+        String password = request.getPassword() == null ? "" : request.getPassword();
+
+        User user = userRepository.findByLoginId(loginId).filter(User::isLocal).orElse(null);
+        String hash = user != null && user.getPasswordHash() != null ? user.getPasswordHash() : dummyHash();
+        boolean matches = passwordEncoder.matches(password, hash);
+
+        if (user == null || !matches) {
+            log.info("local login failed loginId={}", loginId);
+            throw new CustomException(ErrorCode.LOGIN_FAILED);
+        }
+        return authTokenService.issueTokens(user.getId());
+    }
+
+    private volatile String dummyHash;
+
+    private String dummyHash() {
+        if (dummyHash == null) {
+            dummyHash = passwordEncoder.encode("dummy-password-for-timing-0");
+        }
+        return dummyHash;
+    }
+
     /** 아이디 사용 가능 여부. 형식이 틀리면 400 */
     public boolean isLoginIdAvailable(String loginId) {
         LocalAuthRules.requireLoginId(loginId);

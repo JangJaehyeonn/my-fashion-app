@@ -25,6 +25,11 @@ public class LocalAuthController {
         return ResponseEntity.ok(ApiResponse.success(localAuthService.signup(request)));
     }
 
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<Map<String, String>>> login(@RequestBody LoginRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(localAuthService.login(request)));
+    }
+
     @GetMapping("/check-id")
     public ResponseEntity<ApiResponse<Map<String, Boolean>>> checkId(@RequestParam("loginId") String loginId) {
         return ResponseEntity.ok(ApiResponse.success(Map.of("available", localAuthService.isLoginIdAvailable(loginId))));

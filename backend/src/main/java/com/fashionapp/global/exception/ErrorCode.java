@@ -21,6 +21,8 @@ public enum ErrorCode {
     INVALID_PASSWORD(HttpStatus.BAD_REQUEST, "비밀번호는 영문과 숫자를 포함해 8~64자여야 해요."),
     INVALID_NICKNAME(HttpStatus.BAD_REQUEST, "닉네임은 1~20자로 입력해 주세요."),
     DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "이미 사용 중인 아이디예요."),
+    // 아이디가 없을 때와 비밀번호가 틀렸을 때 같은 문구·상태 — 아이디 존재 여부를 알려주지 않기 위함
+    LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 틀렸어요"),
 
     INVALID_IMAGE_FORMAT(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다."),
     IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드에 실패했습니다."),
