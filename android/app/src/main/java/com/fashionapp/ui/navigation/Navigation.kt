@@ -24,6 +24,7 @@ import com.fashionapp.ui.diagnosis.DiagnosisScreen
 import com.fashionapp.ui.home.HomeScreen
 import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
+import com.fashionapp.ui.mypage.ChangePasswordScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.shopping.ShoppingScreen
 import com.fashionapp.ui.signup.SignupScreen
@@ -39,6 +40,7 @@ object Route {
     const val MYPAGE = "mypage"
     const val BODY_PROFILE = "body_profile"
     const val SIGNUP = "signup"
+    const val CHANGE_PASSWORD = "change_password"
     const val VTON = "vton/{garmentDesc}"
 
     fun vton(garmentDesc: String) = "vton/${Uri.encode(garmentDesc)}"
@@ -123,7 +125,14 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                                 popUpTo(0) { inclusive = true }
                             }
                         },
-                        onEditBodyProfile = { navController.navigate(Route.BODY_PROFILE) }
+                        onEditBodyProfile = { navController.navigate(Route.BODY_PROFILE) },
+                        onChangePassword = { navController.navigate(Route.CHANGE_PASSWORD) }
+                    )
+                }
+                composable(Route.CHANGE_PASSWORD) {
+                    ChangePasswordScreen(
+                        onBack = { navController.popBackStack() },
+                        onChanged = { navController.popBackStack() }
                     )
                 }
                 composable(Route.BODY_PROFILE) {

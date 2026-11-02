@@ -2,6 +2,7 @@ package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.AuthApi
 import com.fashionapp.data.datastore.TokenDataStore
+import com.fashionapp.data.model.ChangePasswordRequest
 import com.fashionapp.data.model.ExchangeRequest
 import com.fashionapp.data.model.LoginRequest
 import com.fashionapp.data.model.RefreshRequest
@@ -40,6 +41,13 @@ class AuthRepository @Inject constructor(
 
     suspend fun isLoginIdAvailable(loginId: String): Result<Boolean> = runCatching {
         authApi.checkLoginId(loginId).data?.available ?: error("중복 확인 실패")
+    }
+
+    // 비밀번호 변경 → 서버가 준 새 토큰으로 교체 (이 기기는 로그인 유지, 다른 기기의 리프레시 토큰은 무효)
+    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> = runCatching {
+        val tokens = authApi.changePassword(ChangePasswordRequest(currentPassword, newPassword)).data
+            ?: error("비밀번호 변경 실패")
+        tokenDataStore.saveTokens(tokens.accessToken, tokens.refreshToken)
     }
 
     suspend fun logout() {

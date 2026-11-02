@@ -1,6 +1,7 @@
 package com.fashionapp.data.api
 
 import com.fashionapp.data.model.ApiResponse
+import com.fashionapp.data.model.ChangePasswordRequest
 import com.fashionapp.data.model.CheckIdResponse
 import com.fashionapp.data.model.ExchangeRequest
 import com.fashionapp.data.model.LoginRequest
@@ -12,6 +13,7 @@ import com.fashionapp.data.model.UserProfile
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Query
@@ -41,6 +43,10 @@ interface AuthApi {
 
     @GET("users/me")
     suspend fun getMyProfile(): ApiResponse<UserProfile>
+
+    // 아이디 가입 사용자만. 성공하면 새 토큰을 받고 기존 리프레시 토큰은 모두 무효. 현재 비밀번호 오류는 400
+    @PATCH("users/me/password")
+    suspend fun changePassword(@Body request: ChangePasswordRequest): ApiResponse<TokenResponse>
 
     @PUT("users/me")
     suspend fun updateProfile(@Body request: UpdateProfileRequest): ApiResponse<UserProfile>

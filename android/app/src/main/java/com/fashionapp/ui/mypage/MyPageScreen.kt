@@ -54,6 +54,7 @@ import com.fashionapp.ui.theme.WearonShapes
 fun MyPageScreen(
     onLogout: () -> Unit,
     onEditBodyProfile: () -> Unit = {},
+    onChangePassword: () -> Unit = {},
     viewModel: MyPageViewModel = hiltViewModel()
 ) {
     val profile by viewModel.profile.collectAsState()
@@ -153,7 +154,8 @@ fun MyPageScreen(
             } else {
                 ProfileHeader(
                     nickname = profile?.nickname ?: "사용자",
-                    email = profile?.email.orEmpty(),
+                    // 아이디 가입 사용자는 이메일이 없어 아이디를 대신 표시
+                    email = profile?.email ?: profile?.loginId?.let { "@$it" }.orEmpty(),
                     profileImageUrl = profile?.profileImageUrl
                 )
                 Spacer(Modifier.height(24.dp))
@@ -172,6 +174,11 @@ fun MyPageScreen(
             ) {
                 MenuRow(label = "체형·취향 수정", onClick = onEditBodyProfile)
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                // 비밀번호가 있는 아이디 가입 사용자만 (Google·Kakao 로그인은 비밀번호가 없음)
+                if (profile?.provider == "local") {
+                    MenuRow(label = "비밀번호 변경", onClick = onChangePassword)
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                }
                 MenuRow(label = "로그아웃", color = WearonColors.SubText) { showLogoutDialog = true }
             }
 

@@ -29,6 +29,11 @@ data class SignupRequest(
     val nickname: String
 )
 
+data class ChangePasswordRequest(
+    val currentPassword: String,
+    val newPassword: String
+)
+
 data class CheckIdResponse(
     val available: Boolean
 )
