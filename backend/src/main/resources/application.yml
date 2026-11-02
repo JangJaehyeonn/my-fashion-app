@@ -102,6 +102,9 @@ app:
   auth:
     # OAuth 성공 딥링크에 싣는 1회용 코드의 유효 시간 (POST /api/auth/exchange로 토큰 교환)
     exchange-code-ttl: 60s
+    # 아이디·비밀번호 로그인: 같은 아이디로 연속 5회 실패하면 5분 잠금 (LoginAttemptLimiter)
+    login-max-failures: 5
+    login-lock-duration: 5m
 
 spring.servlet.multipart:
   max-file-size: 10MB

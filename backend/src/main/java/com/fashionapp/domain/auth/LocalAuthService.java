@@ -11,6 +11,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -25,6 +26,7 @@ public class LocalAuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthTokenService authTokenService;
+    private final LoginAttemptLimiter loginAttemptLimiter;
 
     /** 가입 후 바로 로그인 상태가 되도록 토큰을 함께 발급 */
     public Map<String, String> signup(SignupRequest request) {
@@ -52,17 +54,25 @@ public class LocalAuthService {
      * 아이디가 없을 때도 더미 해시와 비교해 BCrypt 한 번만큼 시간을 써서, 응답 시간으로 아이디 존재를 추측하기 어렵게 한다.
      */
     public Map<String, String> login(LoginRequest request) {
-        String loginId = request.getLoginId() == null ? "" : request.getLoginId().trim();
+        // 아이디는 영문 소문자만 허용되므로 대문자로 입력해도 같은 아이디로 취급 (잠금 키도 같은 값으로)
+        String loginId = request.getLoginId() == null ? "" : request.getLoginId().trim().toLowerCase(Locale.ROOT);
         String password = request.getPassword() == null ? "" : request.getPassword();
+
+        // 잠금 중이면 비밀번호가 맞아도 거부 (비밀번호 확인 전에 판단)
+        if (loginAttemptLimiter.isLocked(loginId)) {
+            throw new CustomException(ErrorCode.LOGIN_LOCKED);
+        }
 
         User user = userRepository.findByLoginId(loginId).filter(User::isLocal).orElse(null);
         String hash = user != null && user.getPasswordHash() != null ? user.getPasswordHash() : dummyHash();
         boolean matches = passwordEncoder.matches(password, hash);
 
         if (user == null || !matches) {
-            log.info("local login failed loginId={}", loginId);
-            throw new CustomException(ErrorCode.LOGIN_FAILED);
+            boolean lockedNow = loginAttemptLimiter.recordFailure(loginId);
+            log.info("local login failed loginId={} locked={}", loginId, lockedNow);
+            throw new CustomException(lockedNow ? ErrorCode.LOGIN_LOCKED : ErrorCode.LOGIN_FAILED);
         }
+        loginAttemptLimiter.reset(loginId);
         return authTokenService.issueTokens(user.getId());
     }
 
