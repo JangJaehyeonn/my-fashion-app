@@ -1,4 +1,23 @@
+# 로컬 개발용. 백엔드는 ./gradlew bootRun으로 직접 띄우고, 여기서는 DB/Redis만 쓴다:
+#   docker compose up -d postgres redis
+# ai-server는 OpenAI·HF 유료 API를 호출하므로 필요할 때만 명시적으로 띄운다.
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: fashionapp
+      POSTGRES_USER: fashionapp
+      POSTGRES_PASSWORD: fashionapp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fashionapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     ports:
@@ -10,3 +29,6 @@ services:
       - "8000:8000"
     env_file:
       - ./ai-server/.env
+
+volumes:
+  postgres_data:
