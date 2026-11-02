@@ -14,7 +14,10 @@ public class UserResponse {
     private String email;
     private String nickname;
     private String profileImageUrl;
+    // google / kakao / local — 앱이 local일 때만 비밀번호 변경 메뉴를 보여줌
     private String provider;
+    // 아이디·비밀번호 가입 사용자만 값이 있음
+    private String loginId;
     private Integer height;
     private Integer weight;
     private String bodyType;
@@ -29,6 +32,7 @@ public class UserResponse {
                 .nickname(user.getNickname())
                 .profileImageUrl(user.getProfileImageUrl())
                 .provider(user.getProvider().name())
+                .loginId(user.getLoginId())
                 .height(user.getHeight())
                 .weight(user.getWeight())
                 .bodyType(user.getBodyType() != null ? user.getBodyType().name() : null)
