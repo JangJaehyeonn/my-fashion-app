@@ -10,8 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.UUID;
 import java.util.Map;
 
 /**
@@ -83,6 +85,35 @@ public class LocalAuthService {
             dummyHash = passwordEncoder.encode("dummy-password-for-timing-0");
         }
         return dummyHash;
+    }
+
+    /**
+     * 비밀번호 변경. 현재 비밀번호를 확인한 뒤 바꾸고, 리프레시 토큰을 새로 발급해 기존 것을 모두 무효화한다
+     * (Redis의 refresh:{userId}는 사용자당 하나라 덮어쓰면 다른 기기의 리프레시 토큰도 더는 쓸 수 없음).
+     * 변경한 기기는 응답의 새 토큰으로 로그인을 유지한다. 다른 기기의 액세스 토큰은 만료(최대 1시간)까지 유효하다.
+     *
+     * <p>현재 비밀번호 오류는 401이 아니라 400 — 앱의 토큰 자동 갱신(401 처리)이 끼어들지 않게 하기 위함.
+     */
+    @Transactional
+    public Map<String, String> changePassword(UUID userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        if (!user.isLocal() || user.getPasswordHash() == null) {
+            throw new CustomException(ErrorCode.PASSWORD_NOT_SUPPORTED);
+        }
+        String current = request.getCurrentPassword() == null ? "" : request.getCurrentPassword();
+        if (!passwordEncoder.matches(current, user.getPasswordHash())) {
+            log.info("password change rejected (wrong current password) userId={}", userId);
+            throw new CustomException(ErrorCode.INVALID_CURRENT_PASSWORD);
+        }
+        LocalAuthRules.requirePassword(request.getNewPassword());
+        if (request.getNewPassword().equals(current)) {
+            throw new CustomException(ErrorCode.SAME_PASSWORD);
+        }
+
+        user.changePasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        log.info("password changed userId={}", userId);
+        return authTokenService.issueTokens(userId);
     }
 
     /** 아이디 사용 가능 여부. 형식이 틀리면 400 */

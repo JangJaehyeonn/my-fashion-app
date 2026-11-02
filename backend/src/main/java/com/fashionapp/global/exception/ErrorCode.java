@@ -23,6 +23,9 @@ public enum ErrorCode {
     DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "이미 사용 중인 아이디예요."),
     // 아이디가 없을 때와 비밀번호가 틀렸을 때 같은 문구·상태 — 아이디 존재 여부를 알려주지 않기 위함
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 틀렸어요"),
+    INVALID_CURRENT_PASSWORD(HttpStatus.BAD_REQUEST, "현재 비밀번호가 틀렸어요."),
+    SAME_PASSWORD(HttpStatus.BAD_REQUEST, "지금과 다른 비밀번호를 입력해 주세요."),
+    PASSWORD_NOT_SUPPORTED(HttpStatus.BAD_REQUEST, "소셜 로그인 계정은 비밀번호를 바꿀 수 없어요."),
     LOGIN_LOCKED(HttpStatus.TOO_MANY_REQUESTS, "로그인에 여러 번 실패해 잠시 잠겼어요. 5분 후 다시 시도해 주세요."),
 
     INVALID_IMAGE_FORMAT(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다."),
