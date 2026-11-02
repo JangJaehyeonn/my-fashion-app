@@ -14,8 +14,9 @@ interface AuthApi {
     @POST("auth/refresh")
     suspend fun refreshToken(@Body request: RefreshRequest): ApiResponse<TokenResponse>
 
+    // 서버가 본문의 refreshToken으로 Redis에 저장된 토큰을 폐기함 (본문이 없으면 폐기하지 않음)
     @POST("auth/logout")
-    suspend fun logout(): ApiResponse<Unit>
+    suspend fun logout(@Body request: RefreshRequest): ApiResponse<Unit>
 
     @GET("users/me")
     suspend fun getMyProfile(): ApiResponse<UserProfile>

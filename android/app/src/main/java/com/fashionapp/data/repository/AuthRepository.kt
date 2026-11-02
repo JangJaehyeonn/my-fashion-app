@@ -2,8 +2,10 @@ package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.AuthApi
 import com.fashionapp.data.datastore.TokenDataStore
+import com.fashionapp.data.model.RefreshRequest
 import com.fashionapp.data.model.UpdateProfileRequest
 import com.fashionapp.data.model.UserProfile
+import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,7 +22,10 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun logout() {
-        runCatching { authApi.logout() }
+        val refreshToken = tokenDataStore.refreshToken.firstOrNull()
+        if (refreshToken != null) {
+            runCatching { authApi.logout(RefreshRequest(refreshToken)) }
+        }
         tokenDataStore.clearTokens()
     }
 
