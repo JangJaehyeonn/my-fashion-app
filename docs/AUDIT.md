@@ -31,13 +31,91 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 
 ### 백엔드가 같이 바뀌어야 끝나는 항목
 
-| 항목 | 앱 쪽 상태 | 백엔드에서 할 일 | 관련 파일 |
+| 항목 | 앱 (`fix/app-local`) | 백엔드 (`fix/backend-p0`) | 남은 일 |
 |---|---|---|---|
-| 로그아웃 시 리프레시 토큰 폐기 (M-2) | ✅ 본문에 토큰 전송 | 폐기 로직은 이미 있음(`AuthController.logout`). 남은 일: ① 운영에서 폐기되는지 확인 ② 리프레시 토큰을 Bearer로 쓰지 못하게 `typ` 클레임 구분 (M-1) ③ 기기별 키 (L-10, 선택) | `AuthController`, `JwtTokenProvider`, `JwtAuthenticationFilter` |
-| 딥링크 1회용 코드 교환 (H-7) | ❌ 미착수. 서버 방식이 정해져야 앱을 바꿀 수 있음 | 성공 핸들러가 토큰 대신 짧은 수명(예: 60초)의 1회용 code를 리다이렉트에 담기 → `POST /api/auth/token`(code → 토큰) 신설. 실패 핸들러도 앱 스킴으로 (M-9) | `OAuth2AuthenticationSuccessHandler`, `OAuth2AuthenticationFailureHandler`, `AuthController` / 앱: `MainViewModel.handleDeepLink`, `AuthApi` |
-| 회원 탈퇴 API (H-2) | ✅ UI와 호출부 완료 (`AuthApi.deleteAccount`에 TODO) | `DELETE /api/users/me`: 사용자의 clothes·style_diagnoses 행, S3 사진(clothes·diagnosis·vton), Redis `refresh:{id}` 삭제 후 users 행 삭제. 지금은 같은 경로에 GET·PUT만 있어 405가 예외 핸들러에서 500으로 바뀜 → 앱에는 "탈퇴 실패"로 표시됨 | `UserController`, `UserService`, `ClothesRepository`, `StyleDiagnosisRepository`, `S3Uploader` |
-| AI 서버 호출 타임아웃 (H-4) | 해당 없음 (앱 OkHttp는 기본 10초, VTON만 180초) | `RestClientConfig`에 연결 5초 / 읽기 30초(VTON 180초) 설정, `AsyncConfig` 풀 상한, AI 호출을 트랜잭션 밖으로 (H-5) | `RestClientConfig`, `AsyncConfig`, `AiServerClient`, 각 Service |
-| 위치 기반 날씨 | ✅ `GET /api/weather?lat=&lon=` 전송 (`OutfitApi`에 TODO) | `WeatherController`가 lat/lon을 받아 `AiServerClient.getWeather`가 `/ai/weather?lat=&lon=`로 전달. 캐시 키를 좌표별로(예: `weather:37.57,126.98`), Caffeine `maximumSize(1)` 상향. 좌표는 로그나 DB에 남기지 않기(앱 안내 문구가 "저장하지 않아요") | `WeatherController`, `WeatherService`, `AiServerClient` |
+| 로그아웃 시 리프레시 토큰 폐기 (M-2) + 리프레시 토큰을 Bearer로 사용 차단 (M-1) | ✅ 본문에 토큰 전송 | ✅ `typ` 클레임 구분, 필터는 access만 허용 | 운영 확인. 기기별 키(L-10)는 선택 |
+| 딥링크 1회용 코드 교환 (H-7) | ❌ 아직 토큰을 딥링크에서 읽음 | ✅ 코드 리다이렉트 + `POST /api/auth/exchange` | **앱 수정 필요** (아래 "앱 쪽 수정 방법"). 실패 핸들러를 앱 스킴으로 보내기(M-9)는 미처리 |
+| 회원 탈퇴 API (H-2) | ✅ UI와 호출부 | ✅ `DELETE /api/users/me` | 웹용 삭제 안내 페이지(Play 요구사항). 운영 DB에 옛 테이블이 있으면 FK 충돌 가능 (아래 주의) |
+| AI 서버 호출 타임아웃 (H-4) + 트랜잭션 분리 (H-5) | 해당 없음 | ✅ 연결 3초 / 읽기 30초 / VTON 170초, 초과 시 504. AI 호출을 트랜잭션 밖으로, `open-in-view: false` | `AsyncConfig` 고정 8스레드 풀의 큐 상한은 그대로 |
+| 위치 기반 날씨 | ✅ `GET /api/weather?lat=&lon=` 전송 | ❌ 이번 범위에서 제외 (AI 서버 수정 필요) | `WeatherController`가 lat/lon을 받아 `/ai/weather?lat=&lon=`로 전달, 좌표별 캐시 키. 그 전까지는 카드에 "내 위치"로 표시돼도 서울 날씨 |
+
+## 백엔드 처리 현황 (2026-11-02, 브랜치 `fix/backend-p0`, push 안 함)
+
+`fix/app-local`에서 브랜치를 땄습니다. 각 커밋마다 `./gradlew test`를 실행해 모두 통과했습니다.
+- DB와 Redis는 `docker compose up -d postgres redis`로만 띄웠습니다. 로컬 compose에 postgres가 없어 추가했습니다.
+- AI 서버는 띄우지 않았고 OpenAI·HF 호출은 0건입니다. AI 서버 응답이 필요한 곳은 목(mock)이나 MockWebServer로 대체했습니다.
+
+| 커밋 | 항목 | 테스트 |
+|---|---|---|
+| `3838d1d` | 로컬 `docker-compose.yml`에 postgres 추가 | — |
+| `098ec59` | 1. JWT `typ`(access/refresh) 클레임 추가. 인증 필터는 access만 허용, 재발급·로그아웃은 access 거부. typ이 없는 옛 리프레시 토큰은 Redis와 일치하면 허용(배포 직후 강제 로그아웃 방지). 옛 액세스 토큰은 401을 받고 앱이 재발급으로 넘어감 | `AuthTokenIntegrationTest` 7건 |
+| `5179477` | 2. `DELETE /api/users/me`. S3 삭제를 `ImageStorage` 인터페이스로 분리. VTON 결과 저장 경로를 `vton/{userId}/`로 변경해 prefix로 삭제. 재발급 시 사용자 존재 여부도 확인. 삭제 순서와 실패 처리는 `AccountDeletionService` 주석에 정리 | `AccountDeletionIntegrationTest` 5건 |
+| `d96fee8` | 3. AI 호출 타임아웃(`app.ai-server.*`, 환경변수로 변경 가능), 타임아웃 시 `AI_SERVER_TIMEOUT`(504) 응답. AI를 기다리는 서비스 메서드에서 `@Transactional` 제거, `open-in-view: false` | `AiServerClientTimeoutTest` 7건(MockWebServer), `AiCallTransactionIntegrationTest` 4건 (AI 호출 중 트랜잭션 없음, Hikari 활성 커넥션 0) |
+| `3ebad66` | 4. OAuth 성공 시 딥링크에 1회용 코드만 전달(Redis, 60초, GETDEL로 1회 사용). `POST /api/auth/exchange` 추가 | `AuthCodeExchangeIntegrationTest` 6건 |
+
+- 테스트 합계: 34건 → **63건**, 모두 통과.
+- 통합 테스트는 compose의 postgres·redis가 떠 있어야 실행됩니다.
+- 로컬 기동 확인: `./gradlew bootRun`이 AI 서버 없이 4.7초 만에 기동했습니다. 인증 없는 `/api/users/me`와 `DELETE /api/users/me`는 401, 잘못된 코드로 `/api/auth/exchange`를 호출하면 401 + 안내 메시지, Kakao 인가 리다이렉트도 정상이었습니다.
+
+### 탈퇴 삭제 순서와 실패 처리 (요약)
+1. **DB**: 한 트랜잭션에서 옷 → 진단 → 사용자 순으로 삭제합니다. 실패하면 전부 롤백되고 요청은 500으로 실패하며, 계정은 그대로 남습니다.
+2. **Redis 리프레시 토큰**: 커밋 후 삭제하고, 실패는 무시합니다. 재발급할 때 사용자 존재를 확인하므로 남은 토큰은 쓸 수 없습니다.
+3. **S3**(옷·진단 사진, `vton/{userId}/`): 커밋 후 best-effort로 지우고, 실패해도 DB는 되돌리지 않고 로그만 남깁니다. 행이 없어 서버가 presigned URL을 더 발급하지 않고, 이미 발급된 URL은 7일 안에 만료됩니다.
+
+주의할 점:
+- 이번 변경 이전에 `vton/` 바로 아래에 저장된 피팅 결과는 주인을 알 수 없어 지워지지 않습니다. S3 Lifecycle 규칙으로 정리하는 것을 권장합니다.
+- **운영 DB**에 `phase0_cleanup.sql`을 아직 실행하지 않아 옛 `outfits`·`outfit_items`·`outfit_calendar` 테이블이 `users`를 FK로 참조하고 있을 수 있습니다. 해당 사용자의 행이 남아 있으면 탈퇴가 FK 위반(500)으로 실패합니다 [추정, 운영 DB 확인 필요]. 옛 테이블을 정리하거나, 탈퇴 로직에서 함께 삭제해야 합니다.
+
+### 앱 쪽 수정 방법 — 딥링크 1회용 코드 (코드는 아직 안 고침)
+
+서버가 이제 `fashionapp://app/oauth2/callback?code=<1회용 코드>`로 리다이렉트합니다. 현재 앱(`MainViewModel.handleDeepLink`)은 `accessToken`·`refreshToken` 쿼리만 읽기 때문에, **이 백엔드를 배포하면 앱 로그인이 막힙니다.**
+
+1. `data/model/Models.kt`에 `data class ExchangeRequest(val code: String)` 추가.
+2. `AuthApi`에 `@POST("auth/exchange") suspend fun exchange(@Body request: ExchangeRequest): ApiResponse<TokenResponse>` 추가. `/api/auth/**`는 인증이 필요 없습니다.
+3. `AuthRepository.exchangeCode(code)`: 위 API를 호출하고, `data`가 있으면 `tokenDataStore.saveTokens(...)` 후 `Result.success`.
+4. `MainViewModel.handleDeepLink`: `uri.getQueryParameter("code")`를 읽어 `exchangeCode` 호출. 성공하면 `NavEvent.ToMain`, 실패(401)하면 로그인 화면에 "로그인 시간이 지났어요. 다시 시도해 주세요." 표시.
+   - 같은 딥링크가 `onCreate`와 `onNewIntent`로 두 번 들어와도 두 번째 교환은 401이 됩니다. 처리 중이거나 이미 처리한 코드는 무시하세요.
+   - 화면 회전 등으로 Activity가 다시 만들어질 때 `intent.data`가 남아 재처리되지 않도록, 처리 후 `intent.data = null`.
+5. 기존 `accessToken`·`refreshToken` 쿼리 처리는 삭제합니다. 남겨 두면 공격자가 만든 링크로 토큰을 주입하는 경로(로그인 CSRF)가 그대로 열려 있습니다.
+6. 디버그 로그에 코드가 찍혀도 1회용·60초라 위험이 낮지만, 교환 응답 본문(토큰)은 디버그 빌드에서만 로깅됩니다(`3fdbbb6`).
+
+**배포 순서:** 앱 출시 전이라 순서 제약은 개발 기기에만 해당합니다. 그래도 로그인이 끊기지 않으려면 앱을 먼저 고치고, 서버와 앱을 같은 시점에 반영하세요. 옛 앱을 받쳐야 한다면 서버에 "토큰 직접 전달" 모드를 임시로 남기는 방법도 있지만, 이번에는 구현하지 않았습니다.
+
+### 로컬 백엔드 + 에뮬레이터 확인 체크리스트
+
+준비:
+- [ ] `docker compose up -d postgres redis` (AI 서버는 띄우지 않음)
+- [ ] `cd backend && ./gradlew bootRun`, 로그에 `Started FashionAppApplication`
+- [ ] 에뮬레이터 실행 후 `adb reverse tcp:8080 tcp:8080`
+- [ ] 앱 **디버그** 빌드 설치 (`BASE_URL=http://10.0.2.2:8080/api/`)
+- [ ] 딥링크 코드 교환 앱 수정(위 1~5)이 반영된 빌드인지 확인. 반영 전이면 로그인 단계에서 막히는 게 정상
+
+로그인:
+- [ ] Google 로그인 → 동의 후 앱으로 복귀 → 홈 진입
+- [ ] Kakao 로그인 → 동의 후 앱으로 복귀 → 홈 진입 (이메일 없는 계정)
+- [ ] 백엔드 로그에 `/api/auth/exchange` 200. 같은 딥링크를 다시 열면(`adb shell am start -d "fashionapp://app/oauth2/callback?code=<같은 코드>"`) 401, 앱은 로그인 화면 유지
+- [ ] 로그인 후 60초가 지난 코드로 교환하면 401
+- [ ] 마이 탭에 닉네임 표시. 날씨는 AI 서버가 없으므로 "날씨 정보를 불러올 수 없어요"가 정상
+- [ ] 옷장 목록(`GET /api/clothes`) 정상(빈 목록). 옷 등록·코디 추천·피팅은 AI 서버가 없어 실패하는 게 정상이며, 오류 안내만 확인
+
+토큰:
+- [ ] Redis에서 `refresh:{userId}` 확인 (`docker compose exec redis redis-cli keys 'refresh:*'`)
+- [ ] (선택) 액세스 토큰 만료 상황: Redis는 그대로 두고 앱 DataStore의 액세스 토큰만 손상시키거나 1시간 대기 → 자동 재발급 후 화면 정상
+
+로그아웃:
+- [ ] 마이 → 로그아웃 → 로그인 화면
+- [ ] 백엔드 로그에 `/api/auth/logout` 200, Redis `refresh:{userId}` 키 삭제됨
+- [ ] 로그아웃 전의 리프레시 토큰으로 `curl -X POST localhost:8080/api/auth/refresh -H 'Content-Type: application/json' -d '{"refreshToken":"..."}'` → 401
+
+탈퇴:
+- [ ] 다시 로그인 → (가능하면) 옷 1벌 이상 있는 상태 만들기. AI 서버 없이는 등록이 안 되므로 `psql`로 `clothes` 행을 직접 넣어도 됨
+- [ ] 마이 → 회원 탈퇴 → 확인 다이얼로그 문구 확인 → 탈퇴하기 → 로그인 화면
+- [ ] DB: `select count(*) from users where id='<id>'`, `clothes`, `style_diagnoses` 모두 0 (`docker compose exec postgres psql -U fashionapp`)
+- [ ] Redis `refresh:{userId}` 없음
+- [ ] 백엔드 로그 `account.delete userId=... images=N s3Failures=M`. 로컬 S3 자격 증명이 운영 버킷을 가리키면 실제로 삭제되므로, 테스트 계정 데이터인지 확인할 것
+- [ ] 탈퇴 전 토큰으로 `GET /api/users/me` → 401
+- [ ] 같은 소셜 계정으로 다시 로그인하면 새 사용자로 가입됨(체형·옷장 비어 있음)
+- [ ] 탈퇴 실패 경로: 백엔드를 끈 상태에서 탈퇴 → 다이얼로그에 "탈퇴 처리에 실패했어요" 표시, 로그인 유지
 
 ### 앱이 호출하는 API 점검 (5번, 수정 안 함)
 
@@ -115,18 +193,18 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 | ID | 위치 | 문제 | 수정 방향 |
 |---|---|---|---|
 | H-1 ✅ | `android/.../data/api/ApiClient.kt` (`HttpLoggingInterceptor.Level.BODY`) | **릴리즈 빌드에서도** 요청·응답 본문을 logcat에 출력함. 그래서 `Authorization` 헤더, 리프레시 응답의 토큰, presigned URL, 멀티파트 이미지 바이트까지 로그에 남음. 큰 이미지를 올릴 때 메모리 부담도 있음 [확인] | `if (BuildConfig.DEBUG)`일 때만 추가하고, `redactHeader("Authorization")` 적용 |
-| H-2 🟡(앱 UI만) | 백엔드·Android 전체 | **회원 탈퇴(계정 삭제) 기능 없음.** `UserController`에는 GET·PUT `/me`만 있음 [확인]. Play는 계정을 만드는 앱에 앱 안 삭제 경로와 웹 삭제 URL을 요구함 | `DELETE /api/users/me` 추가: clothes·diagnosis·S3·Redis 토큰까지 삭제. 마이 화면에 버튼과 웹 안내 페이지 추가 |
+| H-2 ✅(앱+API, 웹 안내 페이지 남음) | 백엔드·Android 전체 | **회원 탈퇴(계정 삭제) 기능 없음.** `UserController`에는 GET·PUT `/me`만 있음 [확인]. Play는 계정을 만드는 앱에 앱 안 삭제 경로와 웹 삭제 URL을 요구함 | `DELETE /api/users/me` 추가: clothes·diagnosis·S3·Redis 토큰까지 삭제. 마이 화면에 버튼과 웹 안내 페이지 추가 |
 | H-3 | 앱·레포 전체 | **개인정보처리방침이 없음** (코드에서 `privacy`·`개인정보` 검색 결과 0건) [확인]. 전신 사진, 키·몸무게, 옷 사진을 수집하고 OpenAI와 HF Space(제3자)로 보내는데도 고지가 없음 | 방침 페이지를 호스팅하고 앱과 Play Console에 링크. 데이터 보안 양식에 사진·신체 정보와 제3자 전송을 기재 |
-| H-4 | `backend/.../RestClientConfig.java` | `SimpleClientHttpRequestFactory`에 **connect·read 타임아웃이 없음** [확인]. AI 서버나 HF Space가 멈추면 요청 스레드가 무한 대기함. 비동기 호출도 고정 8스레드 풀(`AsyncConfig`)이라 VTON 몇 건만 걸려도 추천 API까지 막힘 | 연결 5초 / 읽기(일반 30초, VTON 180초)를 설정하고 엔드포인트별로 RestClient 분리. 풀 크기와 큐 상한도 명시 |
-| H-5 | `backend/.../VtonService.tryOn`, `ClothesService.register`, `DiagnosisService.diagnose`, `OutfitService` | `@Transactional` 안에서 AI 호출(수 초~최대 180초)을 기다림 → 그동안 DB 커넥션을 붙잡고 있음 (Hikari 최대 10개) [확인]. 동시 VTON 몇 건으로 커넥션 풀이 고갈될 수 있음 [추정] | 사용자 조회만 짧은 트랜잭션으로 하고 AI 호출은 트랜잭션 밖에서. VTON은 `readOnly` 트랜잭션 자체를 제거 |
+| H-4 ✅ | `backend/.../RestClientConfig.java` | `SimpleClientHttpRequestFactory`에 **connect·read 타임아웃이 없음** [확인]. AI 서버나 HF Space가 멈추면 요청 스레드가 무한 대기함. 비동기 호출도 고정 8스레드 풀(`AsyncConfig`)이라 VTON 몇 건만 걸려도 추천 API까지 막힘 | 연결 5초 / 읽기(일반 30초, VTON 180초)를 설정하고 엔드포인트별로 RestClient 분리. 풀 크기와 큐 상한도 명시 |
+| H-5 ✅ | `backend/.../VtonService.tryOn`, `ClothesService.register`, `DiagnosisService.diagnose`, `OutfitService` | `@Transactional` 안에서 AI 호출(수 초~최대 180초)을 기다림 → 그동안 DB 커넥션을 붙잡고 있음 (Hikari 최대 10개) [확인]. 동시 VTON 몇 건으로 커넥션 풀이 고갈될 수 있음 [추정] | 사용자 조회만 짧은 트랜잭션으로 하고 AI 호출은 트랜잭션 밖에서. VTON은 `readOnly` 트랜잭션 자체를 제거 |
 | H-6 | `ai-server/.../vton_service.py` (`yisol/IDM-VTON`) | ① IDM-VTON 모델 라이선스가 **CC BY-NC-SA 4.0(비상업)** 으로 알려져 있음 [추정, 확인 필요]. ② 공개 Space라 대기열·ZeroGPU 할당량을 모든 사용자가 EC2 IP 하나로 공유함 [추정]. ③ Space 소유자가 내리거나 시그니처를 바꾸면 즉시 장애 | 라이선스 확인. 상용 출시라면 상용 가능한 VTON API나 자체 호스팅 검토. 최소한 장애 시 안내 문구 |
-| H-7 | `MainViewModel.handleDeepLink`, `OAuth2AuthenticationSuccessHandler` | 토큰을 커스텀 스킴 `fashionapp://app/oauth2/callback?accessToken=…&refreshToken=…`의 쿼리로 전달함 [확인]. ① 다른 앱이 같은 스킴을 등록하면 토큰을 가로챌 수 있음. ② 아무 웹페이지나 이 링크로 공격자 토큰을 주입할 수 있음(로그인 CSRF). 앱은 state 검증 없이 그대로 저장 | 일회용 코드를 발급하고 앱이 POST로 교환하는 방식(+PKCE·state). 또는 App Links(https + `assetlinks.json`) |
+| H-7 🟡(서버만, 앱 남음) | `MainViewModel.handleDeepLink`, `OAuth2AuthenticationSuccessHandler` | 토큰을 커스텀 스킴 `fashionapp://app/oauth2/callback?accessToken=…&refreshToken=…`의 쿼리로 전달함 [확인]. ① 다른 앱이 같은 스킴을 등록하면 토큰을 가로챌 수 있음. ② 아무 웹페이지나 이 링크로 공격자 토큰을 주입할 수 있음(로그인 CSRF). 앱은 state 검증 없이 그대로 저장 | 일회용 코드를 발급하고 앱이 POST로 교환하는 방식(+PKCE·state). 또는 App Links(https + `assetlinks.json`) |
 
 ### 중
 
 | ID | 위치 | 문제 | 수정 방향 |
 |---|---|---|---|
-| M-1 | `JwtTokenProvider`, `JwtAuthenticationFilter` | 액세스 토큰과 리프레시 토큰의 구조가 같음(subject만 있고 type 클레임 없음). 그래서 **리프레시 토큰(14일)을 API 인증용 Bearer로 쓸 수 있음** [확인] | `typ` 클레임을 추가하고 필터에서 access만 허용 |
+| M-1 ✅ | `JwtTokenProvider`, `JwtAuthenticationFilter` | 액세스 토큰과 리프레시 토큰의 구조가 같음(subject만 있고 type 클레임 없음). 그래서 **리프레시 토큰(14일)을 API 인증용 Bearer로 쓸 수 있음** [확인] | `typ` 클레임을 추가하고 필터에서 access만 허용 |
 | M-2 ✅(앱) | `AuthRepository.logout` / `AuthApi.logout()` ↔ `AuthController.logout` | Android가 본문 없이 로그아웃을 호출하는데, 서버는 본문에 refreshToken이 있을 때만 Redis에서 삭제함. **로그아웃해도 리프레시 토큰이 14일간 유효** [확인] | 앱이 refreshToken을 본문에 담아 보내거나, 서버가 인증 사용자 기준으로 삭제 |
 | M-3 | `ApiClient.kt` `TokenAuthenticator` | 401이 동시에 여러 건 오면 각각 리프레시를 시도함. 서버가 리프레시 토큰을 교체(rotation)하므로 두 번째 시도는 실패하고 `clearTokens()`로 **강제 로그아웃** [추정, 코드상 동기화 없음] | `synchronized` 또는 Mutex로 단일 갱신. 갱신 후 토큰이 바뀌었으면 재사용 |
 | M-4 | `GlobalExceptionHandler` | `CustomException`과 `Exception`만 처리함. 업로드 초과(`MaxUploadSizeExceededException`, nginx 20MB > Spring 10MB), 잘못된 JSON, 누락된 파트, 없는 경로(`NoResourceFoundException`)가 전부 **500**으로 응답됨 [확인] | 400·404·413 핸들러 추가 |
@@ -165,7 +243,7 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 
 | 모듈 | 테스트 | 커버리지 수준 |
 |---|---|---|
-| 백엔드 | JUnit5 7개 클래스, **34건 전부 통과** (Clothes 6, Outfit 6, Shopping 3, UserController 4, UserPreferredStyles 8, UserPrincipal 3, Weather 4) | 서비스 단위 위주. Diagnosis·Vton·Home·AuthController·JWT·SecurityConfig·S3Uploader 테스트 없음 |
+| 백엔드 | (`fix/backend-p0` 기준) JUnit5 12개 클래스 **63건 전부 통과** — 통합 테스트 4개 클래스 추가(토큰·탈퇴·트랜잭션·코드 교환, 로컬 compose의 postgres·redis 필요) + MockWebServer 타임아웃 테스트. 원래는 7개 클래스 34건 (Clothes 6, Outfit 6, Shopping 3, UserController 4, UserPreferredStyles 8, UserPrincipal 3, Weather 4) | 서비스 단위 위주. Diagnosis·Vton·Home·AuthController·JWT·SecurityConfig·S3Uploader 테스트 없음 |
 | AI 서버 | 없음 | 0 |
 | Android | 없음 (`src/test` 디렉터리 없음) | 0 |
 | 웹 | 없음 | 0 |
@@ -180,12 +258,12 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 | 작업 | 난이도 | 관련 파일 |
 |---|---|---|
 | ✅ 릴리즈 빌드에서 HTTP 본문 로그 제거 (H-1) — `3fdbbb6` | S | `android/.../data/api/ApiClient.kt` |
-| 🟡 회원 탈퇴 API·화면과 웹 삭제 안내 페이지 (H-2) — 앱 UI `9192c88`, API·웹 페이지 남음 | M | `UserController`, `UserService`, `ClothesRepository`, `StyleDiagnosisRepository`, `S3Uploader`, `ui/mypage/*` |
+| 🟡 회원 탈퇴 API·화면과 웹 삭제 안내 페이지 (H-2) — 앱 UI `9192c88`, API `5179477`, 웹 페이지 남음 | M | `UserController`, `UserService`, `ClothesRepository`, `StyleDiagnosisRepository`, `S3Uploader`, `ui/mypage/*` |
 | 개인정보처리방침 작성·호스팅, 앱에 링크, 데이터 보안 양식 작성 (H-3) | M | 신규 페이지, `ui/mypage/MyPageScreen.kt`, Play Console |
 | IDM-VTON 라이선스 확인 → 상업 사용이 불가하면 대체 방안 결정 (H-6) | S(확인) / L(교체) | `ai-server/app/services/vton_service.py` |
 | targetSdk 정책 확인 후 36으로 상향, 패키지명 확정 (M-10) | M | `android/app/build.gradle.kts` |
-| OAuth 토큰 전달 방식 개선 (일회용 코드 교환 또는 App Links) (H-7) | M | `OAuth2AuthenticationSuccessHandler`, `AuthController`, `MainViewModel`, `AndroidManifest.xml` |
-| 🟡 리프레시 토큰을 Bearer로 못 쓰게 하기, 로그아웃 시 무효화 (M-1, M-2) — M-2 앱 `e2dadaf`, M-1 남음 | S | `JwtTokenProvider`, `JwtAuthenticationFilter`, `AuthApi.kt`, `AuthRepository.kt` |
+| 🟡 OAuth 토큰 전달 방식 개선 — 서버 `3ebad66`, 앱 남음 (처리 현황의 "앱 쪽 수정 방법") (일회용 코드 교환 또는 App Links) (H-7) | M | `OAuth2AuthenticationSuccessHandler`, `AuthController`, `MainViewModel`, `AndroidManifest.xml` |
+| 🟡 리프레시 토큰을 Bearer로 못 쓰게 하기, 로그아웃 시 무효화 (M-1, M-2) — M-2 앱 `e2dadaf`, M-1 `098ec59` ✅ | S | `JwtTokenProvider`, `JwtAuthenticationFilter`, `AuthApi.kt`, `AuthRepository.kt` |
 | AI 생성 이미지(VTON) 신고 기능 — Play의 AI 생성 콘텐츠 정책 해당 여부 확인 [추정] | S~M | `ui/fitting/FittingScreen.kt` |
 | `bundleRelease`(AAB) 빌드와 Play App Signing 설정 | S | `android/app/build.gradle.kts` |
 | `allowBackup`에서 토큰 제외 (M-11) | S | `AndroidManifest.xml`, `res/xml/` |
@@ -194,8 +272,8 @@ Android 앱 기준으로 핵심 흐름(로그인 → 옷장 등록·AI 분류 �
 
 | 작업 | 난이도 | 관련 파일 |
 |---|---|---|
-| RestClient 타임아웃과 스레드 풀 상한 (H-4) | S | `RestClientConfig.java`, `AsyncConfig.java`, `AiServerClient.java` |
-| AI 호출을 트랜잭션 밖으로 이동 (H-5) | S | `VtonService`, `ClothesService`, `DiagnosisService`, `OutfitService`, `HomeService` |
+| ✅ RestClient 타임아웃 (H-4) — `d96fee8`. 스레드 풀 상한은 남음 | S | `RestClientConfig.java`, `AsyncConfig.java`, `AiServerClient.java` |
+| ✅ AI 호출을 트랜잭션 밖으로 이동 (H-5) — `d96fee8` | S | `VtonService`, `ClothesService`, `DiagnosisService`, `OutfitService`, `HomeService` |
 | 피팅 업로드 이미지 압축, 허용 MIME 통일 (M-5) | S | `FittingViewModel.kt`, `S3Uploader.java`, `ai-server/app/routers/*.py` |
 | 예외 핸들러 보강(400·404·413) (M-4) | S | `GlobalExceptionHandler.java` |
 | 토큰 갱신 동시성 처리 (M-3) | S | `ApiClient.kt` |

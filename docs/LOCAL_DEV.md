@@ -21,11 +21,9 @@
 - PostgreSQL 16: `localhost:5432`, DB·사용자·비밀번호 모두 `fashionapp` (`application.yml` 기본값과 일치)
 - Redis 7: `localhost:6379`, 비밀번호 없음
 
-Docker를 쓰는 경우의 예시입니다. 2026-11-02 기준 이 PC에서는 Docker를 쓰지 않기로 하고 모두 삭제했습니다.
+저장소 루트에서 DB와 Redis만 띄웁니다. AI 서버(`ai-server`)는 유료 API를 호출하므로 같이 띄우지 않습니다.
 ```bash
-docker run -d --name fashionapp-db -p 5432:5432 \
-  -e POSTGRES_DB=fashionapp -e POSTGRES_USER=fashionapp -e POSTGRES_PASSWORD=fashionapp postgres:16-alpine
-docker run -d --name fashionapp-redis -p 6379:6379 redis:7-alpine
+docker compose up -d postgres redis
 ```
 테이블은 기동할 때 `ddl-auto: update`가 자동으로 만듭니다.
 
@@ -42,6 +40,7 @@ docker run -d --name fashionapp-redis -p 6379:6379 redis:7-alpine
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | 선택 | 기본값 `jdbc:postgresql://localhost:5432/fashionapp`, `fashionapp`/`fashionapp` |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | 선택 | 기본값 `localhost`, `6379`, 비밀번호 없음 |
 | `AI_SERVER_URL` | 선택 | 기본값 `http://localhost:8000` |
+| `AI_SERVER_CONNECT_TIMEOUT`, `AI_SERVER_READ_TIMEOUT`, `AI_SERVER_VTON_READ_TIMEOUT` | 선택 | 기본값 `3s`, `30s`, `170s`. 초과 시 504 |
 | `OAUTH2_REDIRECT_BASE` | 선택 | 기본값 `fashionapp://app` (앱 딥링크) |
 
 ### 3. 실행
@@ -52,7 +51,7 @@ cd backend
 
 ## AI 서버 없이 백엔드가 뜨는가
 
-**코드 기준으로는 뜹니다. 실제 실행으로는 확인하지 못했습니다.** Docker를 삭제하기로 해서 DB와 Redis를 띄우지 못했습니다(2026-11-02).
+**뜹니다.** 2026-11-02에 `fix/backend-p0` 브랜치에서 AI 서버 없이 `bootRun`을 실행해 4.7초 만에 기동하는 것을 확인했습니다.
 
 - 근거: `AiServerClient`는 요청이 올 때만 `RestClient`로 AI 서버를 호출하고, 기동 시점에 연결하거나 헬스 체크를 하지 않습니다.
 - AI 서버가 없을 때 정상 동작하는 기능: 로그인·토큰 갱신, `GET/PUT /api/users/me`, `GET /api/clothes`(옷장 목록), `DELETE /api/clothes/{id}`, `GET /api/diagnosis`(이력)
@@ -64,3 +63,13 @@ cd backend
 - 주의: AI 서버를 띄우면 OpenAI와 HF Space를 실제로 호출하므로 비용이 듭니다. LLM 연동은 2026-11-18 이후로 미뤄 두었으니 그때까지는 띄우지 않습니다.
 - DB는 기동에 필수입니다(Hikari 연결 실패 시 기동 실패).
 - Redis는 기동은 되지만 로그인(리프레시 토큰 저장)과 날씨 캐시를 쓸 때 실패할 것으로 추정합니다. Lettuce는 기동 시 연결하지 않기 때문입니다.
+
+## 백엔드 테스트
+
+```bash
+docker compose up -d postgres redis   # 통합 테스트에 필요
+cd backend && ./gradlew test
+```
+- 통합 테스트(`support/IntegrationTest` 상속)는 로컬 postgres·redis를 실제로 사용합니다. 테스트마다 새 사용자를 만들고 스스로 정리합니다.
+- 외부 호출은 모두 막혀 있습니다. AI 서버와 S3 업로드는 `@MockBean`으로 대체하고, AI 타임아웃은 MockWebServer로 흉내 냅니다.
+- `src/test/resources/application-test.yml`이 `backend/.env`의 실제 키를 더미 값으로 덮어씁니다.
