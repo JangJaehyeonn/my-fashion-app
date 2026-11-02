@@ -27,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -103,6 +104,7 @@ fun LoginScreen(
             value = loginId,
             onValueChange = viewModel::onLoginIdChange,
             label = "아이디",
+            contentType = ContentType.Username,
             enabled = !busy,
             modifier = Modifier.fillMaxWidth()
         )
@@ -111,6 +113,7 @@ fun LoginScreen(
             value = password,
             onValueChange = viewModel::onPasswordChange,
             label = "비밀번호",
+            contentType = ContentType.Password,
             isPassword = true,
             enabled = !busy,
             imeAction = ImeAction.Done,

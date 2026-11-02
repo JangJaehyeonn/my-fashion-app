@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -86,6 +87,7 @@ fun ChangePasswordScreen(
                 value = form.current,
                 onValueChange = viewModel::onCurrentChange,
                 label = "현재 비밀번호",
+                contentType = ContentType.Password,
                 isPassword = true,
                 error = form.currentFieldError
             )
@@ -93,6 +95,7 @@ fun ChangePasswordScreen(
                 value = form.new,
                 onValueChange = viewModel::onNewChange,
                 label = "새 비밀번호",
+                contentType = ContentType.NewPassword,
                 isPassword = true,
                 error = form.newError,
                 helper = AuthRules.PASSWORD_RULE
@@ -101,6 +104,7 @@ fun ChangePasswordScreen(
                 value = form.confirm,
                 onValueChange = viewModel::onConfirmChange,
                 label = "새 비밀번호 확인",
+                contentType = ContentType.NewPassword,
                 isPassword = true,
                 error = form.confirmError,
                 imeAction = ImeAction.Done,

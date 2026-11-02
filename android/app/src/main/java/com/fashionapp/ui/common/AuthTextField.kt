@@ -10,7 +10,10 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -25,6 +28,8 @@ val ErrorRed = Color(0xFFD64545)
 /**
  * 아이디·비밀번호·닉네임 입력 칸. [error]가 있으면 칸 아래에 빨간 안내, 없고 [helper]가 있으면 회색 안내.
  * [isPassword]면 입력을 마스킹하고 비밀번호 키보드를 쓴다.
+ * [contentType]은 Android Autofill 힌트 — 저장된 아이디·비밀번호 제안(Username/Password)과
+ * 새 계정 저장 제안(NewUsername/NewPassword)에 쓰인다 (Compose 1.8+의 semantics 기반 Autofill).
  */
 @Composable
 fun AuthTextField(
@@ -38,6 +43,7 @@ fun AuthTextField(
     imeAction: ImeAction = ImeAction.Next,
     onImeAction: () -> Unit = {},
     enabled: Boolean = true,
+    contentType: ContentType? = null,
     trailing: (@Composable () -> Unit)? = null
 ) {
     Column(modifier = modifier) {
@@ -65,7 +71,9 @@ fun AuthTextField(
                 focusedContainerColor = WearonColors.White,
                 unfocusedContainerColor = WearonColors.White
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (contentType != null) Modifier.semantics { this.contentType = contentType } else Modifier)
         )
         val note = error ?: helper
         if (note != null) {
