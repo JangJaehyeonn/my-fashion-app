@@ -1,5 +1,10 @@
 package com.fashionapp.ui.home
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,7 +78,41 @@ fun HomeScreen(
     val isRecommending by viewModel.isRecommending.collectAsState()
     val isClosetEmpty by viewModel.isClosetEmpty.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val locationLabel by viewModel.locationLabel.collectAsState()
+    val needsLocationPrompt by viewModel.needsLocationPrompt.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // 허용·거부 어느 쪽이든 결과를 받으면 날씨를 불러옴 (거부 시 서울로 대체)
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { viewModel.onLocationPermissionResult() }
+
+    if (needsLocationPrompt) {
+        // 시스템 권한 창 전에 사용 목적을 먼저 설명 — 시스템 창 문구는 앱이 바꿀 수 없음
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("현재 위치의 날씨로 코디를 추천할게요") },
+            text = {
+                Text(
+                    "오늘 날씨에 맞는 옷을 고르기 위해 대략적인 위치(약 1km 범위)만 사용해요. " +
+                        "위치는 날씨 조회에만 쓰이고 저장하지 않아요.\n허용하지 않으면 서울 날씨로 추천해드려요.",
+                    fontSize = 14.sp,
+                    color = WearonColors.Ink
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                }) { Text("위치 사용", color = WearonColors.Ink, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::onLocationPermissionResult) {
+                    Text("서울 날씨로 볼게요", color = WearonColors.SubText)
+                }
+            },
+            containerColor = WearonColors.White
+        )
+    }
 
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -109,6 +148,7 @@ fun HomeScreen(
             WeatherCard(
                 weather = weather,
                 isLoading = isWeatherLoading,
+                locationLabel = locationLabel,
                 onRetry = viewModel::loadWeather,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
@@ -163,6 +203,7 @@ fun HomeScreen(
 private fun WeatherCard(
     weather: Weather?,
     isLoading: Boolean,
+    locationLabel: String,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -213,7 +254,7 @@ private fun WeatherCard(
                         color = WearonColors.SubText
                     )
                 }
-                Text("서울", fontSize = 12.sp, color = WearonColors.SubText)
+                Text(locationLabel, fontSize = 12.sp, color = WearonColors.SubText)
             }
         }
     }
