@@ -23,6 +23,16 @@ data class LoginRequest(
     val password: String
 )
 
+data class SignupRequest(
+    val loginId: String,
+    val password: String,
+    val nickname: String
+)
+
+data class CheckIdResponse(
+    val available: Boolean
+)
+
 // OAuth 로그인 딥링크(fashionapp://app/oauth2/callback?code=...)로 받은 1회용 코드 → 토큰 교환
 data class ExchangeRequest(
     val code: String

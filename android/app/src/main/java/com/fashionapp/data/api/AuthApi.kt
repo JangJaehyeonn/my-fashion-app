@@ -1,9 +1,11 @@
 package com.fashionapp.data.api
 
 import com.fashionapp.data.model.ApiResponse
+import com.fashionapp.data.model.CheckIdResponse
 import com.fashionapp.data.model.ExchangeRequest
 import com.fashionapp.data.model.LoginRequest
 import com.fashionapp.data.model.RefreshRequest
+import com.fashionapp.data.model.SignupRequest
 import com.fashionapp.data.model.TokenResponse
 import com.fashionapp.data.model.UpdateProfileRequest
 import com.fashionapp.data.model.UserProfile
@@ -12,6 +14,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Query
 
 interface AuthApi {
     // 인증 불필요(/api/auth/**). 코드는 60초 안에 한 번만 교환 가능 — 만료·재사용이면 401
@@ -21,6 +24,13 @@ interface AuthApi {
     // 아이디·비밀번호 로그인. 아이디 없음·비밀번호 틀림 모두 401 "아이디 또는 비밀번호가 틀렸어요", 5회 실패 시 429(5분 잠금)
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): ApiResponse<TokenResponse>
+
+    // 가입 성공 시 바로 로그인 상태가 되도록 토큰을 함께 받음. 아이디 중복 409, 규칙 위반 400
+    @POST("auth/signup")
+    suspend fun signup(@Body request: SignupRequest): ApiResponse<TokenResponse>
+
+    @GET("auth/check-id")
+    suspend fun checkLoginId(@Query("loginId") loginId: String): ApiResponse<CheckIdResponse>
 
     @POST("auth/refresh")
     suspend fun refreshToken(@Body request: RefreshRequest): ApiResponse<TokenResponse>

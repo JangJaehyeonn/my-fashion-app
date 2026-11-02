@@ -5,6 +5,7 @@ import com.fashionapp.data.datastore.TokenDataStore
 import com.fashionapp.data.model.ExchangeRequest
 import com.fashionapp.data.model.LoginRequest
 import com.fashionapp.data.model.RefreshRequest
+import com.fashionapp.data.model.SignupRequest
 import com.fashionapp.data.model.UpdateProfileRequest
 import com.fashionapp.data.model.UserProfile
 import kotlinx.coroutines.flow.firstOrNull
@@ -29,6 +30,16 @@ class AuthRepository @Inject constructor(
     suspend fun login(loginId: String, password: String): Result<Unit> = runCatching {
         val tokens = authApi.login(LoginRequest(loginId, password)).data ?: error("로그인 실패")
         tokenDataStore.saveTokens(tokens.accessToken, tokens.refreshToken)
+    }
+
+    // 가입 → 토큰 저장 (바로 로그인 상태)
+    suspend fun signup(loginId: String, password: String, nickname: String): Result<Unit> = runCatching {
+        val tokens = authApi.signup(SignupRequest(loginId, password, nickname)).data ?: error("가입 실패")
+        tokenDataStore.saveTokens(tokens.accessToken, tokens.refreshToken)
+    }
+
+    suspend fun isLoginIdAvailable(loginId: String): Result<Boolean> = runCatching {
+        authApi.checkLoginId(loginId).data?.available ?: error("중복 확인 실패")
     }
 
     suspend fun logout() {

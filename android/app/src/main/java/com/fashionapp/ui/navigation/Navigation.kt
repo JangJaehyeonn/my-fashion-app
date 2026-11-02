@@ -26,6 +26,7 @@ import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.shopping.ShoppingScreen
+import com.fashionapp.ui.signup.SignupScreen
 import com.fashionapp.ui.vton.VtonScreen
 
 object Route {
@@ -37,6 +38,7 @@ object Route {
     const val SHOPPING = "shopping"
     const val MYPAGE = "mypage"
     const val BODY_PROFILE = "body_profile"
+    const val SIGNUP = "signup"
     const val VTON = "vton/{garmentDesc}"
 
     fun vton(garmentDesc: String) = "vton/${Uri.encode(garmentDesc)}"
@@ -75,6 +77,15 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                         isLoggingIn = isLoggingIn,
                         onLoginStart = mainViewModel::clearLoginMessage,
                         onLoggedIn = {
+                            navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
+                        },
+                        onSignUp = { navController.navigate(Route.SIGNUP) }
+                    )
+                }
+                composable(Route.SIGNUP) {
+                    SignupScreen(
+                        onBack = { navController.popBackStack() },
+                        onSignedUp = {
                             navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
                         }
                     )
