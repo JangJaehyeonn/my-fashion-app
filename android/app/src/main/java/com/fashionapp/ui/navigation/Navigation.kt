@@ -53,19 +53,6 @@ fun AppNavigation(mainViewModel: MainViewModel) {
         }
     }
 
-    LaunchedEffect(Unit) {
-        mainViewModel.navEvent.collect { event ->
-            when (event) {
-                NavEvent.ToMain -> navController.navigate(Route.HOME) {
-                    popUpTo(Route.LOGIN) { inclusive = true }
-                }
-                NavEvent.ToLogin -> navController.navigate(Route.LOGIN) {
-                    popUpTo(0) { inclusive = true }
-                }
-            }
-        }
-    }
-
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val showBottomBar = currentRoute in listOf(Route.HOME, Route.CLOSET, Route.FITTING, Route.MYPAGE)
 
@@ -130,6 +117,22 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                         onBack = { navController.popBackStack() },
                         onSaved = { navController.popBackStack() }
                     )
+                }
+            }
+        }
+
+        // NavHost가 그래프를 설정한 뒤에만 이동 이벤트를 받음 — 앱이 꺼진 상태에서 로그인 딥링크로 시작하면
+        // 그래프 설정 전에 이벤트가 와서 navigate가 IllegalArgumentException으로 크래시했음.
+        // navEvent는 Channel이라 그 전에 보낸 이벤트도 여기서 받아 처리된다
+        LaunchedEffect(Unit) {
+            mainViewModel.navEvent.collect { event ->
+                when (event) {
+                    NavEvent.ToMain -> navController.navigate(Route.HOME) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    NavEvent.ToLogin -> navController.navigate(Route.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             }
         }

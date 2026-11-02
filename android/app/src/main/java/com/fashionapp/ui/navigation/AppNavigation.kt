@@ -5,11 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -23,8 +23,9 @@ class MainViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val _navEvent = MutableSharedFlow<NavEvent>()
-    val navEvent = _navEvent.asSharedFlow()
+    // Channel: 화면(NavHost)이 준비되기 전에 보낸 이동 이벤트도 버리지 않고 준비된 뒤 전달
+    private val _navEvent = Channel<NavEvent>(Channel.BUFFERED)
+    val navEvent = _navEvent.receiveAsFlow()
 
     // 로그인 화면에 띄울 안내 (코드 교환 실패, OAuth 실패 등)
     private val _loginMessage = MutableStateFlow<String?>(null)
@@ -55,7 +56,7 @@ class MainViewModel @Inject constructor(
             authRepository.exchangeCode(code)
                 .onSuccess {
                     _loginMessage.value = null
-                    _navEvent.emit(NavEvent.ToMain)
+                    _navEvent.send(NavEvent.ToMain)
                 }
                 .onFailure { showLoginError("로그인 시간이 지났어요. 다시 시도해 주세요.") }
             _isLoggingIn.value = false
@@ -71,9 +72,13 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // 이미 로그인된 상태에서 오래된 로그인 딥링크(만료·재사용 코드, error)가 다시 열리면 무시 — 로그아웃시키지 않음
     private fun showLoginError(message: String) {
-        _loginMessage.value = message
-        viewModelScope.launch { _navEvent.emit(NavEvent.ToLogin) }
+        viewModelScope.launch {
+            if (authRepository.accessToken.firstOrNull() != null) return@launch
+            _loginMessage.value = message
+            _navEvent.send(NavEvent.ToLogin)
+        }
     }
 
     // 서버 OAuth2AuthenticationFailureHandler가 보내는 error 코드
