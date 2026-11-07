@@ -73,7 +73,8 @@ class LoginIntegrationTest extends LocalAuthTestSupport {
         User oauth = userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .provider(User.AuthProvider.google).providerId("g-" + UUID.randomUUID()).nickname("구글").build());
         try {
-            login("g-anything", PASSWORD).andExpect(status().isUnauthorized());
+            // 실행마다 다른 아이디 — 고정 아이디면 실패 횟수가 Redis에 5분간 남아, 5분 안에 6번째 실행부터 429(잠금)가 됨
+            login(newLoginId(), PASSWORD).andExpect(status().isUnauthorized());
         } finally {
             userRepository.delete(oauth);
         }
@@ -82,9 +83,14 @@ class LoginIntegrationTest extends LocalAuthTestSupport {
     @Test
     @DisplayName("빈 본문·빈 값도 같은 401")
     void emptyCredentials() throws Exception {
-        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value(ErrorCode.LOGIN_FAILED.getMessage()));
+        try {
+            mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.message").value(ErrorCode.LOGIN_FAILED.getMessage()));
+        } finally {
+            // 빈 아이디("")의 실패 기록도 남으므로 지움 (남으면 반복 실행 시 429)
+            redisTemplate.delete(java.util.List.of("login:fail:", "login:lock:"));
+        }
     }
 
     ResultActions login(String loginId, String password) throws Exception {
