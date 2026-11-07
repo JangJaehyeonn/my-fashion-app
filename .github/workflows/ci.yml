@@ -1,0 +1,38 @@
+name: CI
+
+# 백엔드 빌드·테스트. 통합 테스트는 로컬과 같은 postgres·redis가 필요해 서비스 컨테이너로 띄운다.
+# 외부 호출(AI 서버·저장소)은 테스트에서 전부 목/임시 디렉터리라 시크릿이 필요 없다.
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: fashionapp
+          POSTGRES_USER: fashionapp
+          POSTGRES_PASSWORD: fashionapp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fashionapp" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Build and test
+        working-directory: backend
+        run: ./gradlew build --no-daemon
