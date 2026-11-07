@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.model.VtonResult
+import com.fashionapp.data.repository.AuthRepository
 import com.fashionapp.data.repository.ProductPage
 import com.fashionapp.data.repository.ProductPageRepository
 import com.fashionapp.data.repository.VtonRepository
@@ -28,8 +29,47 @@ sealed interface GarmentSource {
 @HiltViewModel
 class FittingViewModel @Inject constructor(
     private val productPageRepository: ProductPageRepository,
-    private val vtonRepository: VtonRepository
+    private val vtonRepository: VtonRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
+
+    // 가상 피팅 사진 전송 동의 여부 (null = 아직 확인 전). 서버가 최종 판단(미동의면 403)하고, 앱은 첫 사용 때 동의 화면을 띄움
+    private val _hasConsent = MutableStateFlow<Boolean?>(null)
+    val hasConsent = _hasConsent.asStateFlow()
+
+    private val _showConsentDialog = MutableStateFlow(false)
+    val showConsentDialog = _showConsentDialog.asStateFlow()
+
+    private val _isSavingConsent = MutableStateFlow(false)
+    val isSavingConsent = _isSavingConsent.asStateFlow()
+
+    // 화면에 들어올 때마다 — 마이 탭에서 철회했을 수 있으므로
+    fun refreshConsent() {
+        viewModelScope.launch {
+            authRepository.getMyProfile().onSuccess { _hasConsent.value = it.vtonConsentAt != null }
+        }
+    }
+
+    /** "가상 피팅 시작": 동의했으면 바로 진행, 아니면(또는 확인 전이면) 동의 화면 */
+    fun requestTryOn(context: Context) {
+        if (_hasConsent.value == true) tryOn(context) else _showConsentDialog.value = true
+    }
+
+    fun dismissConsent() { _showConsentDialog.value = false }
+
+    fun agreeAndTryOn(context: Context) {
+        viewModelScope.launch {
+            _isSavingConsent.value = true
+            authRepository.grantVtonConsent()
+                .onSuccess {
+                    _hasConsent.value = true
+                    _showConsentDialog.value = false
+                    tryOn(context)
+                }
+                .onFailure { _errorMessage.value = "동의를 저장하지 못했어요. 다시 시도해 주세요." }
+            _isSavingConsent.value = false
+        }
+    }
 
     private val _productUrl = MutableStateFlow("")
     val productUrl = _productUrl.asStateFlow()
@@ -118,7 +158,13 @@ class FittingViewModel @Inject constructor(
             }.onSuccess {
                 _result.value = it
             }.onFailure {
-                _errorMessage.value = it.message ?: "가상 피팅에 실패했어요."
+                if ((it as? retrofit2.HttpException)?.code() == 403) {
+                    // 다른 기기에서 철회했거나 동의 정보가 없는 경우 — 동의 화면을 다시 띄움
+                    _hasConsent.value = false
+                    _showConsentDialog.value = true
+                } else {
+                    _errorMessage.value = it.message ?: "가상 피팅에 실패했어요."
+                }
             }
             _isProcessing.value = false
         }

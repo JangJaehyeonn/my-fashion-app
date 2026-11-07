@@ -59,7 +59,9 @@ data class UserProfile(
     val bodyType: String?,
     // 옛 서버 호환용 단일 값(선택한 스타일 중 첫 번째). 다중 선택은 preferredStyles
     val preferredStyle: String?,
-    val preferredStyles: List<String>? = null
+    val preferredStyles: List<String>? = null,
+    // 가상 피팅 사진 전송(Hugging Face) 동의 시각. null이면 미동의
+    val vtonConsentAt: String? = null
 ) {
     /** 선택한 선호 스타일 (서버가 아직 preferredStyles를 안 주면 단일 값으로 폴백) */
     val styleList: List<PreferredStyle>

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -56,5 +57,23 @@ public class UserService {
             return List.of(User.PreferredStyle.valueOf(request.getPreferredStyle()));
         }
         return List.of();
+    }
+
+    /** 가상 피팅 사진 전송 동의. 이미 동의했으면 처음 동의 시각을 유지한다 */
+    @Transactional
+    public UserResponse grantVtonConsent(UUID userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        if (!user.hasVtonConsent()) {
+            user.grantVtonConsent(LocalDateTime.now());
+        }
+        return UserResponse.from(user);
+    }
+
+    /** 동의 철회 — 이후 피팅 요청은 다시 동의할 때까지 403 */
+    @Transactional
+    public UserResponse revokeVtonConsent(UUID userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        user.revokeVtonConsent();
+        return UserResponse.from(user);
     }
 }

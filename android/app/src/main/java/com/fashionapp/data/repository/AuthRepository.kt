@@ -69,6 +69,14 @@ class AuthRepository @Inject constructor(
         authApi.getMyProfile().data ?: error("프로필 없음")
     }
 
+    suspend fun grantVtonConsent(): Result<UserProfile> = runCatching {
+        authApi.grantVtonConsent().data ?: error("동의 저장 실패")
+    }
+
+    suspend fun revokeVtonConsent(): Result<UserProfile> = runCatching {
+        authApi.revokeVtonConsent().data ?: error("동의 철회 실패")
+    }
+
     suspend fun updateProfile(request: UpdateProfileRequest): Result<UserProfile> = runCatching {
         authApi.updateProfile(request).data ?: error("프로필 수정 실패")
     }

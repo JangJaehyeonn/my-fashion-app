@@ -36,6 +36,8 @@ public enum ErrorCode {
     WEATHER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "날씨 정보를 불러오지 못했어요."),
     INVALID_COORDINATES(HttpStatus.BAD_REQUEST, "위치 좌표가 올바르지 않아요."),
 
+    VTON_CONSENT_REQUIRED(HttpStatus.FORBIDDEN, "가상 피팅을 쓰려면 사진 전송에 동의해 주세요."),
+
     DIAGNOSIS_NOT_FOUND(HttpStatus.NOT_FOUND, "진단 기록을 찾을 수 없습니다."),
     CLOTHES_NOT_FOUND(HttpStatus.NOT_FOUND, "옷을 찾을 수 없습니다."),
     CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다.");

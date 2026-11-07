@@ -69,9 +69,34 @@ fun MyPageScreen(
     val context = LocalContext.current
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showRevokeDialog by remember { mutableStateOf(false) }
 
     // 체형·취향 설정에서 저장 후 돌아오면 다시 컴포지션되므로 여기서 갱신
     LaunchedEffect(Unit) { viewModel.loadProfile() }
+
+    if (showRevokeDialog) {
+        AlertDialog(
+            onDismissRequest = { showRevokeDialog = false },
+            title = { Text("사진 전송 동의 철회") },
+            text = {
+                Text(
+                    "철회하면 가상 피팅을 쓸 때 다시 동의해야 해요. 이미 외부 서비스로 보낸 사진에는 영향이 없어요.",
+                    fontSize = 14.sp,
+                    color = WearonColors.Ink
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.revokeVtonConsent()
+                    showRevokeDialog = false
+                }) { Text("철회", color = Color(0xFFD64545)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRevokeDialog = false }) { Text("취소", color = WearonColors.Ink) }
+            },
+            containerColor = WearonColors.White
+        )
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -183,6 +208,11 @@ fun MyPageScreen(
                 // 비밀번호가 있는 아이디 가입 사용자만 (Google·Kakao 로그인은 비밀번호가 없음)
                 if (profile?.provider == "local") {
                     MenuRow(label = "비밀번호 변경", onClick = onChangePassword)
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                }
+                // 동의한 사용자에게만 표시
+                if (profile?.vtonConsentAt != null) {
+                    MenuRow(label = "가상 피팅 사진 전송 동의 철회") { showRevokeDialog = true }
                     Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 }
                 // 서버가 로그인 없이 보여주는 정적 페이지 (릴리즈/디버그 빌드의 서버 주소 기준)

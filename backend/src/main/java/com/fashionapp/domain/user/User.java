@@ -66,6 +66,10 @@ public class User {
     @Column(name = "preferred_styles")
     private String preferredStyles;
 
+    // 가상 피팅 사진 전송(Hugging Face 공개 서비스) 동의 시각. null이면 미동의 — 피팅 API가 403으로 막는다
+    @Column(name = "vton_consent_at")
+    private LocalDateTime vtonConsentAt;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -86,6 +90,18 @@ public class User {
                 .passwordHash(passwordHash)
                 .nickname(nickname)
                 .build();
+    }
+
+    public void grantVtonConsent(LocalDateTime at) {
+        this.vtonConsentAt = at;
+    }
+
+    public void revokeVtonConsent() {
+        this.vtonConsentAt = null;
+    }
+
+    public boolean hasVtonConsent() {
+        return vtonConsentAt != null;
     }
 
     public boolean isLocal() {

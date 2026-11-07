@@ -32,6 +32,13 @@ class MyPageViewModel @Inject constructor(
         }
     }
 
+    // 가상 피팅 사진 전송 동의 철회 → 다음 피팅 때 다시 동의 화면
+    fun revokeVtonConsent() {
+        viewModelScope.launch {
+            authRepository.revokeVtonConsent().onSuccess { _profile.value = it }
+        }
+    }
+
     private val _isDeleting = MutableStateFlow(false)
     val isDeleting = _isDeleting.asStateFlow()
 

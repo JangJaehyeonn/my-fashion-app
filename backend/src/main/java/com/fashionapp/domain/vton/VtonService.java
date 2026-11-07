@@ -1,5 +1,6 @@
 package com.fashionapp.domain.vton;
 
+import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
@@ -30,8 +31,12 @@ public class VtonService {
     // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
     // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
     public VtonResponse tryOn(UUID userId, MultipartFile personImage, MultipartFile garmentImage, String garmentDesc) {
-        userRepository.findById(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        // 전신 사진을 외부(Hugging Face 공개 Space)로 보내기 전에 동의를 서버에서 확인 — 앱 화면만 믿지 않음
+        if (!user.hasVtonConsent()) {
+            throw new CustomException(ErrorCode.VTON_CONSENT_REQUIRED);
+        }
 
         AiVtonResponse aiResult;
         try {

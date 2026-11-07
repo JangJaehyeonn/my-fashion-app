@@ -5,6 +5,7 @@ import com.fashionapp.global.jwt.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -34,5 +35,18 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> deleteMyAccount(@CurrentUser UserPrincipal userPrincipal) {
         accountDeletionService.deleteAccount(userPrincipal.getId());
         return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    // 가상 피팅: 전신 사진이 Hugging Face 공개 서비스로 전송되는 데 대한 동의 (동의 시각을 저장)
+    @PostMapping("/me/consents/vton")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserResponse>> grantVtonConsent(@CurrentUser UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(ApiResponse.success(userService.grantVtonConsent(userPrincipal.getId())));
+    }
+
+    @DeleteMapping("/me/consents/vton")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserResponse>> revokeVtonConsent(@CurrentUser UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(ApiResponse.success(userService.revokeVtonConsent(userPrincipal.getId())));
     }
 }

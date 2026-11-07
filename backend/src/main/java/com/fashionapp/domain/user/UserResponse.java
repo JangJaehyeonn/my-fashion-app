@@ -3,6 +3,7 @@ package com.fashionapp.domain.user;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +25,8 @@ public class UserResponse {
     // 옛 앱 호환용(선택한 스타일 중 첫 번째). 새 앱은 preferredStyles를 사용
     private String preferredStyle;
     private List<String> preferredStyles;
+    // 가상 피팅 사진 전송 동의 시각 (null = 미동의)
+    private LocalDateTime vtonConsentAt;
 
     public static UserResponse from(User user) {
         return UserResponse.builder()
@@ -38,6 +41,7 @@ public class UserResponse {
                 .bodyType(user.getBodyType() != null ? user.getBodyType().name() : null)
                 .preferredStyle(user.getPreferredStyleNames().stream().findFirst().orElse(null))
                 .preferredStyles(user.getPreferredStyleNames())
+                .vtonConsentAt(user.getVtonConsentAt())
                 .build();
     }
 }
