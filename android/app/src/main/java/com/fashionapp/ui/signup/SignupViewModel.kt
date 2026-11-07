@@ -19,6 +19,7 @@ data class SignupForm(
     val password: String = "",
     val passwordConfirm: String = "",
     val nickname: String = "",
+    val ageOver14: Boolean = false,
     val idCheck: IdCheck = IdCheck.NOT_CHECKED,
     // 가입 버튼을 한 번 눌렀으면 비어 있는 칸에도 안내를 띄움
     val submitted: Boolean = false,
@@ -56,6 +57,9 @@ data class SignupForm(
     val nicknameError: String?
         get() = serverNicknameError ?: if (show(nickname)) AuthRules.nicknameError(nickname) else null
 
+    val ageError: String?
+        get() = if (submitted && !ageOver14) "만 14세 이상만 가입할 수 있어요." else null
+
     val canCheckId: Boolean
         get() = AuthRules.loginIdError(loginId) == null && idCheck != IdCheck.CHECKING
 }
@@ -74,6 +78,7 @@ class SignupViewModel @Inject constructor(
     }
     fun onPasswordChange(value: String) = update { copy(password = value, serverPasswordError = null, generalError = null) }
     fun onPasswordConfirmChange(value: String) = update { copy(passwordConfirm = value, generalError = null) }
+    fun onAgeOver14Change(value: Boolean) = update { copy(ageOver14 = value, generalError = null) }
     fun onNicknameChange(value: String) = update { copy(nickname = value, serverNicknameError = null, generalError = null) }
 
     fun checkLoginId() {
@@ -101,12 +106,12 @@ class SignupViewModel @Inject constructor(
         _form.value = f
         if (f.isSubmitting) return
         val invalid = f.loginIdError != null || f.passwordError != null || f.passwordConfirmError != null ||
-                f.nicknameError != null || f.idCheck != IdCheck.AVAILABLE
+                f.nicknameError != null || f.ageError != null || f.idCheck != IdCheck.AVAILABLE
         if (invalid) return
 
         update { copy(isSubmitting = true) }
         viewModelScope.launch {
-            authRepository.signup(f.loginId, f.password, f.nickname.trim())
+            authRepository.signup(f.loginId, f.password, f.nickname.trim(), f.ageOver14)
                 .onSuccess { onSuccess() }
                 .onFailure { e ->
                     val message = e.serverMessage()
@@ -116,6 +121,7 @@ class SignupViewModel @Inject constructor(
                             e.httpStatus == 400 && message?.contains("아이디") == true -> copy(serverLoginIdError = message)
                             e.httpStatus == 400 && message?.contains("비밀번호") == true -> copy(serverPasswordError = message)
                             e.httpStatus == 400 && message?.contains("닉네임") == true -> copy(serverNicknameError = message)
+                            e.httpStatus == 400 && message?.contains("14세") == true -> copy(generalError = message)
                             else -> copy(generalError = "가입하지 못했어요. 잠시 후 다시 시도해 주세요.")
                         }
                     }

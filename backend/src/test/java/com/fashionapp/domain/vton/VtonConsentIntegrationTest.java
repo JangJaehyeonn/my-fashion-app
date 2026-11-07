@@ -44,7 +44,7 @@ class VtonConsentIntegrationTest extends IntegrationTest {
 
     @BeforeEach
     void setUp() {
-        user = userRepository.save(User.builder().nickname("동의테스트").provider(User.AuthProvider.google)
+        user = userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now()).nickname("동의테스트").provider(User.AuthProvider.google)
                 .providerId("consent-" + UUID.randomUUID()).build());
         token = "Bearer " + jwtTokenProvider.createAccessToken(user.getId());
         AiVtonResponse vton = new AiVtonResponse();

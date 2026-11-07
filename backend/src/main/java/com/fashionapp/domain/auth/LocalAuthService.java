@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.Map;
@@ -35,14 +36,18 @@ public class LocalAuthService {
         LocalAuthRules.requireLoginId(request.getLoginId());
         LocalAuthRules.requirePassword(request.getPassword());
         String nickname = LocalAuthRules.requireNickname(request.getNickname());
+        if (!Boolean.TRUE.equals(request.getAgeOver14())) {
+            throw new CustomException(ErrorCode.AGE_REQUIRED_FOR_SIGNUP);
+        }
 
         if (userRepository.existsByLoginId(request.getLoginId())) {
             throw new CustomException(ErrorCode.DUPLICATE_LOGIN_ID);
         }
         User user;
         try {
-            user = userRepository.saveAndFlush(User.createLocal(
-                    request.getLoginId(), passwordEncoder.encode(request.getPassword()), nickname));
+            User newUser = User.createLocal(request.getLoginId(), passwordEncoder.encode(request.getPassword()), nickname);
+            newUser.confirmAge(LocalDateTime.now());
+            user = userRepository.saveAndFlush(newUser);
         } catch (DataIntegrityViolationException e) {
             // 중복 확인과 저장 사이에 같은 아이디로 동시에 가입한 경우 (login_id unique 제약)
             throw new CustomException(ErrorCode.DUPLICATE_LOGIN_ID);

@@ -76,4 +76,12 @@ public class UserService {
         user.revokeVtonConsent();
         return UserResponse.from(user);
     }
+
+    /** 만 14세 이상 확인 (소셜 첫 가입·기존 사용자). 이미 확인했으면 처음 시각을 유지한다. 미만이면 앱이 탈퇴를 호출한다 */
+    @Transactional
+    public UserResponse confirmAge(UUID userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        user.confirmAge(LocalDateTime.now());
+        return UserResponse.from(user);
+    }
 }

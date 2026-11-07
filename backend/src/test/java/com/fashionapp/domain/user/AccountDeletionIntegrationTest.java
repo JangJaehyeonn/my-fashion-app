@@ -141,7 +141,7 @@ class AccountDeletionIntegrationTest extends IntegrationTest {
     }
 
     private static User newUser(String nickname) {
-        return User.builder()
+        return User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .nickname(nickname)
                 .provider(User.AuthProvider.kakao)
                 .providerId("delete-test-" + UUID.randomUUID())

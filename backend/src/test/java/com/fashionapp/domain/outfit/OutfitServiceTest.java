@@ -57,7 +57,7 @@ class OutfitServiceTest {
     void setUp() {
         outfitService = new OutfitService(userRepository, aiServerClient, clothesService);
         userId = UUID.randomUUID();
-        user = User.builder()
+        user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
                 .email("test@example.com")
                 .nickname("테스터")

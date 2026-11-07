@@ -25,6 +25,8 @@ public class UserResponse {
     // 옛 앱 호환용(선택한 스타일 중 첫 번째). 새 앱은 preferredStyles를 사용
     private String preferredStyle;
     private List<String> preferredStyles;
+    // 만 14세 이상 확인 시각 (null = 미확인 → 앱이 확인 화면을 띄움)
+    private LocalDateTime ageConfirmedAt;
     // 가상 피팅 사진 전송 동의 시각 (null = 미동의)
     private LocalDateTime vtonConsentAt;
 
@@ -41,6 +43,7 @@ public class UserResponse {
                 .bodyType(user.getBodyType() != null ? user.getBodyType().name() : null)
                 .preferredStyle(user.getPreferredStyleNames().stream().findFirst().orElse(null))
                 .preferredStyles(user.getPreferredStyleNames())
+                .ageConfirmedAt(user.getAgeConfirmedAt())
                 .vtonConsentAt(user.getVtonConsentAt())
                 .build();
     }

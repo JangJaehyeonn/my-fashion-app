@@ -66,6 +66,10 @@ public class User {
     @Column(name = "preferred_styles")
     private String preferredStyles;
 
+    // "만 14세 이상입니다" 확인 시각. null이면 미확인 — 확인 전에는 대부분의 API가 403 (AgeGateInterceptor)
+    @Column(name = "age_confirmed_at")
+    private LocalDateTime ageConfirmedAt;
+
     // 가상 피팅 사진 전송(Hugging Face 공개 서비스) 동의 시각. null이면 미동의 — 피팅 API가 403으로 막는다
     @Column(name = "vton_consent_at")
     private LocalDateTime vtonConsentAt;
@@ -90,6 +94,16 @@ public class User {
                 .passwordHash(passwordHash)
                 .nickname(nickname)
                 .build();
+    }
+
+    public void confirmAge(LocalDateTime at) {
+        if (this.ageConfirmedAt == null) {
+            this.ageConfirmedAt = at;
+        }
+    }
+
+    public boolean isAgeConfirmed() {
+        return ageConfirmedAt != null;
     }
 
     public void grantVtonConsent(LocalDateTime at) {

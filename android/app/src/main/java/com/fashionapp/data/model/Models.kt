@@ -26,7 +26,9 @@ data class LoginRequest(
 data class SignupRequest(
     val loginId: String,
     val password: String,
-    val nickname: String
+    val nickname: String,
+    // "만 14세 이상입니다" 체크 — 서버가 true가 아니면 400
+    val ageOver14: Boolean
 )
 
 data class ChangePasswordRequest(
@@ -60,6 +62,8 @@ data class UserProfile(
     // 옛 서버 호환용 단일 값(선택한 스타일 중 첫 번째). 다중 선택은 preferredStyles
     val preferredStyle: String?,
     val preferredStyles: List<String>? = null,
+    // 만 14세 이상 확인 시각. null이면 미확인 → 확인 화면(소셜 첫 가입·기존 사용자)
+    val ageConfirmedAt: String? = null,
     // 가상 피팅 사진 전송(Hugging Face) 동의 시각. null이면 미동의
     val vtonConsentAt: String? = null
 ) {

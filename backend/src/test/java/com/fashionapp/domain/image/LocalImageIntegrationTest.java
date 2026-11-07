@@ -92,7 +92,7 @@ class LocalImageIntegrationTest {
     }
 
     private User newUser(String label) {
-        return userRepository.save(User.builder().nickname(label)
+        return userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now()).nickname(label)
                 .provider(User.AuthProvider.google).providerId("img-" + label + "-" + UUID.randomUUID()).build());
     }
 

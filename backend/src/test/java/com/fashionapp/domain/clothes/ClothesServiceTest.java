@@ -61,7 +61,7 @@ class ClothesServiceTest {
     void setUp() {
         clothesService = new ClothesService(clothesRepository, userRepository, aiServerClient, imageStorage);
         userId = UUID.randomUUID();
-        user = User.builder()
+        user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
                 .nickname("테스터")
                 .provider(User.AuthProvider.google)

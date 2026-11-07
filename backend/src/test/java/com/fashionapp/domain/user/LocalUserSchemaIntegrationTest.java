@@ -54,7 +54,7 @@ class LocalUserSchemaIntegrationTest extends IntegrationTest {
     @Test
     @DisplayName("OAuth 사용자는 login_id·password_hash가 null인 채로 저장된다 (기존 데이터 형태 유지)")
     void oauthUserHasNoLocalCredentials() {
-        User oauth = save(User.builder().provider(User.AuthProvider.google).providerId("g-" + UUID.randomUUID()).nickname("구글").build());
+        User oauth = save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now()).provider(User.AuthProvider.google).providerId("g-" + UUID.randomUUID()).nickname("구글").build());
 
         User found = userRepository.findById(oauth.getId()).orElseThrow();
         assertThat(found.getLoginId()).isNull();

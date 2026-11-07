@@ -36,6 +36,9 @@ public enum ErrorCode {
     WEATHER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "날씨 정보를 불러오지 못했어요."),
     INVALID_COORDINATES(HttpStatus.BAD_REQUEST, "위치 좌표가 올바르지 않아요."),
 
+    // 만 14세 미만은 가입 불가 — 가입 시 확인 체크 필수, 소셜·기존 사용자는 확인 전까지 대부분의 API 차단
+    AGE_REQUIRED_FOR_SIGNUP(HttpStatus.BAD_REQUEST, "만 14세 이상만 가입할 수 있어요."),
+    AGE_CONFIRMATION_REQUIRED(HttpStatus.FORBIDDEN, "만 14세 이상인지 확인이 필요해요."),
     VTON_CONSENT_REQUIRED(HttpStatus.FORBIDDEN, "가상 피팅을 쓰려면 사진 전송에 동의해 주세요."),
 
     DIAGNOSIS_NOT_FOUND(HttpStatus.NOT_FOUND, "진단 기록을 찾을 수 없습니다."),

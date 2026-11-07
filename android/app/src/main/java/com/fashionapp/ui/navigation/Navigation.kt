@@ -27,6 +27,7 @@ import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.ChangePasswordScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.shopping.ShoppingScreen
+import com.fashionapp.ui.signup.AgeGateScreen
 import com.fashionapp.ui.signup.SignupScreen
 import com.fashionapp.ui.vton.VtonScreen
 
@@ -41,6 +42,7 @@ object Route {
     const val BODY_PROFILE = "body_profile"
     const val SIGNUP = "signup"
     const val CHANGE_PASSWORD = "change_password"
+    const val AGE_GATE = "age_gate"
     const val VTON = "vton/{garmentDesc}"
 
     fun vton(garmentDesc: String) = "vton/${Uri.encode(garmentDesc)}"
@@ -59,6 +61,11 @@ fun AppNavigation(mainViewModel: MainViewModel) {
 
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val showBottomBar = currentRoute in listOf(Route.HOME, Route.CLOSET, Route.FITTING, Route.MYPAGE)
+
+    // 메인 탭에 들어오면 만 14세 이상 확인 여부를 본다 (소셜 첫 가입·기존 사용자). 확인됐으면 아무 일도 없음
+    LaunchedEffect(showBottomBar) {
+        if (showBottomBar) mainViewModel.ensureAgeConfirmed()
+    }
 
     startDestination?.let { start ->
         Scaffold(
@@ -82,6 +89,16 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                             navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
                         },
                         onSignUp = { navController.navigate(Route.SIGNUP) }
+                    )
+                }
+                composable(Route.AGE_GATE) {
+                    val working by mainViewModel.ageGateWorking.collectAsState()
+                    val error by mainViewModel.ageGateError.collectAsState()
+                    AgeGateScreen(
+                        isWorking = working,
+                        error = error,
+                        onConfirm = mainViewModel::confirmAge,
+                        onUnder14 = mainViewModel::declineUnder14
                     )
                 }
                 composable(Route.SIGNUP) {
@@ -121,6 +138,7 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.MYPAGE) {
                     MyPageScreen(
                         onLogout = {
+                            mainViewModel.resetAgeCheck()
                             navController.navigate(Route.LOGIN) {
                                 popUpTo(0) { inclusive = true }
                             }
@@ -154,6 +172,9 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                         popUpTo(0) { inclusive = true }
                     }
                     NavEvent.ToLogin -> navController.navigate(Route.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    NavEvent.ToAgeGate -> navController.navigate(Route.AGE_GATE) {
                         popUpTo(0) { inclusive = true }
                     }
                 }

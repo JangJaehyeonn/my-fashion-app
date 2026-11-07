@@ -48,6 +48,10 @@ interface AuthApi {
     @PATCH("users/me/password")
     suspend fun changePassword(@Body request: ChangePasswordRequest): ApiResponse<TokenResponse>
 
+    // 만 14세 이상 확인. 확인 전에는 대부분의 API가 403
+    @POST("users/me/age-confirmation")
+    suspend fun confirmAge(): ApiResponse<UserProfile>
+
     // 가상 피팅 사진 전송 동의/철회 — 서버가 동의 시각을 저장하고, 미동의면 /api/vton이 403
     @POST("users/me/consents/vton")
     suspend fun grantVtonConsent(): ApiResponse<UserProfile>

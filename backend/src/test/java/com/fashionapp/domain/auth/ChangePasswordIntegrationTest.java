@@ -70,7 +70,7 @@ class ChangePasswordIntegrationTest extends LocalAuthTestSupport {
     @Test
     @DisplayName("OAuth 사용자는 비밀번호 변경 불가 (400)")
     void oauthUserCannotChangePassword() throws Exception {
-        User oauth = userRepository.save(User.builder()
+        User oauth = userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .provider(User.AuthProvider.kakao).providerId("k-" + UUID.randomUUID()).nickname("카카오").build());
         try {
             change(jwtTokenProvider.createAccessToken(oauth.getId()), "anything1", NEW_PASSWORD)

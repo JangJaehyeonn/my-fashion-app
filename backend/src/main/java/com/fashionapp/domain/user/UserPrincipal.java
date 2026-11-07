@@ -16,17 +16,20 @@ public class UserPrincipal implements OAuth2User, UserDetails {
 
     private final UUID id;
     private final String email;
+    // 만 14세 이상 확인 여부 — AgeGateInterceptor가 요청마다 확인 (JWT 필터가 매 요청 DB에서 사용자를 읽어 채움)
+    private final boolean ageConfirmed;
     private final Collection<? extends GrantedAuthority> authorities;
     private Map<String, Object> attributes;
 
-    private UserPrincipal(UUID id, String email) {
+    private UserPrincipal(UUID id, String email, boolean ageConfirmed) {
         this.id = id;
         this.email = email;
+        this.ageConfirmed = ageConfirmed;
         this.authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"));
     }
 
     public static UserPrincipal create(User user) {
-        return new UserPrincipal(user.getId(), user.getEmail());
+        return new UserPrincipal(user.getId(), user.getEmail(), user.isAgeConfirmed());
     }
 
     public static UserPrincipal create(User user, Map<String, Object> attributes) {

@@ -70,7 +70,7 @@ class LoginIntegrationTest extends LocalAuthTestSupport {
     @Test
     @DisplayName("OAuth 사용자(비밀번호 없음)는 아이디 로그인 불가 — 같은 401")
     void oauthUserCannotUsePasswordLogin() throws Exception {
-        User oauth = userRepository.save(User.builder()
+        User oauth = userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .provider(User.AuthProvider.google).providerId("g-" + UUID.randomUUID()).nickname("구글").build());
         try {
             login("g-anything", PASSWORD).andExpect(status().isUnauthorized());

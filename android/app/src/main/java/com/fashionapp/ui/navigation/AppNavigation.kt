@@ -16,6 +16,7 @@ import javax.inject.Inject
 sealed class NavEvent {
     object ToMain : NavEvent()
     object ToLogin : NavEvent()
+    object ToAgeGate : NavEvent()
 }
 
 @HiltViewModel
@@ -64,6 +65,56 @@ class MainViewModel @Inject constructor(
     }
 
     fun clearLoginMessage() { _loginMessage.value = null }
+
+    // ---- 만 14세 이상 확인 (소셜 첫 가입·기존 사용자). 서버도 확인 전에는 대부분의 API를 403으로 막는다
+    private var ageChecked = false
+    private val _ageGateWorking = MutableStateFlow(false)
+    val ageGateWorking = _ageGateWorking.asStateFlow()
+    private val _ageGateError = MutableStateFlow<String?>(null)
+    val ageGateError = _ageGateError.asStateFlow()
+
+    /** 메인 화면에 들어올 때마다 호출 — 확인이 끝났으면 다시 묻지 않는다 */
+    fun ensureAgeConfirmed() {
+        if (ageChecked) return
+        viewModelScope.launch {
+            authRepository.getMyProfile().onSuccess { profile ->
+                if (profile.ageConfirmedAt != null) ageChecked = true else _navEvent.send(NavEvent.ToAgeGate)
+            }
+        }
+    }
+
+    fun confirmAge() {
+        viewModelScope.launch {
+            _ageGateWorking.value = true
+            _ageGateError.value = null
+            authRepository.confirmAge()
+                .onSuccess {
+                    ageChecked = true
+                    _navEvent.send(NavEvent.ToMain)
+                }
+                .onFailure { _ageGateError.value = "저장하지 못했어요. 다시 시도해 주세요." }
+            _ageGateWorking.value = false
+        }
+    }
+
+    /** 만 14세 미만: 방금 만들어진 계정을 삭제하고 로그인 화면으로 */
+    fun declineUnder14() {
+        viewModelScope.launch {
+            _ageGateWorking.value = true
+            _ageGateError.value = null
+            authRepository.deleteAccount()
+                .onSuccess {
+                    ageChecked = false
+                    _loginMessage.value = "만 14세 미만은 가입할 수 없어요."
+                    _navEvent.send(NavEvent.ToLogin)
+                }
+                .onFailure { _ageGateError.value = "처리하지 못했어요. 다시 시도해 주세요." }
+            _ageGateWorking.value = false
+        }
+    }
+
+    /** 로그아웃·탈퇴 후 다른 계정으로 로그인할 수 있으므로 다시 확인하게 */
+    fun resetAgeCheck() { ageChecked = false }
 
     fun checkLoginState(onResult: (Boolean) -> Unit) {
         viewModelScope.launch {

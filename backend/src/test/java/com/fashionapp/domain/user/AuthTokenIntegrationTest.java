@@ -39,7 +39,7 @@ class AuthTokenIntegrationTest extends IntegrationTest {
 
     @BeforeEach
     void setUp() {
-        user = userRepository.save(User.builder()
+        user = userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .nickname("토큰테스트")
                 .provider(User.AuthProvider.google)
                 .providerId("token-test-" + UUID.randomUUID())

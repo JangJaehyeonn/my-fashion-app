@@ -41,7 +41,7 @@ class AuthCodeExchangeIntegrationTest extends IntegrationTest {
 
     @BeforeEach
     void setUp() {
-        user = userRepository.save(User.builder()
+        user = userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .nickname("코드교환테스트")
                 .provider(User.AuthProvider.google)
                 .providerId("code-test-" + UUID.randomUUID())

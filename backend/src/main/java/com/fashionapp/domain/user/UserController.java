@@ -49,4 +49,11 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> revokeVtonConsent(@CurrentUser UserPrincipal userPrincipal) {
         return ResponseEntity.ok(ApiResponse.success(userService.revokeVtonConsent(userPrincipal.getId())));
     }
+
+    // "만 14세 이상입니다" 확인. 확인 전에는 이 경로와 GET·DELETE /api/users/me, /api/auth/**만 쓸 수 있다 (AgeGateInterceptor)
+    @PostMapping("/me/age-confirmation")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserResponse>> confirmAge(@CurrentUser UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(ApiResponse.success(userService.confirmAge(userPrincipal.getId())));
+    }
 }

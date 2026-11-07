@@ -34,8 +34,8 @@ class AuthRepository @Inject constructor(
     }
 
     // 가입 → 토큰 저장 (바로 로그인 상태)
-    suspend fun signup(loginId: String, password: String, nickname: String): Result<Unit> = runCatching {
-        val tokens = authApi.signup(SignupRequest(loginId, password, nickname)).data ?: error("가입 실패")
+    suspend fun signup(loginId: String, password: String, nickname: String, ageOver14: Boolean): Result<Unit> = runCatching {
+        val tokens = authApi.signup(SignupRequest(loginId, password, nickname, ageOver14)).data ?: error("가입 실패")
         tokenDataStore.saveTokens(tokens.accessToken, tokens.refreshToken)
     }
 
@@ -67,6 +67,10 @@ class AuthRepository @Inject constructor(
 
     suspend fun getMyProfile(): Result<UserProfile> = runCatching {
         authApi.getMyProfile().data ?: error("프로필 없음")
+    }
+
+    suspend fun confirmAge(): Result<UserProfile> = runCatching {
+        authApi.confirmAge().data ?: error("확인 저장 실패")
     }
 
     suspend fun grantVtonConsent(): Result<UserProfile> = runCatching {

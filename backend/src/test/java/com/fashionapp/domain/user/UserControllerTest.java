@@ -67,7 +67,7 @@ class UserControllerTest {
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
-        User user = User.builder()
+        User user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
                 .email("test@example.com")
                 .nickname("테스터")

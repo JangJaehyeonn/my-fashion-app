@@ -10,4 +10,6 @@ public class SignupRequest {
     private String loginId;
     private String password;
     private String nickname;
+    // "만 14세 이상입니다" 체크 — true가 아니면 가입 거절
+    private Boolean ageOver14;
 }

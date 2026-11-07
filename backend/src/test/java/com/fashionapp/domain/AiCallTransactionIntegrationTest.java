@@ -57,7 +57,7 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
 
     @BeforeEach
     void setUp() {
-        user = userRepository.save(User.builder()
+        user = userRepository.save(User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .nickname("트랜잭션테스트")
                 .vtonConsentAt(java.time.LocalDateTime.now())
                 .provider(User.AuthProvider.google)
