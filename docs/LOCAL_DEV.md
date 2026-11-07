@@ -1,100 +1,90 @@
-# 로컬 개발 환경 (Android 디버그 빌드 + 로컬 백엔드)
+# 로컬 개발 환경 (처음부터 끝까지)
 
-## 앱 빌드 타입별 접속 대상
+AWS(EC2·S3)는 정리했고, 지금은 **PC 하나에서 전부 돌립니다**: Postgres·Redis(Docker) + 백엔드(`bootRun`) + Android 에뮬레이터(디버그 빌드). 이미지는 로컬 디스크에 저장됩니다.
+배포(Tencent)는 [`DEPLOY_TODO.md`](DEPLOY_TODO.md)를 보세요.
 
-| 빌드 | `BASE_URL` | `OAUTH2_BASE_URL` | HTTP(cleartext) |
-|---|---|---|---|
-| debug | `http://localhost:8080/api/` (`adb reverse`로 PC의 8080에 연결) | `http://localhost:8080` | `localhost`, `10.0.2.2`만 허용 (`app/src/debug/res/xml/network_security_config.xml`) |
-| release | `https://fashion-app-jh.duckdns.org/api/` | `https://fashion-app-jh.duckdns.org` | 전부 차단 (`app/src/main/res/xml/network_security_config.xml`) |
+> ⚠️ **이 PC는 공인 IP입니다.** `0.0.0.0`에 열린 포트는 인터넷에서 보입니다(2026-11-02 Redis 침입 사고, `AUDIT.md` 참고). 아래 모든 서비스는 **`127.0.0.1`에만** 바인딩합니다. `"5432:5432"`처럼 IP 없이 쓰지 마세요.
 
-- `BASE_URL`과 `OAUTH2_BASE_URL`은 `app/build.gradle.kts`의 `buildTypes`에서 `buildConfigField`로 나눠 둡니다. 빌드 시점에 고정되므로, 바꾸면 APK를 다시 빌드해 설치해야 합니다.
-- 백엔드 포트는 8080입니다. `application.yml`에 `server.port`가 없어 Spring 기본값을 씁니다.
-- 디버그 빌드는 API와 OAuth2 모두 `localhost:8080`을 씁니다. OAuth2 redirect URI에는 IP 주소(`10.0.2.2`)를 등록할 수 없어 `localhost`여야 하기 때문입니다. 기기의 `localhost:8080`을 PC의 8080으로 연결하는 `adb reverse`가 필요합니다.
+## 0. 필요한 것
+- JDK 17, Docker Desktop, Android SDK(`adb`, `emulator`, AVD `Pixel_8` 등), Android용 Gradle 8.10.2(Android Studio를 쓰면 자동)
+- 유료 API(OpenAI·HF)는 쓰지 않습니다. AI 서버는 띄우지 않습니다(아래 "AI 서버 없이" 참고).
 
-### adb reverse
-
-```bash
-adb devices                       # 에뮬레이터(또는 USB 연결 기기)가 device 상태인지 확인
-adb reverse tcp:8080 tcp:8080     # 기기 localhost:8080 → PC localhost:8080
-adb reverse --list                # "host-xx tcp:8080 tcp:8080"이 보이면 적용된 것
-```
-- 에뮬레이터나 adb 서버를 다시 시작하면 사라집니다. 앱에서 로그인 페이지가 "This site can't be reached"이거나 API가 연결 실패하면 가장 먼저 확인하세요.
-- 기기가 여러 대면 `adb -s <serial> reverse tcp:8080 tcp:8080`.
-- 해제: `adb reverse --remove tcp:8080`.
-- USB로 연결한 실기기에서도 같은 디버그 빌드로 동작합니다.
-
-### Google·Kakao 콘솔에 등록할 redirect URI (로컬)
-
-Spring이 `{baseUrl}/login/oauth2/code/{registrationId}` 형식으로 만듭니다. 로컬에서는 `baseUrl`이 `http://localhost:8080`입니다.
-
-| 콘솔 | 위치 | 추가할 값 (정확히 이대로, 끝에 `/` 없음) |
-|---|---|---|
-| Google Cloud Console | API 및 서비스 → 사용자 인증 정보 → `backend/.env`의 `GOOGLE_CLIENT_ID`와 같은 OAuth 2.0 클라이언트(웹 애플리케이션) → 승인된 리디렉션 URI | `http://localhost:8080/login/oauth2/code/google` |
-| Kakao Developers | 내 애플리케이션 → `backend/.env`의 `KAKAO_CLIENT_ID`(REST API 키)인 앱 → 카카오 로그인 → Redirect URI | `http://localhost:8080/login/oauth2/code/kakao` |
-
-- 운영용 `https://fashion-app-jh.duckdns.org/login/oauth2/code/{google,kakao}`는 그대로 두고 **추가**만 합니다.
-- Google: 동의 화면이 "테스트" 상태면 로그인할 계정이 테스트 사용자 목록에 있어야 합니다. 반영까지 몇 분 걸릴 수 있습니다.
-- 등록이 안 됐을 때 증상: Google은 `400 redirect_uri_mismatch`, Kakao는 `KOE006`.
-- 확인 방법: 백엔드를 띄운 뒤 `curl -s -o /dev/null -D - "http://localhost:8080/oauth2/authorization/google?client=app" | grep -i location` → `redirect_uri=http://localhost:8080/login/oauth2/code/google`이 보이면 위 값과 일치하는 것입니다.
-
-## 로컬 백엔드 실행
-
-### 1. 필요한 것
-- JDK 17
-- PostgreSQL 16: `localhost:5432`, DB·사용자·비밀번호 모두 `fashionapp` (`application.yml` 기본값과 일치)
-- Redis 7: `localhost:6379`, 비밀번호 없음
-
-저장소 루트에서 DB와 Redis만 띄웁니다. AI 서버(`ai-server`)는 유료 API를 호출하므로 같이 띄우지 않습니다.
+## 1. Postgres · Redis 띄우기
+Docker Desktop을 켠 뒤, 저장소 루트에서:
 ```bash
 docker compose up -d postgres redis
+docker ps --format '{{.Names}} {{.Ports}}'   # 둘 다 127.0.0.1:...로 시작해야 함
 ```
-테이블은 기동할 때 `ddl-auto: update`가 자동으로 만듭니다.
+`docker-compose.yml`의 포트는 `127.0.0.1:5432`, `127.0.0.1:6379`로 고정돼 있습니다. 테이블은 백엔드가 기동할 때 `ddl-auto: update`로 만듭니다. `ai-server`는 `up -d` 대상에 넣지 않습니다.
 
-### 2. `backend/.env` (git 추적 안 함)
-`spring-dotenv`가 기동 시 이 파일을 읽습니다.
+## 2. `backend/.env`
+`backend/.env.example`을 복사해 `backend/.env`로 만들고 채웁니다(git 추적 안 함, 실제 키를 예시 파일에 쓰지 마세요).
 
 | 변수 | 필수 | 용도 |
 |---|---|---|
-| `JWT_SECRET` | ✅ | Base64 인코딩된 32바이트 이상 키. 없으면 기동 실패 |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | ✅ | 없으면 OAuth2 클라이언트 설정 단계에서 기동 실패 |
-| `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET` | ✅ | 위와 같음 |
-| `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `S3_BUCKET` | ✅ | S3 빈 생성에 필요. 옷 등록·사진 조회에 사용 |
-| `AWS_REGION` | 선택 | 기본값 `ap-northeast-2` |
-| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | 선택 | 기본값 `jdbc:postgresql://localhost:5432/fashionapp`, `fashionapp`/`fashionapp` |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | 선택 | 기본값 `localhost`, `6379`, 비밀번호 없음 |
-| `AI_SERVER_URL` | 선택 | 기본값 `http://localhost:8000` |
-| `AI_SERVER_CONNECT_TIMEOUT`, `AI_SERVER_READ_TIMEOUT`, `AI_SERVER_VTON_READ_TIMEOUT` | 선택 | 기본값 `3s`, `30s`, `170s`. 초과 시 504 |
-| `OAUTH2_REDIRECT_BASE` | 선택 | 기본값 `fashionapp://app` (앱 딥링크) |
+| `JWT_SECRET` | ✅ | Base64 32바이트 이상. `openssl rand -base64 48` |
+| `GOOGLE_CLIENT_ID/SECRET`, `KAKAO_CLIENT_ID/SECRET` | ✅ | 없으면 기동 실패. 아이디 로그인만 쓸 거면 아무 문자열이어도 기동됨 |
+| `STORAGE_TYPE` | | `local`(기본) / `s3` |
+| `STORAGE_LOCAL_ROOT` | | 로컬 이미지 저장 경로. 기본 `~/fashionapp-storage`(프로젝트 밖) |
+| `PUBLIC_BASE_URL` | | 이미지 URL에 쓰는 서버 주소. 기본 `http://localhost:8080` |
+| `DB_*`, `REDIS_*`, `AI_SERVER_*` | | 기본값이 로컬 docker compose |
+| `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `OAUTH2_REDIRECT_BASE` | | 로컬 기본값 있음 |
 
-### 3. 실행
+옛 `AWS_ACCESS_KEY`·`AWS_SECRET_KEY`·`S3_BUCKET` 줄은 더 이상 읽지 않으니 지우세요.
+
+### 로컬 이미지 저장 (`storage.type=local`)
+- 저장 위치: `STORAGE_LOCAL_ROOT`(기본 `C:\Users\<사용자>\fashionapp-storage`). 구조는 `clothes|diagnosis|vton/<사용자id>/<uuid>.jpg|png|webp|heic`.
+- 이미지는 `GET /api/images/...`로만 나가고 **로그인한 본인 것만** 열립니다(남의 것·없는 것은 404, 토큰 없으면 401). 앱은 Coil에 백엔드 주소로만 JWT를 붙이는 로더를 씁니다.
+- 회원 탈퇴·옷 삭제 시 파일도 같이 지워지고, 비면 사용자 폴더도 지워집니다.
+- 경로를 레포 안으로 바꾸면 `.gitignore`(`/storage/`, `backend/storage/` 등)가 커밋을 막지만, 가급적 프로젝트 밖을 쓰세요.
+
+## 3. 백엔드 실행
 ```bash
 cd backend
-SERVER_ADDRESS=127.0.0.1 ./gradlew bootRun   # 이 PC 밖에서 접근 못 하게 localhost에만 열기
+SERVER_ADDRESS=127.0.0.1 ./gradlew bootRun
 ```
-- `SERVER_ADDRESS`를 빼면 Spring이 0.0.0.0:8080에 열립니다. **이 PC는 공인 IP라** 방화벽 Java 허용 규칙이 있으면 외부에 그대로 노출됩니다(2026-11-02 Redis 침입 기록, AUDIT.md "보안 사고" 참고). `adb reverse`는 PC의 localhost로 연결하므로 127.0.0.1로 충분합니다.
-- `docker-compose.yml`의 postgres·redis·ai-server 포트도 127.0.0.1에만 열려 있습니다. `"5432:5432"`처럼 IP 없이 바꾸지 마세요.
+- 기동에 약 5초. 로그에 `image storage: local disk at ...`과 `Started FashionAppApplication`이 보이면 정상입니다.
+- `SERVER_ADDRESS=127.0.0.1`을 빼면 `0.0.0.0:8080`에 열립니다. 빼지 마세요.
+- 백그라운드로 돌릴 때는 `nohup ./gradlew bootRun > log 2>&1 < /dev/null &`처럼 stdin을 막으세요(터미널 입력을 기다리며 멈추는 일이 있었습니다).
+- 확인: `netstat -ano | grep :8080`이 `127.0.0.1:8080 LISTENING`이어야 합니다.
 
-## AI 서버 없이 백엔드가 뜨는가
-
-**뜹니다.** 2026-11-02에 `fix/backend-p0` 브랜치에서 AI 서버 없이 `bootRun`을 실행해 4.7초 만에 기동하는 것을 확인했습니다.
-
-- 근거: `AiServerClient`는 요청이 올 때만 `RestClient`로 AI 서버를 호출하고, 기동 시점에 연결하거나 헬스 체크를 하지 않습니다.
-- AI 서버가 없을 때 정상 동작하는 기능: 로그인·토큰 갱신, `GET/PUT /api/users/me`, `GET /api/clothes`(옷장 목록), `DELETE /api/clothes/{id}`, `GET /api/diagnosis`(이력)
-- 실패하는 기능: 아래 API는 `AI_SERVER_ERROR`(503)를 반환합니다.
-  - `GET /api/weather` (캐시가 비어 있을 때)
-  - `POST /api/clothes` (등록 시 AI 분류)
-  - `POST /api/outfits/recommend/*`
-  - `POST /api/vton`, `POST /api/diagnosis`, `POST /api/shopping/recommend`
-- 주의: AI 서버를 띄우면 OpenAI와 HF Space를 실제로 호출하므로 비용이 듭니다. LLM 연동은 2026-11-18 이후로 미뤄 두었으니 그때까지는 띄우지 않습니다.
-- DB는 기동에 필수입니다(Hikari 연결 실패 시 기동 실패).
-- Redis는 기동은 되지만 로그인(리프레시 토큰 저장)과 날씨 캐시를 쓸 때 실패할 것으로 추정합니다. Lettuce는 기동 시 연결하지 않기 때문입니다.
-
-## 백엔드 테스트
-
+## 4. 에뮬레이터 + 디버그 앱
 ```bash
-docker compose up -d postgres redis   # 통합 테스트에 필요
+emulator -avd Pixel_8 -no-snapshot-load        # 부팅 후 adb devices에 "device"로 보일 때까지 대기
+cd android
+gradle assembleDebug                           # Android Studio를 쓰면 Run으로 대체. 캐시된 Gradle: ~/.gradle/wrapper/dists/gradle-8.10.2-bin/*/gradle-8.10.2/bin/gradle
+adb reverse tcp:8080 tcp:8080                  # 기기 localhost:8080 → PC 127.0.0.1:8080
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.fashionapp/.MainActivity
+```
+- **디버그 빌드**: API·OAuth2 모두 `http://localhost:8080`(`adb reverse` 필수. 에뮬레이터·adb를 재시작하면 사라지니 로그인/API가 안 붙으면 이것부터 다시). HTTP는 디버그에서 `localhost`/`10.0.2.2`만 허용(`app/src/debug/res/xml/network_security_config.xml`).
+- **릴리즈 빌드**: 서버 주소를 코드에 넣지 않습니다. `android/local.properties`에 `release.server.url=https://...`(또는 `-PreleaseServerUrl=`)를 주지 않으면 `https://api.example.invalid`가 들어가고 빌드 때 경고가 납니다. 릴리즈는 HTTPS만 허용하므로 **로컬 백엔드와는 붙지 않습니다.** 로컬 E2E는 디버그로 하세요.
+- 로그인: 로그인 화면에서 **아이디로 회원가입** 후 같은 아이디·비밀번호로 로그인(소셜 로그인은 콘솔 redirect URI 등록이 필요). 위치 안내 다이얼로그는 "서울 날씨로 볼게요"로 넘기면 됩니다.
+- 에뮬레이터 갤러리에 사진 넣기: `MSYS_NO_PATHCONV=1 adb push 사진.jpg /sdcard/Pictures/` (Git Bash는 `/sdcard`를 Windows 경로로 바꿔 버려서 환경변수가 필요).
+- `adb`로 화면 조작: `adb shell uiautomator dump`로 좌표를 얻고 `adb shell input tap x y`. 스크린샷은 `adb exec-out screencap -p > a.png`.
+
+### 소셜 로그인 redirect URI (선택)
+로컬에서 Google/Kakao를 쓰려면 콘솔에 `http://localhost:8080/login/oauth2/code/google`, `.../kakao`를 등록합니다(IP 주소는 등록 불가라 `localhost`여야 함). 등록 전 증상: Google `redirect_uri_mismatch`, Kakao `KOE006`. 아이디 로그인만 쓰면 필요 없습니다.
+
+## 5. AI 서버 없이 쓸 수 있는 것
+AI 서버를 띄우지 않으면 `AiServerClient`가 연결 실패 → `AI_SERVER_ERROR`(503)를 돌려줍니다.
+- 동작: 로그인·가입·탈퇴, 프로필, 옷장 **목록·삭제**, 진단 **이력** 조회, 이미지 조회
+- 실패(503): **옷 등록**(등록 흐름이 AI 분류를 먼저 호출하고 성공해야 저장함), 날씨(캐시 없을 때), 코디/쇼핑 추천, 가상 피팅, 진단
+- 실패 시 이미지 파일은 저장되지 않습니다(분류 먼저, 저장은 그다음).
+- 옷 등록 흐름을 AI 없이 확인하려면 **테스트용 스텁**이 필요합니다. 운영 코드에는 가짜 응답을 넣지 않으며, 스텁은 레포 밖 임시 스크립트로 `127.0.0.1:8000`에 `/ai/clothes/classify`만 흉내 냅니다(`AUDIT.md` 5번 참고). 요청 본문이 chunked로 오므로 스텁은 본문을 끝까지 읽어야 합니다.
+
+## 6. 백엔드 테스트
+```bash
+docker compose up -d postgres redis
 cd backend && ./gradlew test
 ```
-- 통합 테스트(`support/IntegrationTest` 상속)는 로컬 postgres·redis를 실제로 사용합니다. 테스트마다 새 사용자를 만들고 스스로 정리합니다.
-- 외부 호출은 모두 막혀 있습니다. AI 서버와 S3 업로드는 `@MockBean`으로 대체하고, AI 타임아웃은 MockWebServer로 흉내 냅니다.
-- `src/test/resources/application-test.yml`이 `backend/.env`의 실제 키를 더미 값으로 덮어씁니다.
+- 통합 테스트는 로컬 postgres·redis를 실제로 쓰고, 사용자는 테스트마다 만들고 지웁니다.
+- 외부 호출은 모두 막혀 있습니다: AI 서버는 `@MockBean`, 이미지 저장소는 `@MockBean`(공통) 또는 임시 디렉터리(`LocalImageIntegrationTest`, `LocalDiskStorageTest`).
+- `src/test/resources/application-test.yml`이 `backend/.env`의 키를 더미로 덮어씁니다.
+
+## 7. 끝내기
+```bash
+adb shell am force-stop com.fashionapp
+# 백엔드: bootRun 터미널에서 Ctrl+C (또는 8080 리스닝 프로세스 종료)
+docker compose stop postgres redis       # 데이터는 볼륨에 남음. 지우려면 down -v
+```

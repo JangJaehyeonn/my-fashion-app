@@ -29,3 +29,39 @@
 - 확인 시점(2026-11-08, `gh secret list`)에 위 세 개가 **아직 남아 있었습니다.** 삭제하셨다면 반영이 안 된 것이니 다시 확인해 주세요.
 - AWS 액세스 키·S3 버킷 이름은 Actions 시크릿으로 등록된 적이 없고(목록에 없음) `backend/.env`에만 있었습니다. 로컬 `backend/.env`에 남은 `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `S3_BUCKET` 줄은 이제 어디서도 읽지 않으니 지우세요.
 - `ANTHROPIC_API_KEY`는 AWS와 무관합니다 (`pr-review.yml`이 사용 중).
+
+## 서버·도메인이 준비되면 채울 값과 할 일
+
+### 1) Tencent 서버
+- [ ] 서버 생성, Docker 설치, 방화벽(보안 그룹)은 80/443만 개방. Postgres·Redis·AI 서버 포트는 외부에 열지 않기(`127.0.0.1`/내부 네트워크만 — 로컬 Redis 침입 사고 재발 방지).
+- [ ] `docker-compose.prod.yml`을 새 서버 기준으로 점검(메모리 설정은 t3.small 기준이었음), `backend/.env`를 서버에서 직접 작성(git에 올리지 않기).
+- [ ] 백엔드 환경변수: `SPRING_PROFILES_ACTIVE=prod`와 `PUBLIC_BASE_URL`, `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `STORAGE_TYPE`. prod 프로필은 이 값들이 비었거나 `localhost`/`http`면 **기동을 중단**하고 빠진 변수를 알려 줍니다(`backend/.env.example` 참고).
+
+### 2) 이미지 저장소 (COS)
+- [ ] 버킷 생성(비공개). 앱은 presigned URL로 읽으므로 공개 읽기를 열지 않기.
+- [ ] `STORAGE_TYPE=s3`, `S3_ENDPOINT=https://cos.<region>.myqcloud.com`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PATH_STYLE`(COS는 보통 `false`, 호환 문제가 있으면 `true`로 시도). 코드는 `S3CompatibleStorage`가 이미 처리합니다.
+- [ ] **COS 호환성은 실제로 확인하지 못했습니다.** presigned URL 조회·삭제·prefix 삭제(탈퇴)를 COS에서 한 번씩 시험하세요. 이 저장소 구현은 AWS SDK v2의 `endpointOverride`를 씁니다.
+- [ ] 로컬에서 쌓은 이미지를 옮길 필요가 있으면 `~/fashionapp-storage`의 키 구조(`category/userId/uuid.ext`)를 그대로 버킷에 올리면 DB의 키와 맞습니다.
+- [ ] 이전 AWS 시절 DB 행은 정적 S3 URL이 저장돼 있을 수 있습니다. 코드는 URL에서 키를 뽑아 쓰지만(`ImageKeys.toKey`) 옛 버킷은 사라졌으니 해당 이미지는 열리지 않습니다. 새 DB로 시작하면 해당 없음.
+
+### 3) 도메인·HTTPS
+- [ ] 도메인 구입·DNS 연결, 인증서(`infra/certbot/issue-cert.sh <도메인>`). `nginx/nginx.conf`의 `YOUR_DOMAIN`(3곳)을 실제 도메인으로 교체. DuckDNS(`infra/duckdns`)는 더 이상 쓰지 않으므로 필요 없으면 삭제하세요.
+- [ ] 노출된 적 있는 DuckDNS 토큰(`infra/duckdns/README.md`에 평문으로 커밋돼 있었음 — 이 브랜치에서 placeholder로 바꿨지만 git 기록에는 남음)은 DuckDNS에서 재발급하거나 계정을 정리하세요.
+
+### 4) OAuth 콘솔
+- [ ] Google Cloud Console: 승인된 리디렉션 URI에 `https://<새 도메인>/login/oauth2/code/google` 추가.
+- [ ] Kakao Developers: Redirect URI에 `https://<새 도메인>/login/oauth2/code/kakao` 추가.
+- [ ] 이전 도메인 URI는 제거. (Spring은 `forward-headers-strategy: framework`로 nginx의 `X-Forwarded-*`를 신뢰해 `https` redirect_uri를 만듭니다.)
+
+### 5) 앱 릴리즈 주소
+- [ ] `android/local.properties`에 `release.server.url=https://<새 도메인>`(또는 빌드 시 `-PreleaseServerUrl=...`). 미설정이면 `https://api.example.invalid`가 들어가고 경고가 납니다. 릴리즈는 HTTPS만 허용.
+
+### 6) GitHub Actions 배포 잡 복구
+- [ ] `deploy.yml`에 `push: branches: [dev]` 트리거를 되살리고, 접속 정보(시크릿 이름 `EC2_*`를 새 이름으로 바꾸는 것도 방법)와 `cd ~/my-fashion-app` 이후 스크립트를 새 서버 기준으로 수정.
+- [ ] nginx.conf는 단일 파일 바인드 마운트라 바뀐 뒤에는 컨테이너 재시작이 필요합니다(이 점은 기존 스크립트에 이미 반영돼 있음).
+- [ ] `ci.yml`은 그대로 동작합니다(시크릿 불필요).
+
+### 7) AI 서버 이미지 전달 방식
+- 위 "AI 서버가 이미지를 받는 방식" 참고 — **변경 불필요**. 백엔드가 멀티파트 바이트로 보내므로 COS로 옮겨도 AI 서버는 저장소를 몰라도 됩니다. 필요한 것은 AI 서버 `.env`(`OPENAI_API_KEY`, `WEATHER_API_KEY`, 선택 `HF_API_TOKEN`)뿐.
+- AI 서버는 백엔드 컨테이너와 같은 내부 네트워크에서만 접근되게 하고 외부 포트는 열지 마세요. LLM 연동은 2026-11-18 이후 재개 예정.
+- (선택) 백엔드는 `image/heic`를 허용하지만 AI 서버는 거절하는 차이를 맞추세요.
