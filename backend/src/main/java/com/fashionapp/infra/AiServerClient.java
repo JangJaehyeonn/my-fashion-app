@@ -60,17 +60,6 @@ public class AiServerClient {
         return false;
     }
 
-    public AiWeatherResponse getWeather() {
-        try {
-            return restClient.get()
-                    .uri(aiServerUrl + "/ai/weather")
-                    .retrieve()
-                    .body(AiWeatherResponse.class);
-        } catch (RestClientException e) {
-            throw toAiException("weather", e);
-        }
-    }
-
     public CompletableFuture<AiSituationRecommendResponse> recommendOutfitsBySituation(AiSituationRecommendRequest request) {
         return CompletableFuture.supplyAsync(() -> {
             try {

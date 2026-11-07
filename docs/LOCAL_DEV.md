@@ -27,6 +27,7 @@ docker ps --format '{{.Names}} {{.Ports}}'   # 둘 다 127.0.0.1:...로 시작�
 | `STORAGE_TYPE` | | `local`(기본) / `s3` |
 | `STORAGE_LOCAL_ROOT` | | 로컬 이미지 저장 경로. 기본 `~/fashionapp-storage`(프로젝트 밖) |
 | `PUBLIC_BASE_URL` | | 이미지 URL에 쓰는 서버 주소. 기본 `http://localhost:8080` |
+| `WEATHER_API_KEY` | 날씨용 | OpenWeatherMap 키. 백엔드가 직접 호출(AI 서버 불필요). 없으면 날씨가 503 |
 | `DB_*`, `REDIS_*`, `AI_SERVER_*` | | 기본값이 로컬 docker compose |
 | `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `OAUTH2_REDIRECT_BASE` | | 로컬 기본값 있음 |
 
@@ -68,8 +69,8 @@ adb shell am start -n com.fashionapp/.MainActivity
 
 ## 5. AI 서버 없이 쓸 수 있는 것
 AI 서버를 띄우지 않으면 `AiServerClient`가 연결 실패 → `AI_SERVER_ERROR`(503)를 돌려줍니다.
-- 동작: 로그인·가입·탈퇴, 프로필, 옷장 **목록·삭제**, 진단 **이력** 조회, 이미지 조회
-- 실패(503): **옷 등록**(등록 흐름이 AI 분류를 먼저 호출하고 성공해야 저장함), 날씨(캐시 없을 때), 코디/쇼핑 추천, 가상 피팅, 진단
+- 동작: 로그인·가입·탈퇴, 프로필, **날씨**(백엔드가 OpenWeatherMap을 직접 호출), 옷장 **목록·삭제**, 진단 **이력** 조회, 이미지 조회
+- 실패(503): **옷 등록**(등록 흐름이 AI 분류를 먼저 호출하고 성공해야 저장함), 코디/쇼핑 추천, 가상 피팅, 진단
 - 실패 시 이미지 파일은 저장되지 않습니다(분류 먼저, 저장은 그다음).
 - 옷 등록 흐름을 AI 없이 확인하려면 **테스트용 스텁**이 필요합니다. 운영 코드에는 가짜 응답을 넣지 않으며, 스텁은 레포 밖 임시 스크립트로 `127.0.0.1:8000`에 `/ai/clothes/classify`만 흉내 냅니다(`AUDIT.md` 5번 참고). 요청 본문이 chunked로 오므로 스텁은 본문을 끝까지 읽어야 합니다.
 

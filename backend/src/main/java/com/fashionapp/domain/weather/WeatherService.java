@@ -2,8 +2,10 @@ package com.fashionapp.domain.weather;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fashionapp.infra.AiServerClient;
+import com.fashionapp.global.exception.CustomException;
+import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiWeatherResponse;
+import com.fashionapp.infra.OpenWeatherClient;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
@@ -12,69 +14,85 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Locale;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class WeatherService {
 
-    // 날씨는 위치 구분 없이 앱 전체가 공유하는 값 하나뿐이라 캐시 키도 고정값 하나만 사용
-    private static final String WEATHER_KEY = "weather:current";
+    // 좌표를 지정하지 않으면 서울시청 (앱이 위치 권한을 거부했거나 위치를 못 얻은 경우)
+    static final double DEFAULT_LAT = 37.5665;
+    static final double DEFAULT_LON = 126.9780;
 
-    private final AiServerClient aiServerClient;
+    private final OpenWeatherClient openWeatherClient;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
 
-    // 1단계 캐시 (Caffeine, 서버 프로세스 로컬 메모리).
-    // Redis 왕복조차 없이 즉시 응답하기 위한 용도라 TTL을 짧게(10분) 잡음 —
-    // 인스턴스 재시작/재배포 시 사라지는 건 감수하고, 그 경우 2단계(Redis)가 받쳐줌.
+    // 1단계 캐시 (Caffeine, 서버 프로세스 로컬 메모리). Redis 왕복조차 없이 즉시 응답하기 위한 용도라 TTL을 짧게(10분) 잡음 —
+    // 재시작하면 사라지지만 그 경우 2단계(Redis)가 받쳐줌. 좌표별로 키가 달라 개수 상한을 둔다.
     private final Cache<String, AiWeatherResponse> localCache = Caffeine.newBuilder()
             .expireAfterWrite(Duration.ofMinutes(10))
-            .maximumSize(1)
+            .maximumSize(500)
             .build();
 
-    public AiWeatherResponse getWeather() {
-        // 1단계: 로컬 캐시 히트 — 네트워크 왕복 없이 즉시 반환
-        AiWeatherResponse fromLocal = localCache.getIfPresent(WEATHER_KEY);
+    public AiWeatherResponse getWeather(Double lat, Double lon) {
+        double useLat = lat == null ? DEFAULT_LAT : lat;
+        double useLon = lon == null ? DEFAULT_LON : lon;
+        if (useLat < -90 || useLat > 90 || useLon < -180 || useLon > 180) {
+            throw new CustomException(ErrorCode.INVALID_COORDINATES);
+        }
+        // 소수 둘째 자리(약 1km)로 반올림해 캐시 키로 쓴다 — 사용자 식별 정보와 묶이지 않고, 근처 요청은 같은 값을 공유
+        String key = cacheKey(useLat, useLon);
+
+        AiWeatherResponse fromLocal = localCache.getIfPresent(key);
         if (fromLocal != null) {
             return fromLocal;
         }
 
-        // 2단계: Redis 캐시 — 로컬 캐시가 비어 있을 때(콜드 스타트, 재시작 직후 등)
-        // 외부 API를 다시 부르지 않고 다른 인스턴스가 채워둔 값을 재사용
-        AiWeatherResponse fromRedis = getFromRedis();
+        // 2단계: Redis — 콜드 스타트·재시작 직후 외부 API를 다시 부르지 않고 이미 받아 둔 값을 재사용
+        AiWeatherResponse fromRedis = getFromRedis(key);
         if (fromRedis != null) {
-            localCache.put(WEATHER_KEY, fromRedis);
+            localCache.put(key, fromRedis);
             return fromRedis;
         }
 
-        // 3단계: 둘 다 미스 — 외부 날씨 API 호출 후 로컬/Redis 캐시 모두 채움
-        AiWeatherResponse fresh = aiServerClient.getWeather();
-        localCache.put(WEATHER_KEY, fresh);
-        putToRedis(fresh);
+        // 3단계: 둘 다 미스 — OpenWeatherMap 호출 후 두 캐시를 채움
+        AiWeatherResponse fresh = openWeatherClient.fetch(useLat, useLon);
+        localCache.put(key, fresh);
+        putToRedis(key, fresh);
         return fresh;
     }
 
-    private AiWeatherResponse getFromRedis() {
-        String json = redisTemplate.opsForValue().get(WEATHER_KEY);
-        if (json == null) {
-            return null;
-        }
+    static String cacheKey(double lat, double lon) {
+        return String.format(Locale.ROOT, "weather:%.2f:%.2f", lat, lon);
+    }
+
+    private AiWeatherResponse getFromRedis(String key) {
         try {
+            String json = redisTemplate.opsForValue().get(key);
+            if (json == null) {
+                return null;
+            }
             return objectMapper.readValue(json, AiWeatherResponse.class);
         } catch (JsonProcessingException e) {
-            log.warn("Redis 날씨 캐시 역직렬화 실패, 외부 API로 새로 조회: {}", e.getMessage());
+            log.warn("Redis 날씨 캐시 역직렬화 실패, 새로 조회: {}", e.getMessage());
+            return null;
+        } catch (RuntimeException e) {
+            // Redis가 죽어 있어도 날씨 조회 자체는 되게 한다
+            log.warn("Redis 날씨 캐시 조회 실패, 새로 조회: {}", e.getClass().getSimpleName());
             return null;
         }
     }
 
-    private void putToRedis(AiWeatherResponse weather) {
+    private void putToRedis(String key, AiWeatherResponse weather) {
         try {
-            // Redis TTL(30분)은 로컬 캐시(10분)보다 길게 잡아, 로컬 캐시가 비어도
-            // 외부 API 호출 없이 Redis에서 바로 채울 수 있는 구간을 넓게 둠
-            redisTemplate.opsForValue().set(WEATHER_KEY, objectMapper.writeValueAsString(weather), Duration.ofMinutes(30));
+            // Redis TTL(30분)은 로컬 캐시(10분)보다 길게 — 로컬이 비어도 외부 API 호출 없이 채울 수 있는 구간을 넓게 둠
+            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(weather), Duration.ofMinutes(30));
         } catch (JsonProcessingException e) {
             log.warn("Redis 날씨 캐시 저장 실패, 이번 응답은 캐시 없이 반환: {}", e.getMessage());
+        } catch (RuntimeException e) {
+            log.warn("Redis 날씨 캐시 저장 실패: {}", e.getClass().getSimpleName());
         }
     }
 }

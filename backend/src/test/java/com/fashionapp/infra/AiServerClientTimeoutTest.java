@@ -56,11 +56,11 @@ class AiServerClientTimeoutTest {
     @Test
     @DisplayName("제한 시간 안에 응답하면 정상 파싱")
     void fastResponseSucceeds() {
-        server.enqueue(json("{\"temperature\":12.5,\"condition\":\"맑음\",\"humidity\":40,\"windSpeed\":2.1}"));
+        server.enqueue(json("{\"category\":\"TOP\",\"color\":\"블랙\",\"name\":\"티셔츠\"}"));
 
-        AiWeatherResponse weather = client.getWeather();
+        AiClothesClassifyResponse result = client.classifyClothes(image());
 
-        assertThat(weather.getTemperature()).isEqualTo(12.5);
+        assertThat(result.getCategory()).isEqualTo("TOP");
     }
 
     @Test
@@ -117,7 +117,7 @@ class AiServerClientTimeoutTest {
     void serverErrorMapsToAiServerError() {
         server.enqueue(new MockResponse().setResponseCode(500));
 
-        assertThatThrownBy(() -> client.getWeather())
+        assertThatThrownBy(() -> client.classifyClothes(image()))
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.AI_SERVER_ERROR);
     }
@@ -127,7 +127,7 @@ class AiServerClientTimeoutTest {
     void connectionRefusedMapsToAiServerError() throws IOException {
         server.shutdown();
 
-        assertThatThrownBy(() -> client.getWeather())
+        assertThatThrownBy(() -> client.classifyClothes(image()))
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.AI_SERVER_ERROR);
     }

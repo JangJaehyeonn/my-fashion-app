@@ -92,6 +92,11 @@ storage:
     secret-key: ${S3_SECRET_KEY:}
     path-style: ${S3_PATH_STYLE:false}
 
+# 날씨: OpenWeatherMap을 백엔드가 직접 호출 (AI 서버 불필요). 키는 WEATHER_API_KEY
+weather:
+  api-key: ${WEATHER_API_KEY:}
+  base-url: https://api.openweathermap.org/data/2.5/weather
+
 app:
   # 클라이언트가 이미지를 가져갈 때 쓰는 이 서버의 공개 주소 (local 저장소의 이미지 URL에 사용)
   public-base-url: ${PUBLIC_BASE_URL:http://localhost:8080}

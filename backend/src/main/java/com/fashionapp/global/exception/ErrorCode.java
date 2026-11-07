@@ -33,6 +33,9 @@ public enum ErrorCode {
     AI_SERVER_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "AI 서버와 통신에 실패했습니다."),
     AI_SERVER_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "AI 응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요."),
 
+    WEATHER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "날씨 정보를 불러오지 못했어요."),
+    INVALID_COORDINATES(HttpStatus.BAD_REQUEST, "위치 좌표가 올바르지 않아요."),
+
     DIAGNOSIS_NOT_FOUND(HttpStatus.NOT_FOUND, "진단 기록을 찾을 수 없습니다."),
     CLOTHES_NOT_FOUND(HttpStatus.NOT_FOUND, "옷을 찾을 수 없습니다."),
     CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다.");
