@@ -74,4 +74,5 @@
 
 - [ ] `backend/src/main/resources/legal/*.html`의 `[ … ]` 자리(시행일·운영자·문의 이메일·보관 기간·저장소 제공자·14세 정책)를 채우세요. 목록과 근거는 `docs/PRIVACY_POLICY.md`.
 - [ ] 배포 후 `https://<도메인>/privacy`, `/account-deletion`이 **로그인 없이** 열리는지 확인하고, Play Console의 개인정보처리방침 URL·계정 삭제 URL에 입력하세요(nginx는 모든 경로를 백엔드로 프록시하므로 별도 설정 불필요).
-- [ ] 이미지 저장소를 COS로 바꾸면 처리방침 4항의 저장소 제공자 행을 Tencent Cloud(국외 이전)로 고치세요.
+- [ ] 이미지 저장소를 COS로 바꾸면 처리방침 4·5항의 `[Tencent Cloud COS, 리전]`을 실제 리전으로 채우세요. 로컬 디스크로 운영하면 해당 행을 지우세요.
+- [ ] ⚠️ **로그 3개월 보관을 실제로 구현**: 처리방침에 "접속 기록 3개월"이라고 적었지만 `docker-compose.prod.yml`에는 로그 설정이 없어 기한 없이 쌓입니다. journald(`MaxRetentionSec=3month`)나 logrotate(`maxage 90`)로 기간을 강제하세요. 자세한 내용은 `docs/PRIVACY_POLICY.md` "로그 보관 실태".
