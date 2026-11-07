@@ -12,6 +12,10 @@
 - **따라서 로컬 저장소(`storage.type=local`)로 바꿔도, 나중에 COS(`storage.type=s3`)로 바꿔도 AI 서버는 수정할 필요가 없습니다.** AI 서버에는 저장소 자격 증명도, 저장소로 가는 네트워크 경로도 필요 없습니다.
 - 주의할 점 하나: 백엔드는 `image/heic`를 허용하지만 AI 서버의 `_ALLOWED_TYPES`(`routers/clothes.py` 등)에는 없어, HEIC는 백엔드 검증을 통과해도 AI 단계에서 거절됩니다(이전부터 있던 차이). 앱이 업로드 전에 JPEG로 압축하므로 실제로는 닿지 않지만, 정리하려면 한쪽을 맞추세요.
 
+## 정리 대상 (지금은 건드리지 않음)
+
+- AI 서버의 `GET /ai/weather`(`ai-server/app/routers/weather.py`, `services/weather_service.py`, `schemas/weather.py`)와 `WEATHER_API_KEY` 설정(`core/config.py`의 `weather_api_key`, `ai-server/.env(.example)`): 날씨를 백엔드가 직접 호출하게 바꾼 뒤로 아무도 호출하지 않습니다. 배포 전에 삭제하거나, 유지한다면 `weather_api_key`를 필수에서 선택으로 낮추세요(지금은 키가 없으면 AI 서버 기동이 실패합니다).
+
 ## GitHub Actions
 
 - `deploy.yml` (EC2 배포): **삭제하지 않고 비활성화**했습니다. `push` 트리거를 없애고 `workflow_dispatch`(수동 실행)만 남겼습니다. 복구할 때는 접속 대상 호스트·사용자·키 시크릿과 `cd ~/my-fashion-app` 이후 스크립트를 Tencent 서버 기준으로 바꾸고, `on:`에 `push: branches: [dev]`를 다시 넣으세요.

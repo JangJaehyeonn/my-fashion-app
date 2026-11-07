@@ -42,7 +42,10 @@ public class WeatherService {
         if (useLat < -90 || useLat > 90 || useLon < -180 || useLon > 180) {
             throw new CustomException(ErrorCode.INVALID_COORDINATES);
         }
-        // 소수 둘째 자리(약 1km)로 반올림해 캐시 키로 쓴다 — 사용자 식별 정보와 묶이지 않고, 근처 요청은 같은 값을 공유
+        // 소수 둘째 자리(약 1km)로 반올림한다. 앱도 반올림해 보내지만 클라이언트를 믿지 않고 서버에서 다시 반올림해서,
+        // 정밀 좌표가 캐시 키·OpenWeatherMap 요청·로그 어디에도 닿지 않게 한다. 사용자 식별 정보와 묶이지 않고 근처 요청은 같은 값을 공유
+        useLat = round2(useLat);
+        useLon = round2(useLon);
         String key = cacheKey(useLat, useLon);
 
         AiWeatherResponse fromLocal = localCache.getIfPresent(key);
@@ -62,6 +65,10 @@ public class WeatherService {
         localCache.put(key, fresh);
         putToRedis(key, fresh);
         return fresh;
+    }
+
+    static double round2(double value) {
+        return Math.round(value * 100) / 100.0;
     }
 
     static String cacheKey(double lat, double lon) {

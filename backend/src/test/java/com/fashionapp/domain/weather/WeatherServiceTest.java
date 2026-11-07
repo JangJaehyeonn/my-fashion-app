@@ -53,10 +53,23 @@ class WeatherServiceTest {
     void defaultsToSeoul() {
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.get(SEOUL_KEY)).willReturn(null);
-        given(openWeatherClient.fetch(37.5665, 126.9780)).willReturn(weather(20, "맑음", 50, 1));
+        given(openWeatherClient.fetch(37.57, 126.98)).willReturn(weather(20, "맑음", 50, 1));
 
         assertThat(weatherService.getWeather(null, null).getCondition()).isEqualTo("맑음");
-        verify(openWeatherClient).fetch(37.5665, 126.9780);
+        verify(openWeatherClient).fetch(37.57, 126.98);
+    }
+
+    @Test
+    @DisplayName("정밀 좌표를 보내도 OpenWeatherMap에는 소수 둘째 자리로 반올림한 좌표만 전달한다")
+    void sendsOnlyRoundedCoordinatesUpstream() {
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get(anyString())).willReturn(null);
+        given(openWeatherClient.fetch(anyDouble(), anyDouble())).willReturn(weather(10, "비", 80, 3));
+
+        weatherService.getWeather(35.179554321, 129.075641234);
+
+        verify(openWeatherClient).fetch(35.18, 129.08);
+        verify(valueOperations).get("weather:35.18:129.08");
     }
 
     @Test

@@ -156,8 +156,10 @@ class ApiClient @Inject constructor(
  * 디버그 빌드 HTTP 로그. 릴리즈는 아무것도 남기지 않는다.
  * 디버그에서도 비밀번호·토큰이 오가는 요청(/auth/ 아래 경로, 비밀번호 변경)은 본문을 빼고 요청 줄과 상태만 남긴다 —
  * 디버그 로그가 버그 리포트 등으로 공유될 때 비밀번호가 함께 나가지 않도록. Authorization 헤더는 항상 가린다.
+ * 위치(좌표)가 URL 쿼리로 가는 날씨 요청은 아예 로깅하지 않는다.
  */
 object DebugHttpLogging {
+    private fun isLocation(path: String) = path.endsWith("/weather")
     private fun isSensitive(path: String) = path.contains("/auth/") || path.endsWith("/users/me/password")
 
     fun create(): Interceptor {
@@ -168,8 +170,9 @@ object DebugHttpLogging {
         }
         val basic = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
         return Interceptor { chain ->
-            val logger = if (isSensitive(chain.request().url.encodedPath)) basic else body
-            logger.intercept(chain)
+            val path = chain.request().url.encodedPath
+            if (isLocation(path)) chain.proceed(chain.request())
+            else (if (isSensitive(path)) basic else body).intercept(chain)
         }
     }
 }
