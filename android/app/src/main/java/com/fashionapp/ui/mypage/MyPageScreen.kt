@@ -1,5 +1,10 @@
 package com.fashionapp.ui.mypage
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import com.fashionapp.BuildConfig
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +66,7 @@ fun MyPageScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val isDeleting by viewModel.isDeleting.collectAsState()
     val deleteError by viewModel.deleteError.collectAsState()
+    val context = LocalContext.current
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -179,6 +185,15 @@ fun MyPageScreen(
                     MenuRow(label = "비밀번호 변경", onClick = onChangePassword)
                     Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 }
+                // 서버가 로그인 없이 보여주는 정적 페이지 (릴리즈/디버그 빌드의 서버 주소 기준)
+                MenuRow(label = "개인정보처리방침") {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.OAUTH2_BASE_URL.trimEnd('/') + "/privacy"))
+                        )
+                    }
+                }
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 MenuRow(label = "로그아웃", color = WearonColors.SubText) { showLogoutDialog = true }
             }
 
