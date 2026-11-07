@@ -96,6 +96,9 @@ app:
   # 클라이언트가 이미지를 가져갈 때 쓰는 이 서버의 공개 주소 (local 저장소의 이미지 URL에 사용)
   public-base-url: ${PUBLIC_BASE_URL:http://localhost:8080}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  # 웹 브라우저에서 API를 호출할 수 있는 출처 (쉼표로 구분). 와일드카드(*) 금지 — 자격 증명 허용 상태라 위험
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
   ai-server-url: ${AI_SERVER_URL:http://localhost:8000}
   # Spring → AI 서버(FastAPI) 호출 타임아웃. 초과 시 AI_SERVER_TIMEOUT(504) 응답
   ai-server:

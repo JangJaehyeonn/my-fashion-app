@@ -16,7 +16,7 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { Trend, Rate } from "k6/metrics";
 
-const BASE_URL = "http://fashion-app-jh.duckdns.org";
+const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const JWT_TOKEN = __ENV.JWT_TOKEN;
 
 // 엔드포인트별 커스텀 메트릭

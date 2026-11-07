@@ -8,6 +8,21 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// 릴리즈 서버 주소 (운영 도메인을 코드에 넣지 않는다). 우선순위: -PreleaseServerUrl=... > android/local.properties의
+// release.server.url > placeholder. 예: release.server.url=https://api.your-domain.com (끝에 / 없이, HTTPS만 동작)
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val releaseServerUrl: String = (
+    providers.gradleProperty("releaseServerUrl").orNull
+        ?: localProperties.getProperty("release.server.url")
+        ?: "https://api.example.invalid"
+    ).trimEnd('/')
+if (releaseServerUrl.endsWith("example.invalid")) {
+    logger.warn("WARNING: release.server.url 이 설정되지 않아 릴리즈 빌드가 placeholder 주소($releaseServerUrl)를 가리킵니다. docs/DEPLOY_TODO.md 참고.")
+}
+
 val keystoreProperties = Properties().apply {
     val propsFile = rootProject.file("keystore.properties")
     if (propsFile.exists()) {
@@ -51,8 +66,9 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "BASE_URL", "\"https://fashion-app-jh.duckdns.org/api/\"")
-            buildConfigField("String", "OAUTH2_BASE_URL", "\"https://fashion-app-jh.duckdns.org\"")
+            // 운영 서버 주소는 설정으로 주입 (위 releaseServerUrl). 릴리즈는 cleartext가 막혀 있어 https여야 한다
+            buildConfigField("String", "BASE_URL", "\"$releaseServerUrl/api/\"")
+            buildConfigField("String", "OAUTH2_BASE_URL", "\"$releaseServerUrl\"")
             signingConfig = signingConfigs.getByName("release")
         }
     }
