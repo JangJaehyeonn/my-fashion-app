@@ -5,7 +5,6 @@ import com.fashionapp.domain.clothes.ClothesRepository;
 import com.fashionapp.domain.diagnosis.StyleDiagnosis;
 import com.fashionapp.domain.diagnosis.StyleDiagnosisRepository;
 import com.fashionapp.global.jwt.JwtTokenProvider;
-import com.fashionapp.infra.ImageStorage;
 import com.fashionapp.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +28,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 회원 탈퇴: 실제 DB·Redis·필터 체인으로 데이터 삭제와 기존 토큰 무효화를 검증 (S3 삭제는 목) */
+/** 회원 탈퇴: 실제 DB·Redis·필터 체인으로 데이터 삭제와 기존 토큰 무효화를 검증 (이미지 삭제는 목) */
 class AccountDeletionIntegrationTest extends IntegrationTest {
 
     private static final String CLOTHES_URL_1 = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/clothes/a.jpg";
@@ -42,8 +41,6 @@ class AccountDeletionIntegrationTest extends IntegrationTest {
     @Autowired ClothesRepository clothesRepository;
     @Autowired StyleDiagnosisRepository styleDiagnosisRepository;
     @Autowired RedisTemplate<String, String> redisTemplate;
-
-    @MockBean ImageStorage imageStorage;
 
     private UUID userId;
     private String accessToken;

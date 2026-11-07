@@ -63,7 +63,7 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
                 .providerId("tx-test-" + UUID.randomUUID())
                 .build());
         token = "Bearer " + jwtTokenProvider.createAccessToken(user.getId());
-        given(s3Uploader.generatePresignedUrl(anyString())).willReturn("https://presigned");
+        given(imageStorage.resolveUrl(anyString())).willReturn("https://presigned");
     }
 
     @AfterEach
@@ -83,7 +83,7 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
             recordState();
             return classified;
         });
-        given(s3Uploader.upload(any(), anyString())).willReturn("https://test-bucket.s3.ap-northeast-2.amazonaws.com/clothes/x.jpg");
+        given(imageStorage.store(any(), anyString(), any())).willReturn("clothes/x.jpg");
 
         mockMvc.perform(multipart("/api/clothes").file(image("image")).header("Authorization", token))
                 .andExpect(status().isOk())
@@ -96,7 +96,7 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
     @DisplayName("옷장 기반 추천: AI 호출 중에는 트랜잭션·DB 커넥션이 없다")
     void closetRecommendOutsideTransaction() throws Exception {
         clothesRepository.save(Clothes.builder().user(user)
-                .imageUrl("https://test-bucket.s3.ap-northeast-2.amazonaws.com/clothes/y.jpg").category("TOP").build());
+                .imageUrl("clothes/y.jpg").category("TOP").build());
         given(aiServerClient.recommendOutfitsByCloset(any())).willAnswer(inv -> {
             recordState();
             return CompletableFuture.completedFuture(new AiClosetRecommendResponse());
@@ -119,15 +119,14 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
             recordState();
             return CompletableFuture.completedFuture(vton);
         });
-        given(s3Uploader.uploadBytes(any(), anyString(), anyString()))
-                .willReturn("https://test-bucket.s3.ap-northeast-2.amazonaws.com/vton/x.png");
+        given(imageStorage.storeBytes(any(), anyString(), anyString(), any())).willReturn("vton/x.png");
 
         mockMvc.perform(multipart("/api/vton").file(image("personImage")).file(image("garmentImage"))
                         .param("garmentDesc", "셔츠").header("Authorization", token))
                 .andExpect(status().isOk());
 
         assertNoTransactionDuringAiCall();
-        verify(s3Uploader).uploadBytes(any(), anyString(), org.mockito.ArgumentMatchers.eq("vton/" + user.getId()));
+        verify(imageStorage).storeBytes(any(), anyString(), org.mockito.ArgumentMatchers.eq("vton"), org.mockito.ArgumentMatchers.eq(user.getId()));
     }
 
     @Test
@@ -140,7 +139,7 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value(ErrorCode.AI_SERVER_TIMEOUT.getMessage()));
 
-        verify(s3Uploader, never()).upload(any(), anyString());
+        verify(imageStorage, never()).store(any(), anyString(), any());
         assertThat(clothesRepository.findImageUrlsByUserId(user.getId())).isEmpty();
     }
 

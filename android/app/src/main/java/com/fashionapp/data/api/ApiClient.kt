@@ -9,6 +9,8 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.runBlocking
 import okhttp3.Authenticator
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -102,6 +104,32 @@ class LongRunningTimeoutInterceptor : Interceptor {
             .proceed(chain.request())
     }
 }
+
+/**
+ * 이미지 로딩(Coil)용 OkHttpClient 구성 요소. 로컬 저장소의 이미지는 `/api/images/...`로 내려오며 JWT가 필요하다.
+ * 반면 피팅·옷장의 "상품 주소로 등록"은 쇼핑몰 같은 외부 이미지도 Coil로 불러오므로,
+ * 토큰은 **백엔드 호스트로 가는 요청에만** 붙이고 외부 호스트에는 절대 보내지 않는다.
+ */
+object BackendHost {
+    private val backend: HttpUrl = BuildConfig.BASE_URL.toHttpUrl()
+    fun matches(url: HttpUrl) = url.host == backend.host && url.port == backend.port && url.scheme == backend.scheme
+}
+
+class BackendOnlyAuthInterceptor(private val delegate: Interceptor) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response =
+        if (BackendHost.matches(chain.request().url)) delegate.intercept(chain) else chain.proceed(chain.request())
+}
+
+class BackendOnlyAuthenticator(private val delegate: Authenticator) : Authenticator {
+    override fun authenticate(route: Route?, response: Response): Request? =
+        if (BackendHost.matches(response.request.url)) delegate.authenticate(route, response) else null
+}
+
+fun imageOkHttpClient(authInterceptor: Interceptor, authenticator: Authenticator): OkHttpClient =
+    OkHttpClient.Builder()
+        .addInterceptor(BackendOnlyAuthInterceptor(authInterceptor))
+        .authenticator(BackendOnlyAuthenticator(authenticator))
+        .build()
 
 @Singleton
 class ApiClient @Inject constructor(

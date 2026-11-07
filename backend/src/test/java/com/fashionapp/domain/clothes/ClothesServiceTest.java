@@ -7,7 +7,6 @@ import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiClothesClassifyResponse;
 import com.fashionapp.infra.AiServerClient;
 import com.fashionapp.infra.ImageStorage;
-import com.fashionapp.infra.S3Uploader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,9 +46,6 @@ class ClothesServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private S3Uploader s3Uploader;
-
-    @Mock
     private AiServerClient aiServerClient;
 
     @Mock
@@ -63,7 +59,7 @@ class ClothesServiceTest {
 
     @BeforeEach
     void setUp() {
-        clothesService = new ClothesService(clothesRepository, userRepository, s3Uploader, aiServerClient, imageStorage);
+        clothesService = new ClothesService(clothesRepository, userRepository, aiServerClient, imageStorage);
         userId = UUID.randomUUID();
         user = User.builder()
                 .id(userId)
@@ -83,20 +79,20 @@ class ClothesServiceTest {
     }
 
     @Test
-    @DisplayName("옷 등록: AI 분류 후 S3 업로드하고 분류 결과를 저장한다")
+    @DisplayName("옷 등록: AI 분류 후 이미지를 저장하고 분류 결과를 저장한다")
     void register_classifiesThenUploadsAndSaves() {
         AiClothesClassifyResponse ai = aiResult("TOP", "그레이", "그레이 니트 스웨터");
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
         given(aiServerClient.classifyClothes(image)).willReturn(ai);
-        given(s3Uploader.upload(image, "clothes")).willReturn("https://bucket.s3.region.amazonaws.com/clothes/a.jpg");
+        given(imageStorage.store(image, "clothes", userId)).willReturn("clothes/a.jpg");
         given(clothesRepository.save(any(Clothes.class))).willAnswer(inv -> inv.getArgument(0));
-        given(s3Uploader.generatePresignedUrl(anyString())).willReturn("https://presigned");
+        given(imageStorage.resolveUrl(anyString())).willReturn("https://presigned");
 
         ClothesResponse response = clothesService.register(userId, image);
 
-        InOrder order = inOrder(aiServerClient, s3Uploader);
+        InOrder order = inOrder(aiServerClient, imageStorage);
         order.verify(aiServerClient).classifyClothes(image);
-        order.verify(s3Uploader).upload(image, "clothes");
+        order.verify(imageStorage).store(image, "clothes", userId);
 
         ArgumentCaptor<Clothes> captor = ArgumentCaptor.forClass(Clothes.class);
         verify(clothesRepository).save(captor.capture());
@@ -114,7 +110,7 @@ class ClothesServiceTest {
         AiClothesClassifyResponse ai = aiResult("hat", "블랙", "블랙 볼캡");
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
         given(aiServerClient.classifyClothes(image)).willReturn(ai);
-        given(s3Uploader.upload(image, "clothes")).willReturn("https://bucket.s3.region.amazonaws.com/clothes/b.jpg");
+        given(imageStorage.store(image, "clothes", userId)).willReturn("clothes/b.jpg");
         given(clothesRepository.save(any(Clothes.class))).willAnswer(inv -> inv.getArgument(0));
 
         ClothesResponse response = clothesService.register(userId, image);
@@ -123,7 +119,7 @@ class ClothesServiceTest {
     }
 
     @Test
-    @DisplayName("옷 등록: AI 분류가 실패하면 S3에 업로드하지 않는다")
+    @DisplayName("옷 등록: AI 분류가 실패하면 이미지를 저장하지 않는다")
     void register_aiFailure_doesNotUpload() {
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
         willThrow(new CustomException(ErrorCode.AI_SERVER_ERROR)).given(aiServerClient).classifyClothes(image);
@@ -133,7 +129,7 @@ class ClothesServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.AI_SERVER_ERROR);
 
-        verify(s3Uploader, never()).upload(any(), anyString());
+        verify(imageStorage, never()).store(any(), anyString(), any());
         verify(clothesRepository, never()).save(any());
     }
 

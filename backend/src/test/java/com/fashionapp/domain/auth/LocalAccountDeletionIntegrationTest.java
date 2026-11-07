@@ -1,6 +1,5 @@
 package com.fashionapp.domain.auth;
 
-import com.fashionapp.infra.ImageStorage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -14,10 +13,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 아이디·비밀번호(local) 사용자의 회원 탈퇴 (S3 삭제는 목) */
+/** 아이디·비밀번호(local) 사용자의 회원 탈퇴 (이미지 삭제는 목) */
 class LocalAccountDeletionIntegrationTest extends LocalAuthTestSupport {
-
-    @MockBean ImageStorage imageStorage;
 
     @Test
     @DisplayName("local 사용자 탈퇴: 사용자·리프레시 토큰 삭제, 기존 토큰 401, 같은 아이디로 로그인 불가, 같은 아이디로 재가입 가능")

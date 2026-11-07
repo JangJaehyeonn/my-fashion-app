@@ -5,7 +5,7 @@ import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiServerClient;
 import com.fashionapp.infra.AiVtonResponse;
-import com.fashionapp.infra.S3Uploader;
+import com.fashionapp.infra.ImageStorage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,10 +20,9 @@ public class VtonService {
 
     private final UserRepository userRepository;
     private final AiServerClient aiServerClient;
-    private final S3Uploader s3Uploader;
+    private final ImageStorage imageStorage;
 
-    // 결과 이미지는 DB에 기록이 없어 사용자별 경로에 저장 → 회원 탈퇴 시 prefix로 한꺼번에 삭제
-    // (이 변경 이전에 vton/ 바로 아래 저장된 결과는 사용자를 알 수 없어 탈퇴 시 지워지지 않음)
+    // 결과 이미지는 DB에 기록이 없어 vton/{userId}/ 아래에 저장 → 회원 탈퇴 시 prefix로 한꺼번에 삭제
     public static String storageDir(UUID userId) {
         return "vton/" + userId;
     }
@@ -45,10 +44,10 @@ public class VtonService {
         }
 
         byte[] resultBytes = Base64.getDecoder().decode(aiResult.getResultImageBase64());
-        String imageUrl = s3Uploader.uploadBytes(resultBytes, "image/png", storageDir(userId));
+        String imageUrl = imageStorage.storeBytes(resultBytes, "image/png", "vton", userId);
 
         return VtonResponse.builder()
-                .resultImageUrl(s3Uploader.generatePresignedUrl(imageUrl))
+                .resultImageUrl(imageStorage.resolveUrl(imageUrl))
                 .build();
     }
 }

@@ -9,7 +9,7 @@ import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiDiagnosisResponse;
 import com.fashionapp.infra.AiServerClient;
-import com.fashionapp.infra.S3Uploader;
+import com.fashionapp.infra.ImageStorage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +24,7 @@ public class DiagnosisService {
 
     private final StyleDiagnosisRepository styleDiagnosisRepository;
     private final UserRepository userRepository;
-    private final S3Uploader s3Uploader;
+    private final ImageStorage imageStorage;
     private final AiServerClient aiServerClient;
     private final ObjectMapper objectMapper;
 
@@ -34,8 +34,9 @@ public class DiagnosisService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        String imageUrl = s3Uploader.upload(image, "diagnosis");
+        // AI 진단을 먼저 해서, 진단 실패 시 저장소에 고아 파일이 남지 않도록 함 (옷 등록과 같은 순서)
         AiDiagnosisResponse aiResult = aiServerClient.diagnoseOutfit(image);
+        String imageUrl = imageStorage.store(image, "diagnosis", userId);
 
         List<SimilarStyleSuggestion> similarStyles = aiResult.getSimilarStyles().stream()
                 .map(s -> new SimilarStyleSuggestion(s.getStyleTag(), s.getDescription()))
@@ -70,7 +71,7 @@ public class DiagnosisService {
     private StyleDiagnosisResponse toResponse(StyleDiagnosis diagnosis) {
         return StyleDiagnosisResponse.builder()
                 .id(diagnosis.getId())
-                .imageUrl(s3Uploader.generatePresignedUrl(diagnosis.getImageUrl()))
+                .imageUrl(imageStorage.resolveUrl(diagnosis.getImageUrl()))
                 .score(diagnosis.getScore())
                 .feedback(diagnosis.getFeedback())
                 .similarStyles(readJson(diagnosis.getSimilarStyles()))

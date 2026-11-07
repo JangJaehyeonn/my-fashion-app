@@ -17,15 +17,10 @@ jwt:
   # 테스트 전용 HMAC 키 (Base64, 32바이트 이상)
   secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQta2V5LWZvci1pbnRlZ3JhdGlvbi10ZXN0cw==
 
-cloud:
-  aws:
-    credentials:
-      access-key: test-access-key
-      secret-key: test-secret-key
-    region:
-      static: ap-northeast-2
-    s3:
-      bucket: test-bucket
+storage:
+  type: local
+  local:
+    root: ${java.io.tmpdir}/fashionapp-test-storage
 
 app:
   # 실제 AI 서버로 나가지 않도록 존재하지 않는 포트로 지정 (AiServerClient도 목으로 대체됨)

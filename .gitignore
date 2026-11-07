@@ -53,3 +53,10 @@ backend/.idea/
 
 # 루트에 떨어지는 임시 스크린샷 (README용은 docs/screenshots/)
 /screen*.png
+
+# 로컬 이미지 저장소 (기본 경로는 프로젝트 밖이지만, STORAGE_LOCAL_ROOT를 레포 안으로 잡아도 커밋되지 않게)
+/storage/
+/fashionapp-storage/
+backend/storage/
+backend/fashionapp-storage/
+backend/uploads/
