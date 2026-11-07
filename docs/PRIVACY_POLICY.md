@@ -17,7 +17,10 @@
 
 - [ ] 시행일, 운영자 이름, 문의 이메일 (두 페이지 공통)
 - [ ] 서버 접속 기록 보관 기간 (`privacy.html` 2항). 지금 코드에는 로그 보관·삭제 정책이 없음(nginx는 stdout, 백엔드는 콘솔) — 실제 운영에서 정한 뒤 적기
-- [ ] 이미지 저장소 제공자 (`privacy.html` 4항): 로컬 디스크로 운영하면 "서비스 서버", COS를 쓰면 Tencent Cloud(국외 이전에 해당). 이전 국가·시점·연락처도 법령 기준으로 확인
+- [ ] 국외 이전(`privacy.html` 5항)의 `[ ]` 값: OpenAI·Hugging Face 법인명·연락처·국가·보유 기간, Tencent Cloud COS 리전, 서비스 서버 리전. 코드로는 확인할 수 없는 값이라 비워 둠
+- [ ] 국외 이전 근거 검토: Hugging Face는 앱에서 별도 동의를 받지만(`vton_consent_at`), OpenAI 전송에는 별도 동의 화면이 없음 — 처리방침 공개만으로 충분한지 법령 기준 확인
+- [ ] 동의 이력: 철회하면 `vton_consent_at`를 지워 이력이 남지 않음. 동의·철회 이력을 따로 보관해야 하는지 확인
+- [ ] 이미지 저장소: 로컬 디스크로 운영하면 5항의 COS 행을 지우고 "서비스 서버"로
 - [ ] 만 14세 미만 정책 (`privacy.html` 7항): 코드에는 연령 확인이 없음. 연령 확인을 넣을지, "대상 아님"으로만 적을지 결정
 - [ ] 계정 삭제 요청 처리 기간 (`account-deletion.html`, 앱에 접근할 수 없을 때의 이메일 요청)
 - [ ] Play Console의 "데이터 보안" 설문을 이 문서와 같은 내용으로 작성
@@ -35,6 +38,10 @@
 | Hugging Face 공개 Space에 전신·옷 사진 전달 | `ai-server/app/services/vton_service.py` (`yisol/IDM-VTON`, `gradio_client`) |
 | 위치: 대략적 위치만, 반올림, OpenWeatherMap 전송, 계정과 연결 저장 안 함, 최대 30분 캐시 | 앱 `LocationProvider`(`ACCESS_COARSE_LOCATION`, 소수 둘째 자리 반올림), `WeatherService`(서버 재반올림, Caffeine 10분·Redis 30분), `OpenWeatherClient` |
 | 리프레시 토큰 14일, 로그인 실패 기록 5분 | `application.yml`(`refresh-token-expiry`), `AuthTokenService`, `LoginAttemptLimiter` |
+| 가상 피팅 동의: 첫 사용 시 동의, 시각 저장, 철회 가능, 미동의면 전송 안 함 | `User.vtonConsentAt`, `POST/DELETE /api/users/me/consents/vton`, `VtonService`(미동의 403, AI 호출 전), 앱 `FittingScreen` 동의 다이얼로그·상시 안내, 마이 탭 철회 (`VtonConsentIntegrationTest`) |
+| 만 14세 이상 확인: 아이디 가입·소셜 첫 가입 모두, 시각 저장 | `SignupRequest.ageOver14`, `User.ageConfirmedAt`, `AgeGateInterceptor`, 앱 `AgeGateScreen` (`AgeGateIntegrationTest`) |
+| OpenAI 이전 항목에 쇼핑 예산 포함 | `ai-server/app/services/shopping_service.py` 프롬프트 |
+| Hugging Face Space 운영자 | `ai-server/app/core/config.py` `hf_vton_space_id = "yisol/IDM-VTON"` |
 | 탈퇴 시 계정·옷·진단·피팅 결과·토큰 삭제 | `AccountDeletionService` (테스트 `AccountDeletionIntegrationTest`, `LocalImageIntegrationTest`) |
 | 이미지는 본인에게만 제공 | `ImageController`(소유자 확인, 남의 이미지 404), S3 모드는 7일 presigned URL |
 | 광고·분석 SDK 없음 | `android/app/build.gradle.kts` 의존성에 해당 라이브러리 없음 |
@@ -43,4 +50,4 @@
 ## 앱 안내 문구와의 일치
 
 - [x] 홈 위치 권한 안내: "대략적인 위치(약 1km 범위)를 날씨 조회에만 사용해요. 날씨 제공을 위해 OpenWeatherMap에 전달되며, 계정과 연결해 저장하지 않아요."
-- [ ] 가상 피팅 화면에 "전신 사진이 외부 AI 서비스(Hugging Face)로 전송돼요" 안내 추가를 권장(현재 앱 화면에는 없음). 처리방침에는 이미 명시했음
+- [x] 가상 피팅: 첫 사용 동의 화면 + 피팅 화면 상시 안내 + 마이 탭 철회
