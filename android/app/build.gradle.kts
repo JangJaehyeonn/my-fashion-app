@@ -86,6 +86,11 @@ android {
         compose = true
         buildConfig = true
     }
+
+    // ViewModel unit tests run on the JVM; android.jar stubs return defaults instead of throwing
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -117,4 +122,7 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.browser)
     implementation(libs.coroutines.android)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
 }

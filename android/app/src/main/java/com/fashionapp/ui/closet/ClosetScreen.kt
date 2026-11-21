@@ -55,6 +55,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -80,7 +86,10 @@ private val CATEGORY_TABS: List<ClothesCategory?> = listOf(
 )
 
 @Composable
-fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
+fun ClosetScreen(
+    onOpenClothes: (Clothes) -> Unit = {},
+    viewModel: ClosetViewModel = hiltViewModel()
+) {
     val context = LocalContext.current
     val clothes by viewModel.filteredClothes.collectAsState()
     val counts by viewModel.countByCategory.collectAsState()
@@ -246,7 +255,7 @@ fun ClosetScreen(viewModel: ClosetViewModel = hiltViewModel()) {
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(clothes, key = { it.id }) { item ->
-                        ClothesCard(item, onDelete = { deleteTarget = item })
+                        ClothesCard(item, onClick = { onOpenClothes(item) }, onDelete = { deleteTarget = item })
                     }
                 }
             }
@@ -342,14 +351,15 @@ private fun CategoryTabs(
 }
 
 @Composable
-private fun ClothesCard(clothes: Clothes, onDelete: () -> Unit) {
-    Column {
+private fun ClothesCard(clothes: Clothes, onClick: () -> Unit, onDelete: () -> Unit) {
+    Column(modifier = Modifier.clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(4f / 5f)
                 .clip(WearonShapes.Image)
                 .background(WearonColors.Beige)
+                .then(if (clothes.isUnclassified) Modifier.dashedBorder(WearonColors.Accent) else Modifier)
         ) {
             AsyncImage(
                 model = clothes.imageUrl,
@@ -368,6 +378,10 @@ private fun ClothesCard(clothes: Clothes, onDelete: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Close, contentDescription = "삭제", tint = WearonColors.Ink, modifier = Modifier.size(14.dp))
+            }
+            // ui-spec: unclassified clothes get a brown badge at the top left and a dashed border (FR-02)
+            if (clothes.isUnclassified) {
+                UnclassifiedBadge(Modifier.align(Alignment.TopStart).padding(6.dp))
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -399,6 +413,19 @@ private fun ClothesCard(clothes: Clothes, onDelete: () -> Unit) {
             )
         }
     }
+}
+
+private fun Modifier.dashedBorder(color: Color): Modifier = drawWithContent {
+    drawContent()
+    val stroke = 1.5.dp.toPx()
+    val inset = stroke / 2
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(inset, inset),
+        size = Size(size.width - stroke, size.height - stroke),
+        cornerRadius = CornerRadius(4.dp.toPx()),
+        style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())))
+    )
 }
 
 @Composable

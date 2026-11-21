@@ -167,6 +167,17 @@ data class Clothes(
     val name: String?,
     val createdAt: String?,
     val classificationFailed: Boolean = false
+) {
+    /** True when AI classification failed and the user has not fixed the category yet (FR-01). */
+    val isUnclassified: Boolean
+        get() = classificationFailed || category == ClothesCategory.UNCLASSIFIED
+}
+
+// PATCH /api/clothes/{id}. Null fields are omitted by Gson and keep their current value.
+data class ClothesUpdateRequest(
+    val category: String?,
+    val color: String?,
+    val name: String?
 )
 
 // Closet-based recommend (내 옷장 옷들로 코디 조합)
