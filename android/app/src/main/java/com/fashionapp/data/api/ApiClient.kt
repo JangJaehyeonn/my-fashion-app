@@ -96,12 +96,18 @@ class TokenAuthenticator @Inject constructor(
  */
 class LongRunningTimeoutInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val isVton = chain.request().url.encodedPath.trimEnd('/').endsWith("/vton")
-        if (!isVton) return chain.proceed(chain.request())
-        return chain
-            .withWriteTimeout(60, TimeUnit.SECONDS)
-            .withReadTimeout(180, TimeUnit.SECONDS)
-            .proceed(chain.request())
+        val path = chain.request().url.encodedPath.trimEnd('/')
+        return when {
+            path.endsWith("/vton") -> chain
+                .withWriteTimeout(60, TimeUnit.SECONDS)
+                .withReadTimeout(180, TimeUnit.SECONDS)
+                .proceed(chain.request())
+            // FR-02 reclassify waits for AI classification (backend AI read timeout is 30s)
+            path.endsWith("/reclassify") -> chain
+                .withReadTimeout(40, TimeUnit.SECONDS)
+                .proceed(chain.request())
+            else -> chain.proceed(chain.request())
+        }
     }
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,6 +19,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.fashionapp.ui.closet.ClosetScreen
+import com.fashionapp.ui.closet.ClosetViewModel
+import com.fashionapp.ui.closet.ClothesDetailScreen
+import com.fashionapp.ui.closet.ClothesDetailViewModel
 import com.fashionapp.ui.common.BottomNavBar
 import com.fashionapp.ui.fitting.FittingScreen
 import com.fashionapp.ui.diagnosis.DiagnosisScreen
@@ -44,6 +48,13 @@ object Route {
     const val CHANGE_PASSWORD = "change_password"
     const val AGE_GATE = "age_gate"
     const val VTON = "vton/{garmentDesc}"
+    // Argument name must match ClothesDetailViewModel.ARG_CLOTHES_ID
+    const val CLOTHES_DETAIL = "clothes/{clothesId}"
+
+    // Set on the closet back stack entry when the detail screen saved or reclassified a clothes
+    const val RESULT_CLOTHES_CHANGED = "clothes_changed"
+
+    fun clothesDetail(id: String) = "clothes/${Uri.encode(id)}"
 
     fun vton(garmentDesc: String) = "vton/${Uri.encode(garmentDesc)}"
 }
@@ -121,7 +132,40 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                         }
                     )
                 }
-                composable(Route.CLOSET) { ClosetScreen() }
+                composable(Route.CLOSET) { entry ->
+                    val closetViewModel: ClosetViewModel = hiltViewModel()
+                    val changed by entry.savedStateHandle
+                        .getStateFlow(Route.RESULT_CLOTHES_CHANGED, false)
+                        .collectAsState()
+                    LaunchedEffect(changed) {
+                        if (changed) {
+                            entry.savedStateHandle[Route.RESULT_CLOTHES_CHANGED] = false
+                            closetViewModel.loadClothes()
+                        }
+                    }
+                    ClosetScreen(
+                        onOpenClothes = { clothes -> navController.navigate(Route.clothesDetail(clothes.id)) },
+                        viewModel = closetViewModel
+                    )
+                }
+                composable(
+                    route = Route.CLOTHES_DETAIL,
+                    arguments = listOf(navArgument(ClothesDetailViewModel.ARG_CLOTHES_ID) { type = NavType.StringType })
+                ) {
+                    ClothesDetailScreen(
+                        onBack = { changed ->
+                            // Ignore a second tap while the pop animation runs, so the closet is not popped too
+                            if (navController.currentBackStackEntry?.destination?.route != Route.CLOTHES_DETAIL) {
+                                return@ClothesDetailScreen
+                            }
+                            if (changed) {
+                                navController.previousBackStackEntry?.savedStateHandle
+                                    ?.set(Route.RESULT_CLOTHES_CHANGED, true)
+                            }
+                            navController.popBackStack()
+                        }
+                    )
+                }
                 composable(Route.FITTING) { FittingScreen() }
                 composable(Route.DIAGNOSIS) { DiagnosisScreen() }
                 composable(Route.SHOPPING) {

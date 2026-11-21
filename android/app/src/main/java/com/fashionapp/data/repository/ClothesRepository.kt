@@ -2,6 +2,7 @@ package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.ClothesApi
 import com.fashionapp.data.model.Clothes
+import com.fashionapp.data.model.ClothesUpdateRequest
 import okhttp3.MultipartBody
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,6 +17,14 @@ class ClothesRepository @Inject constructor(
 
     suspend fun getMyClothes(): Result<List<Clothes>> = runCatching {
         clothesApi.getMyClothes().data ?: emptyList()
+    }
+
+    suspend fun update(id: String, request: ClothesUpdateRequest): Result<Clothes> = runCatching {
+        clothesApi.update(id, request).data ?: error("옷 정보 저장 실패")
+    }
+
+    suspend fun reclassify(id: String): Result<Clothes> = runCatching {
+        clothesApi.reclassify(id).data ?: error("다시 분류 실패")
     }
 
     suspend fun delete(id: String): Result<Unit> = runCatching {

@@ -21,6 +21,7 @@ object WearonColors {
     val BeigeDeep = Color(0xFFD8CCBB)    // 포인트, 인디케이터
     val Line = Color(0xFFE9E6E0)         // 구분선, 칩 테두리
     val SubText = Color(0xFF8C8882)      // 보조 텍스트
+    val Accent = Color(0xFF7A5420)       // 강조 갈색 (ui-spec 공통: 미분류·비슷한 게 있어요 배지 등)
 }
 
 // 모서리 — 쇼핑몰 앱처럼 각진 느낌을 위해 작게 유지
