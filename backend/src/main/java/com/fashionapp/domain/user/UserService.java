@@ -2,6 +2,7 @@ package com.fashionapp.domain.user;
 
 import com.fashionapp.domain.consent.ConsentService;
 import com.fashionapp.domain.consent.ConsentType;
+import com.fashionapp.domain.consent.RequiredAgreements;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -84,12 +85,16 @@ public class UserService {
         return UserResponse.from(user);
     }
 
-    /** 만 14세 이상 확인 (소셜 첫 가입·기존 사용자). 이미 확인했으면 처음 시각을 유지한다. 미만이면 앱이 탈퇴를 호출한다 */
+    /**
+     * 만 14세 이상 확인과 약관·방침 동의 (소셜 첫 가입·기존 사용자). 셋 중 하나라도 빠지면 400이고 아무것도 저장하지 않아
+     * 계정은 계속 확인 전 상태(AgeGateInterceptor)로 남는다. 이미 확인했으면 처음 시각을 유지한다. 미만이면 앱이 탈퇴를 호출한다
+     */
     @Transactional
-    public UserResponse confirmAge(UUID userId) {
+    public UserResponse confirmAge(UUID userId, RequiredAgreements agreements) {
+        agreements.requireAll();
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         user.confirmAge(LocalDateTime.now(clock));
-        consentService.ensureAgreed(userId, ConsentType.AGE_OVER_14, user.getAgeConfirmedAt());
+        consentService.recordRequiredAgreements(userId, user.getAgeConfirmedAt());
         return UserResponse.from(user);
     }
 }

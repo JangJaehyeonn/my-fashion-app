@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /** 동의 이력 규칙: 유효한 동의가 있으면 새 행을 만들지 않고, 철회는 행을 지우지 않고 시각만 남긴다 */
@@ -103,5 +104,21 @@ class ConsentServiceTest {
         record.revoke(NOW);
 
         assertThat(record.getRevokedAt()).isEqualTo(NOW.minusDays(1));
+    }
+
+    @Test
+    @DisplayName("가입 필수 동의: 약관·방침은 지금 시각, 만 14세는 확인 시각으로 3건을 남긴다")
+    void recordRequiredAgreementsSavesThreeTypes() {
+        LocalDateTime ageAt = NOW.minusMinutes(1);
+        given(repository.findByUserIdAndConsentTypeAndRevokedAtIsNull(any(), any())).willReturn(List.of());
+
+        service.recordRequiredAgreements(userId, ageAt);
+
+        ArgumentCaptor<ConsentRecord> captor = ArgumentCaptor.forClass(ConsentRecord.class);
+        verify(repository, times(3)).save(captor.capture());
+        assertThat(captor.getAllValues()).extracting(ConsentRecord::getConsentType)
+                .containsExactly(ConsentType.TERMS, ConsentType.PRIVACY, ConsentType.AGE_OVER_14);
+        assertThat(captor.getAllValues()).extracting(ConsentRecord::getAgreedAt).containsExactly(NOW, NOW, ageAt);
+        assertThat(captor.getAllValues()).allMatch(r -> r.getUserId().equals(userId) && r.isActive());
     }
 }

@@ -12,14 +12,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** /privacy, /account-deletion: 로그인 없이 UTF-8 HTML로 열리고, 다른 경로는 여전히 인증이 필요 */
+/** /terms, /privacy, /account-deletion: 로그인 없이 UTF-8 HTML로 열리고, 다른 경로는 여전히 인증이 필요 */
 class LegalPagesTest extends IntegrationTest {
 
     @Autowired MockMvc mockMvc;
 
     @Test
-    @DisplayName("처리방침·계정 삭제 안내는 토큰 없이 200, text/html;charset=UTF-8")
+    @DisplayName("이용약관·처리방침·계정 삭제 안내는 토큰 없이 200, text/html;charset=UTF-8")
     void pagesOpenWithoutAuth() throws Exception {
+        mockMvc.perform(get("/terms"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "text/html;charset=UTF-8"))
+                .andExpect(content().string(containsString("이용약관")))
+                .andExpect(content().string(containsString("만 14세")))
+                .andExpect(content().string(containsString("[시행일")));
         mockMvc.perform(get("/privacy"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "text/html;charset=UTF-8"))
@@ -35,6 +41,7 @@ class LegalPagesTest extends IntegrationTest {
     @DisplayName("원본 경로(/legal/**)는 노출되지 않고 /api 경로는 여전히 401")
     void otherPathsStillProtected() throws Exception {
         mockMvc.perform(get("/legal/privacy.html")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/legal/terms.html")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/images/clothes/x/y.jpg")).andExpect(status().isUnauthorized());
     }
