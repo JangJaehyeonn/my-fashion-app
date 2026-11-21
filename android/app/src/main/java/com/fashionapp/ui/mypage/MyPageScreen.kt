@@ -1,9 +1,8 @@
 package com.fashionapp.ui.mypage
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
-import com.fashionapp.BuildConfig
+import com.fashionapp.data.model.LegalPage
+import com.fashionapp.ui.signup.openLegalPage
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -216,13 +215,9 @@ fun MyPageScreen(
                     Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 }
                 // 서버가 로그인 없이 보여주는 정적 페이지 (릴리즈/디버그 빌드의 서버 주소 기준)
-                MenuRow(label = "개인정보처리방침") {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.OAUTH2_BASE_URL.trimEnd('/') + "/privacy"))
-                        )
-                    }
-                }
+                MenuRow(label = "개인정보처리방침") { openLegalPage(context, LegalPage.PRIVACY) }
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                MenuRow(label = "이용약관") { openLegalPage(context, LegalPage.TERMS) }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 MenuRow(label = "로그아웃", color = WearonColors.SubText) { showLogoutDialog = true }
             }

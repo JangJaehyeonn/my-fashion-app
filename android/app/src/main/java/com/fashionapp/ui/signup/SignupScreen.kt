@@ -32,8 +32,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
@@ -48,7 +46,7 @@ import com.fashionapp.ui.common.ErrorRed
 import com.fashionapp.ui.theme.WearonColors
 import com.fashionapp.ui.theme.WearonShapes
 
-/** 아이디 회원가입: 아이디(중복 확인) · 비밀번호 · 비밀번호 확인 · 닉네임. 성공하면 바로 로그인 상태로 홈 이동 */
+/** 아이디 회원가입: 아이디(중복 확인) · 비밀번호 · 비밀번호 확인 · 닉네임 · 필수 동의. 성공하면 바로 로그인 상태로 홈 이동 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignupScreen(
@@ -140,14 +138,21 @@ fun SignupScreen(
                 onImeAction = ::submit
             )
 
-            AgeCheckRow(checked = form.ageOver14, error = form.ageError, onCheckedChange = viewModel::onAgeOver14Change)
+            AgreementsSection(
+                agreements = form.agreements,
+                error = form.agreementError,
+                enabled = !form.isSubmitting,
+                onAllChange = viewModel::onAllAgreementsChange,
+                onItemChange = viewModel::onAgreementChange
+            )
 
             form.generalError?.let { Text(it, fontSize = 13.sp, color = ErrorRed) }
 
             Spacer(Modifier.height(4.dp))
             Button(
                 onClick = ::submit,
-                enabled = !form.isSubmitting,
+                // 필수 동의를 모두 체크해야 활성화 (FR-06)
+                enabled = form.canSubmit,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = WearonShapes.Card,
                 colors = ButtonDefaults.buttonColors(containerColor = WearonColors.Ink, disabledContainerColor = WearonColors.Line)
@@ -161,31 +166,3 @@ fun SignupScreen(
         }
     }
 }
-
-/** "만 14세 이상입니다 (필수)" 체크 — 아이디 가입과 소셜 첫 가입 확인 화면에서 같이 씀 */
-@Composable
-fun AgeCheckRow(checked: Boolean, error: String?, onCheckedChange: (Boolean) -> Unit) {
-    androidx.compose.foundation.layout.Column {
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().ageToggle(checked, onCheckedChange)
-        ) {
-            androidx.compose.material3.Checkbox(
-                checked = checked,
-                onCheckedChange = null,
-                colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = WearonColors.Ink)
-            )
-            Text("만 14세 이상입니다 (필수)", fontSize = 14.sp, color = WearonColors.Ink)
-        }
-        error?.let { Text(it, fontSize = 12.sp, color = ErrorRed, modifier = Modifier.padding(start = 12.dp)) }
-    }
-}
-
-private fun Modifier.ageToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit): Modifier =
-    this.then(
-        Modifier.toggleable(
-            value = checked,
-            role = androidx.compose.ui.semantics.Role.Checkbox,
-            onValueChange = onCheckedChange
-        )
-    )

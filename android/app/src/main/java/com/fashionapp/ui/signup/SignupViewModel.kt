@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.api.httpStatus
 import com.fashionapp.data.api.serverMessage
+import com.fashionapp.data.model.AgreementItem
+import com.fashionapp.data.model.Agreements
 import com.fashionapp.data.model.AuthRules
+import com.fashionapp.data.model.MSG_AGREE_REQUIRED
 import com.fashionapp.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +22,7 @@ data class SignupForm(
     val password: String = "",
     val passwordConfirm: String = "",
     val nickname: String = "",
-    val ageOver14: Boolean = false,
+    val agreements: Agreements = Agreements(),
     val idCheck: IdCheck = IdCheck.NOT_CHECKED,
     // 가입 버튼을 한 번 눌렀으면 비어 있는 칸에도 안내를 띄움
     val submitted: Boolean = false,
@@ -57,8 +60,12 @@ data class SignupForm(
     val nicknameError: String?
         get() = serverNicknameError ?: if (show(nickname)) AuthRules.nicknameError(nickname) else null
 
-    val ageError: String?
-        get() = if (submitted && !ageOver14) "만 14세 이상만 가입할 수 있어요." else null
+    val agreementError: String?
+        get() = if (submitted && !agreements.all) MSG_AGREE_REQUIRED else null
+
+    // 가입 버튼은 필수 동의를 모두 체크해야 활성화 (FR-06)
+    val canSubmit: Boolean
+        get() = agreements.all && !isSubmitting
 
     val canCheckId: Boolean
         get() = AuthRules.loginIdError(loginId) == null && idCheck != IdCheck.CHECKING
@@ -78,7 +85,9 @@ class SignupViewModel @Inject constructor(
     }
     fun onPasswordChange(value: String) = update { copy(password = value, serverPasswordError = null, generalError = null) }
     fun onPasswordConfirmChange(value: String) = update { copy(passwordConfirm = value, generalError = null) }
-    fun onAgeOver14Change(value: Boolean) = update { copy(ageOver14 = value, generalError = null) }
+    fun onAllAgreementsChange(checked: Boolean) = update { copy(agreements = agreements.withAll(checked), generalError = null) }
+    fun onAgreementChange(item: AgreementItem, checked: Boolean) =
+        update { copy(agreements = agreements.with(item, checked), generalError = null) }
     fun onNicknameChange(value: String) = update { copy(nickname = value, serverNicknameError = null, generalError = null) }
 
     fun checkLoginId() {
@@ -106,12 +115,12 @@ class SignupViewModel @Inject constructor(
         _form.value = f
         if (f.isSubmitting) return
         val invalid = f.loginIdError != null || f.passwordError != null || f.passwordConfirmError != null ||
-                f.nicknameError != null || f.ageError != null || f.idCheck != IdCheck.AVAILABLE
+                f.nicknameError != null || f.agreementError != null || f.idCheck != IdCheck.AVAILABLE
         if (invalid) return
 
         update { copy(isSubmitting = true) }
         viewModelScope.launch {
-            authRepository.signup(f.loginId, f.password, f.nickname.trim(), f.ageOver14)
+            authRepository.signup(f.loginId, f.password, f.nickname.trim(), f.agreements)
                 .onSuccess { onSuccess() }
                 .onFailure { e ->
                     val message = e.serverMessage()
@@ -121,7 +130,8 @@ class SignupViewModel @Inject constructor(
                             e.httpStatus == 400 && message?.contains("아이디") == true -> copy(serverLoginIdError = message)
                             e.httpStatus == 400 && message?.contains("비밀번호") == true -> copy(serverPasswordError = message)
                             e.httpStatus == 400 && message?.contains("닉네임") == true -> copy(serverNicknameError = message)
-                            e.httpStatus == 400 && message?.contains("14세") == true -> copy(generalError = message)
+                            e.httpStatus == 400 && (message?.contains("14세") == true || message?.contains("동의") == true) ->
+                                copy(generalError = message)
                             else -> copy(generalError = "가입하지 못했어요. 잠시 후 다시 시도해 주세요.")
                         }
                     }
