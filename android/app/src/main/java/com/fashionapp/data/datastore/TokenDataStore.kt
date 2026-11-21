@@ -18,8 +18,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 interface TokenStore {
     val accessToken: Flow<String?>
     val refreshToken: Flow<String?>
-    override suspend fun saveTokens(accessToken: String, refreshToken: String)
-    override suspend fun clearTokens()
+    suspend fun saveTokens(accessToken: String, refreshToken: String)
+    suspend fun clearTokens()
 }
 
 @Singleton
