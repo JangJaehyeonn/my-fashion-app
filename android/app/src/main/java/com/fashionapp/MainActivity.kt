@@ -19,7 +19,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        intent?.data?.let { mainViewModel.handleDeepLink(it) }
+        // 회전 등으로 Activity가 다시 만들어질 때 같은 로그인 딥링크를 다시 처리하지 않도록 최초 생성 시에만
+        if (savedInstanceState == null) intent?.data?.let { mainViewModel.handleDeepLink(it) }
         setContent {
             FashionAppTheme {
                 AppNavigation(mainViewModel)

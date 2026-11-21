@@ -20,6 +20,18 @@ runs:
       run: |
         python3 -m pip install -r ai-server/requirements.txt -r acceptance/requirements.txt
         python3 -m pip install fastapi python-multipart
+    # 백엔드 통합 테스트는 로컬 개발과 같은 postgres·redis를 쓴다 (backend/src/test/resources/application-test.yml).
+    # 인수 테스트 스택은 다른 포트(15432)를 쓰므로 겹치지 않는다.
+    - name: 테스트용 postgres·redis (127.0.0.1)
+      shell: bash
+      run: |
+        docker run -d --name wearon-test-postgres -p 127.0.0.1:5432:5432 \
+          -e POSTGRES_DB=fashionapp -e POSTGRES_USER=fashionapp -e POSTGRES_PASSWORD=fashionapp postgres:16-alpine
+        docker run -d --name wearon-test-redis -p 127.0.0.1:6379:6379 redis:7-alpine
+        for i in $(seq 1 30); do
+          docker exec wearon-test-postgres pg_isready -U fashionapp >/dev/null 2>&1 && break
+          sleep 2
+        done
     - name: gradlew 실행 권한
       shell: bash
       run: chmod +x backend/gradlew android/gradlew

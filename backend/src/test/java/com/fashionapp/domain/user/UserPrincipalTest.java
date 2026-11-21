@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class UserPrincipalTest {
 
     private User user(String email) {
-        return User.builder()
+        return User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(UUID.randomUUID())
                 .email(email)
                 .nickname("테스터")

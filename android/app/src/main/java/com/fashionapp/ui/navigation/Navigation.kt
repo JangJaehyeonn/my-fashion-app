@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,8 +24,11 @@ import com.fashionapp.ui.diagnosis.DiagnosisScreen
 import com.fashionapp.ui.home.HomeScreen
 import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
+import com.fashionapp.ui.mypage.ChangePasswordScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.shopping.ShoppingScreen
+import com.fashionapp.ui.signup.AgeGateScreen
+import com.fashionapp.ui.signup.SignupScreen
 import com.fashionapp.ui.vton.VtonScreen
 
 object Route {
@@ -36,6 +40,9 @@ object Route {
     const val SHOPPING = "shopping"
     const val MYPAGE = "mypage"
     const val BODY_PROFILE = "body_profile"
+    const val SIGNUP = "signup"
+    const val CHANGE_PASSWORD = "change_password"
+    const val AGE_GATE = "age_gate"
     const val VTON = "vton/{garmentDesc}"
 
     fun vton(garmentDesc: String) = "vton/${Uri.encode(garmentDesc)}"
@@ -52,21 +59,13 @@ fun AppNavigation(mainViewModel: MainViewModel) {
         }
     }
 
-    LaunchedEffect(Unit) {
-        mainViewModel.navEvent.collect { event ->
-            when (event) {
-                NavEvent.ToMain -> navController.navigate(Route.HOME) {
-                    popUpTo(Route.LOGIN) { inclusive = true }
-                }
-                NavEvent.ToLogin -> navController.navigate(Route.LOGIN) {
-                    popUpTo(0) { inclusive = true }
-                }
-            }
-        }
-    }
-
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val showBottomBar = currentRoute in listOf(Route.HOME, Route.CLOSET, Route.FITTING, Route.MYPAGE)
+
+    // 메인 탭에 들어오면 만 14세 이상 확인 여부를 본다 (소셜 첫 가입·기존 사용자). 확인됐으면 아무 일도 없음
+    LaunchedEffect(showBottomBar) {
+        if (showBottomBar) mainViewModel.ensureAgeConfirmed()
+    }
 
     startDestination?.let { start ->
         Scaffold(
@@ -79,7 +78,37 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 startDestination = start,
                 modifier = Modifier.padding(innerPadding)
             ) {
-                composable(Route.LOGIN) { LoginScreen() }
+                composable(Route.LOGIN) {
+                    val loginMessage by mainViewModel.loginMessage.collectAsState()
+                    val isLoggingIn by mainViewModel.isLoggingIn.collectAsState()
+                    LoginScreen(
+                        message = loginMessage,
+                        isLoggingIn = isLoggingIn,
+                        onLoginStart = mainViewModel::clearLoginMessage,
+                        onLoggedIn = {
+                            navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
+                        },
+                        onSignUp = { navController.navigate(Route.SIGNUP) }
+                    )
+                }
+                composable(Route.AGE_GATE) {
+                    val working by mainViewModel.ageGateWorking.collectAsState()
+                    val error by mainViewModel.ageGateError.collectAsState()
+                    AgeGateScreen(
+                        isWorking = working,
+                        error = error,
+                        onConfirm = mainViewModel::confirmAge,
+                        onUnder14 = mainViewModel::declineUnder14
+                    )
+                }
+                composable(Route.SIGNUP) {
+                    SignupScreen(
+                        onBack = { navController.popBackStack() },
+                        onSignedUp = {
+                            navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
+                        }
+                    )
+                }
                 composable(Route.HOME) {
                     HomeScreen(
                         onGoToCloset = {
@@ -109,11 +138,19 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.MYPAGE) {
                     MyPageScreen(
                         onLogout = {
+                            mainViewModel.resetAgeCheck()
                             navController.navigate(Route.LOGIN) {
                                 popUpTo(0) { inclusive = true }
                             }
                         },
-                        onEditBodyProfile = { navController.navigate(Route.BODY_PROFILE) }
+                        onEditBodyProfile = { navController.navigate(Route.BODY_PROFILE) },
+                        onChangePassword = { navController.navigate(Route.CHANGE_PASSWORD) }
+                    )
+                }
+                composable(Route.CHANGE_PASSWORD) {
+                    ChangePasswordScreen(
+                        onBack = { navController.popBackStack() },
+                        onChanged = { navController.popBackStack() }
                     )
                 }
                 composable(Route.BODY_PROFILE) {
@@ -121,6 +158,25 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                         onBack = { navController.popBackStack() },
                         onSaved = { navController.popBackStack() }
                     )
+                }
+            }
+        }
+
+        // NavHost가 그래프를 설정한 뒤에만 이동 이벤트를 받음 — 앱이 꺼진 상태에서 로그인 딥링크로 시작하면
+        // 그래프 설정 전에 이벤트가 와서 navigate가 IllegalArgumentException으로 크래시했음.
+        // navEvent는 Channel이라 그 전에 보낸 이벤트도 여기서 받아 처리된다
+        LaunchedEffect(Unit) {
+            mainViewModel.navEvent.collect { event ->
+                when (event) {
+                    NavEvent.ToMain -> navController.navigate(Route.HOME) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    NavEvent.ToLogin -> navController.navigate(Route.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    NavEvent.ToAgeGate -> navController.navigate(Route.AGE_GATE) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             }
         }

@@ -1,5 +1,10 @@
 package com.fashionapp.ui.mypage
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import com.fashionapp.BuildConfig
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,14 +59,91 @@ import com.fashionapp.ui.theme.WearonShapes
 fun MyPageScreen(
     onLogout: () -> Unit,
     onEditBodyProfile: () -> Unit = {},
+    onChangePassword: () -> Unit = {},
     viewModel: MyPageViewModel = hiltViewModel()
 ) {
     val profile by viewModel.profile.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isDeleting by viewModel.isDeleting.collectAsState()
+    val deleteError by viewModel.deleteError.collectAsState()
+    val context = LocalContext.current
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showRevokeDialog by remember { mutableStateOf(false) }
 
     // 체형·취향 설정에서 저장 후 돌아오면 다시 컴포지션되므로 여기서 갱신
     LaunchedEffect(Unit) { viewModel.loadProfile() }
+
+    if (showRevokeDialog) {
+        AlertDialog(
+            onDismissRequest = { showRevokeDialog = false },
+            title = { Text("사진 전송 동의 철회") },
+            text = {
+                Text(
+                    "철회하면 가상 피팅을 쓸 때 다시 동의해야 해요. 이미 외부 서비스로 보낸 사진에는 영향이 없어요.",
+                    fontSize = 14.sp,
+                    color = WearonColors.Ink
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.revokeVtonConsent()
+                    showRevokeDialog = false
+                }) { Text("철회", color = Color(0xFFD64545)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRevokeDialog = false }) { Text("취소", color = WearonColors.Ink) }
+            },
+            containerColor = WearonColors.White
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeleting) {
+                    showDeleteDialog = false
+                    viewModel.clearDeleteError()
+                }
+            },
+            title = { Text("회원 탈퇴") },
+            text = {
+                Column {
+                    Text(
+                        "탈퇴하면 등록한 옷 사진, 체형·취향 정보, 진단 기록이 모두 삭제되며 되돌릴 수 없어요.\n정말 탈퇴하시겠어요?",
+                        fontSize = 14.sp,
+                        color = WearonColors.Ink
+                    )
+                    deleteError?.let {
+                        Spacer(Modifier.height(10.dp))
+                        Text(it, fontSize = 13.sp, color = Color(0xFFD64545))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = { viewModel.deleteAccount(onLogout) }
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(color = Color(0xFFD64545), strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("탈퇴하기", color = Color(0xFFD64545))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.clearDeleteError()
+                    }
+                ) { Text("취소", color = WearonColors.Ink) }
+            },
+            containerColor = WearonColors.White
+        )
+    }
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -103,7 +185,8 @@ fun MyPageScreen(
             } else {
                 ProfileHeader(
                     nickname = profile?.nickname ?: "사용자",
-                    email = profile?.email.orEmpty(),
+                    // 아이디 가입 사용자는 이메일이 없어 아이디를 대신 표시
+                    email = profile?.email ?: profile?.loginId?.let { "@$it" }.orEmpty(),
                     profileImageUrl = profile?.profileImageUrl
                 )
                 Spacer(Modifier.height(24.dp))
@@ -122,8 +205,37 @@ fun MyPageScreen(
             ) {
                 MenuRow(label = "체형·취향 수정", onClick = onEditBodyProfile)
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                // 비밀번호가 있는 아이디 가입 사용자만 (Google·Kakao 로그인은 비밀번호가 없음)
+                if (profile?.provider == "local") {
+                    MenuRow(label = "비밀번호 변경", onClick = onChangePassword)
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                }
+                // 동의한 사용자에게만 표시
+                if (profile?.vtonConsentAt != null) {
+                    MenuRow(label = "가상 피팅 사진 전송 동의 철회") { showRevokeDialog = true }
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                }
+                // 서버가 로그인 없이 보여주는 정적 페이지 (릴리즈/디버그 빌드의 서버 주소 기준)
+                MenuRow(label = "개인정보처리방침") {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.OAUTH2_BASE_URL.trimEnd('/') + "/privacy"))
+                        )
+                    }
+                }
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 MenuRow(label = "로그아웃", color = WearonColors.SubText) { showLogoutDialog = true }
             }
+
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "회원 탈퇴",
+                fontSize = 12.sp,
+                color = WearonColors.SubText,
+                modifier = Modifier
+                    .clickable { showDeleteDialog = true }
+                    .padding(vertical = 6.dp, horizontal = 4.dp)
+            )
 
             Spacer(Modifier.height(32.dp))
             Text(

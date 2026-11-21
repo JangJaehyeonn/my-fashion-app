@@ -16,19 +16,56 @@ data class RefreshRequest(
     val refreshToken: String
 )
 
+// 아이디·비밀번호 로그인 (data class라 toString에 비밀번호가 나오지만, 앱은 이 객체를 로그로 남기지 않음 —
+// 디버그 빌드의 HTTP 본문 로그에는 보이므로 디버그 로그를 외부에 공유하지 말 것)
+data class LoginRequest(
+    val loginId: String,
+    val password: String
+)
+
+data class SignupRequest(
+    val loginId: String,
+    val password: String,
+    val nickname: String,
+    // "만 14세 이상입니다" 체크 — 서버가 true가 아니면 400
+    val ageOver14: Boolean
+)
+
+data class ChangePasswordRequest(
+    val currentPassword: String,
+    val newPassword: String
+)
+
+data class CheckIdResponse(
+    val available: Boolean
+)
+
+// OAuth 로그인 딥링크(fashionapp://app/oauth2/callback?code=...)로 받은 1회용 코드 → 토큰 교환
+data class ExchangeRequest(
+    val code: String
+)
+
 // User
 data class UserProfile(
     val id: String,
-    val email: String,
+    // 아이디 가입·카카오 사용자는 이메일이 없을 수 있음
+    val email: String?,
     val nickname: String,
     val profileImageUrl: String?,
+    // google / kakao / local
     val provider: String,
+    // 아이디·비밀번호 가입 사용자만 값이 있음
+    val loginId: String? = null,
     val height: Int?,
     val weight: Int?,
     val bodyType: String?,
     // 옛 서버 호환용 단일 값(선택한 스타일 중 첫 번째). 다중 선택은 preferredStyles
     val preferredStyle: String?,
-    val preferredStyles: List<String>? = null
+    val preferredStyles: List<String>? = null,
+    // 만 14세 이상 확인 시각. null이면 미확인 → 확인 화면(소셜 첫 가입·기존 사용자)
+    val ageConfirmedAt: String? = null,
+    // 가상 피팅 사진 전송(Hugging Face) 동의 시각. null이면 미동의
+    val vtonConsentAt: String? = null
 ) {
     /** 선택한 선호 스타일 (서버가 아직 preferredStyles를 안 주면 단일 값으로 폴백) */
     val styleList: List<PreferredStyle>

@@ -1,9 +1,12 @@
 name: Deploy to EC2
 
+# [비활성화 — 2026-11] AWS(EC2·IAM·S3)를 전부 정리해서 이 배포 대상 서버가 더 이상 없다.
+# 그대로 두면 dev에 push할 때마다 접속할 수 없는 서버로 SSH를 시도하다 실패한다.
+# 그래서 push 트리거를 없애고 수동 실행(workflow_dispatch)만 남겼다. 삭제하지 않은 이유: Tencent 서버가
+# 준비되면 host/secrets/경로만 바꿔 되살릴 것이기 때문. 복구 절차는 docs/DEPLOY_TODO.md 참고.
+# (되살릴 때 `on:`에 push 트리거를 다시 넣을 것)
 on:
-  push:
-    branches:
-      - dev
+  workflow_dispatch:
 
 jobs:
   deploy:

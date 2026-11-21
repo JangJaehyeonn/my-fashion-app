@@ -53,7 +53,10 @@
       "Bash(git push -f:*)",
       "Bash(gh pr merge --admin:*)",
       "Bash(gh pr merge --merge:*)",
-      "Bash(gh pr merge --rebase:*)"
+      "Bash(gh pr merge --rebase:*)",
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Write(**/.env)"
     ]
   }
 }

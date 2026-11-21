@@ -53,4 +53,6 @@ services:
       AWS_SECRET_KEY: acceptance
       AWS_REGION: ap-northeast-2
       S3_BUCKET: acceptance
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_ROOT: /tmp/wearon-storage
       JAVA_TOOL_OPTIONS: -Xmx512m

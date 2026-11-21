@@ -28,7 +28,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = resolveToken(request);
 
-        if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
+        // 리프레시 토큰이나 typ claim이 없는 옛 액세스 토큰은 인증하지 않음 → 401 → 앱이 리프레시로 새 토큰을 받음
+        if (StringUtils.hasText(token) && jwtTokenProvider.isValidAccessToken(token)) {
             UUID userId = jwtTokenProvider.getUserIdFromToken(token);
             userRepository.findById(userId).ifPresent(user -> {
                 UserPrincipal userPrincipal = UserPrincipal.create(user);

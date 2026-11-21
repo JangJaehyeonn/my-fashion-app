@@ -36,6 +36,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -110,6 +112,18 @@ fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
     }
     val garmentGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         uri?.let { viewModel.setLocalGarment(it) }
+    }
+
+    val showConsentDialog by viewModel.showConsentDialog.collectAsState()
+    val isSavingConsent by viewModel.isSavingConsent.collectAsState()
+    LaunchedEffect(Unit) { viewModel.refreshConsent() }
+
+    if (showConsentDialog) {
+        VtonConsentDialog(
+            isSaving = isSavingConsent,
+            onAgree = { viewModel.agreeAndTryOn(context) },
+            onDismiss = { viewModel.dismissConsent() }
+        )
     }
 
     LaunchedEffect(errorMessage) {
@@ -265,7 +279,7 @@ fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
                     .height(52.dp)
                     .clip(WearonShapes.Card)
                     .background(if (canTryOn) WearonColors.Ink else WearonColors.Line)
-                    .clickable(enabled = canTryOn) { viewModel.tryOn(context) },
+                    .clickable(enabled = canTryOn) { viewModel.requestTryOn(context) },
                 contentAlignment = Alignment.Center
             ) {
                 if (isProcessing) {
@@ -274,6 +288,13 @@ fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
                     Text("가상 피팅 시작", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
             }
+            // 상시 안내 — 첫 사용 동의 화면과 별개로 매번 보이게
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "전신 사진과 옷 사진은 합성을 위해 외부 AI 서비스(Hugging Face)로 전송돼요. 마이 탭에서 동의를 철회할 수 있어요.",
+                fontSize = 12.sp,
+                color = WearonColors.SubText
+            )
             if (isProcessing) {
                 Spacer(Modifier.height(10.dp))
                 Text("가상 피팅 생성 중입니다. 최대 1~2분 정도 걸릴 수 있어요.", fontSize = 12.sp, color = WearonColors.SubText)
@@ -375,4 +396,37 @@ private fun PhotoSlot(
             }
         }
     }
+}
+
+/** 가상 피팅 첫 사용 동의. 동의해야 진행하며, 동의 시각은 서버에 저장된다 */
+@Composable
+private fun VtonConsentDialog(isSaving: Boolean, onAgree: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("사진 전송 동의") },
+        text = {
+            Text(
+                "가상 피팅은 전신 사진과 옷 사진을 Hugging Face의 공개 AI 서비스(미국)로 보내 합성해요.\n\n" +
+                    "• Wearon은 원본 전신 사진을 저장하지 않고 합성 결과만 저장해요.\n" +
+                    "• 보낸 사진은 해당 외부 서비스에 남을 수 있고, 그 보관은 운영사 정책을 따라요.\n" +
+                    "• 동의하지 않으면 가상 피팅만 쓸 수 없고 다른 기능은 그대로 쓸 수 있어요.\n" +
+                    "• 마이 탭에서 언제든 동의를 철회할 수 있어요.",
+                fontSize = 14.sp,
+                color = WearonColors.Ink
+            )
+        },
+        confirmButton = {
+            TextButton(enabled = !isSaving, onClick = onAgree) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = WearonColors.Ink)
+                } else {
+                    Text("동의하고 계속", color = WearonColors.Ink, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !isSaving, onClick = onDismiss) { Text("동의 안 함", color = WearonColors.SubText) }
+        },
+        containerColor = WearonColors.White
+    )
 }

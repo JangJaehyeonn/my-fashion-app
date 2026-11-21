@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=com.fashionapp.global.config.ProdConfigValidator
+org.springframework.boot.diagnostics.FailureAnalyzer=com.fashionapp.global.config.ProdConfigFailureAnalyzer

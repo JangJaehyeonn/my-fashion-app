@@ -3,7 +3,7 @@
  *
  * 실행 방법:
  *   k6 run -e JWT_TOKEN=<발급받은_JWT_토큰> k6-ai.js
- *   k6 run -e JWT_TOKEN=<발급받은_JWT_토큰> -e BASE_URL=http://fashion-app-jh.duckdns.org k6-ai.js
+ *   k6 run -e JWT_TOKEN=<발급받은_JWT_토큰> -e BASE_URL=https://<서버 주소> k6-ai.js
  *   (BASE_URL 미지정 시 기본값 http://localhost:8080)
  *
  * 코디 진단(POST /api/diagnosis)은 이미지 멀티파트 업로드가 필요해 이 스크립트 대상에서 제외.
