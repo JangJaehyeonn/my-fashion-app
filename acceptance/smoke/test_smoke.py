@@ -22,20 +22,34 @@ def test_unauthenticated_request_is_rejected(stack) -> None:
 
 
 @pytest.mark.smoke
-def test_closet_starts_empty_and_failed_classification_saves_nothing(user, fake_ai, tiny_jpg) -> None:
+def test_backend_reaches_fake_ai(user, fake_ai) -> None:
+    # 옷장 없이 쓰는 상황 추천은 백엔드 → AI 서버 경로를 그대로 지나간다 (저장소·분류 정책과 무관).
+    res = user.client.post(
+        "/api/outfits/recommend/situation",
+        json={"temperature": 12.0, "condition": "맑음", "situation": "DAILY"},
+    )
+    assert res.status_code == 200, res.text
+    outfits = res.json()["data"]["outfits"]
+    assert outfits[0]["reason"] == "가짜 AI 추천 이유"
+
+    calls = fake_ai.get("/__calls").json()
+    assert [c["path"] for c in calls] == ["/ai/outfits/recommend/situation"]
+    assert calls[0]["json"]["situation"] == "DAILY"
+
+
+@pytest.mark.smoke
+def test_closet_starts_empty(user) -> None:
     res = user.client.get("/api/clothes")
     assert res.status_code == 200, res.text
     assert res.json()["data"] == []
 
-    # 가짜 AI는 fail_ 접두어 파일을 분류 실패(500)로 돌려준다. 백엔드는 503으로 알리고 아무것도 저장하지 않는다.
+
+@pytest.mark.smoke
+def test_fake_ai_down_is_reported_not_crashed(user, fake_ai) -> None:
+    fake_ai.post("/__control", json={"mode": "down"}).raise_for_status()
     res = user.client.post(
-        "/api/clothes", files={"image": ("fail_top_white.jpg", tiny_jpg, "image/jpeg")}
+        "/api/outfits/recommend/situation",
+        json={"temperature": 12.0, "condition": "맑음", "situation": "DAILY"},
     )
     assert res.status_code == 503, res.text
     assert res.json()["success"] is False
-
-    calls = fake_ai.get("/__calls").json()
-    assert [c["path"] for c in calls] == ["/ai/clothes/classify"]
-    assert calls[0]["files"] == ["fail_top_white.jpg"]
-
-    assert user.client.get("/api/clothes").json()["data"] == []
