@@ -104,14 +104,34 @@ jobs:
                스타일 취향, 이름, 범위 밖 개선은 FAIL 사유가 아닙니다. "후속 제안"으로만 적으세요.
             4. 지적은 해당 줄에 리뷰 코멘트로 다세요:
                `gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/comments -f body=... -f commit_id=${{ github.event.workflow_run.head_sha }} -f path=... -F line=... -f side=RIGHT`
-            5. 마지막에 `gh pr comment ${{ steps.pr.outputs.number }} --body-file <파일>`로 요약 코멘트를 하나 남기세요. 요약 파일은 Write로 /tmp/ai-review.md에 만드세요.
-               요약의 첫 줄은 정확히 `<!-- ai-review:PASS:${{ github.event.workflow_run.head_sha }} -->` 또는 `<!-- ai-review:FAIL:${{ github.event.workflow_run.head_sha }} -->` 입니다.
+            5. 요약 코멘트는 직접 올리지 마세요. **마지막 응답(최종 메시지) 전체가 요약**이고, 워크플로가 그대로 PR 코멘트로 올립니다.
+               최종 메시지 앞뒤에 다른 말을 붙이지 마세요. 첫 줄은 정확히 `<!-- ai-review:PASS:${{ github.event.workflow_run.head_sha }} -->` 또는 `<!-- ai-review:FAIL:${{ github.event.workflow_run.head_sha }} -->` 입니다.
                그 아래: 판정 한 줄, 인수 기준별 근거 표(기준 / 근거 파일:줄 / 충족), FAIL 사유 목록, 후속 제안.
           claude_args: >-
             --max-turns 40
             --disallowedTools "Monitor,Edit,NotebookEdit"
             --model claude-sonnet-5-5
-            --allowedTools "Read,Glob,Grep,Write(//tmp/**),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*),Bash(gh pr comment ${{ steps.pr.outputs.number }}:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/comments:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/reviews:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
+            --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/comments:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/reviews:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
+      # 최종 메시지를 요약 코멘트로 올린다 (리뷰 모델에 코멘트·파일 쓰기 권한을 주지 않기 위해).
+      # 거부된 명령은 로그에 남겨 원인을 볼 수 있게 한다.
+      - name: 리뷰 요약을 PR 코멘트로
+        if: always() && steps.pr.outputs.action == 'review'
+        env:
+          EXEC_FILE: ${{ steps.claude.outputs.execution_file }}
+          PR: ${{ steps.pr.outputs.number }}
+        run: |
+          if [ -z "$EXEC_FILE" ] || [ ! -f "$EXEC_FILE" ]; then echo "실행 기록 없음"; exit 0; fi
+          echo "거부된 명령:"
+          jq -r '[.[] | select(.type == "result")] | last | (.permission_denials // [])[]
+            | "- \(.tool_name) \((.tool_input.command // .tool_input.file_path // "") | tostring | .[0:200])"' "$EXEC_FILE" || true
+          jq -r '[.[] | select(.type == "result")] | last | .result // ""' "$EXEC_FILE" > /tmp/ai-review.md
+          if grep -Eq '^\s*<!-- ai-review:(PASS|FAIL):' /tmp/ai-review.md; then
+            # 마커가 첫 줄이 되도록 앞의 공백 줄을 지운다.
+            sed -i '/./,$!d' /tmp/ai-review.md
+            gh pr comment "$PR" --repo "$REPO" --body-file /tmp/ai-review.md
+          else
+            echo "최종 메시지에 리뷰 마커가 없습니다:"; head -c 2000 /tmp/ai-review.md
+          fi
       - name: 리뷰 결과를 커밋 상태로
         id: status
         if: always() && steps.pr.outputs.action != 'skip'
