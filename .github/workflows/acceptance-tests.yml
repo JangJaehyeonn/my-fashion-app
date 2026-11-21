@@ -77,13 +77,25 @@ jobs:
               `acceptance_draft/fake_ai/app.py`에 엔드포인트를 추가하세요. 응답은 입력으로부터 결정적이어야 합니다
               (예: 임베딩은 속성 문장 해시로 만든 고정 벡터, 이유 문장은 고정 문구). 실제 AI 서버 스키마와 같은 camelCase 형식을 쓰세요.
               추가한 규칙은 파일 위 docstring에 적고, `acceptance_draft/test_fake_ai_phase${{ inputs.phase }}.py`에 `@pytest.mark.smoke` 점검 테스트를 쓰세요.
+              **기존 엔드포인트와 규칙은 바꾸지 말고 추가만 하세요.** 기존 응답을 바꿔야 할 것 같으면 바꾸지 말고 NOTES.md에 이유를 적으세요.
+              끝나기 전에 `FAKE_AI_DIR=acceptance_draft/fake_ai python3 -m pytest -q acceptance/test_fake_ai.py`로 기존 점검 테스트가
+              그대로 통과하는지 확인하고, 실패하면 사본을 고치세요.
             - 테스트에서 실제 OpenAI를 부르지 마세요.
             - 필요한 샘플이나 가정은 `acceptance_draft/phase${{ inputs.phase }}/NOTES.md`에 적으세요.
             - 커밋하지 마세요. 파일만 만드세요.
           claude_args: >-
             --max-turns 120
             --model claude-opus-5-5
-            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(python3 -m pytest:*),Bash(python3:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(grep:*),Bash(find:*),Bash(mkdir:*),Bash(cp acceptance/fake_ai/app.py acceptance_draft/fake_ai/app.py)"
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(python3 -m pytest:*),Bash(python3:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(grep:*),Bash(find:*),Bash(mkdir:*),Bash(cp acceptance/fake_ai/app.py acceptance_draft/fake_ai/app.py),Bash(FAKE_AI_DIR=acceptance_draft/fake_ai python3 -m pytest:*)"
+      # 다음 단계가 실패해도 초안을 잃지 않게 실행 결과물로 남긴다 (Actions 실행 화면 → Artifacts).
+      - name: 초안 보관
+        if: steps.scope.outputs.auto != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-draft-phase${{ inputs.phase }}
+          path: acceptance_draft/
+          if-no-files-found: warn
+          retention-days: 14
       - name: 보호 폴더로 옮기고 PR 열기
         if: steps.scope.outputs.auto != ''
         env:
@@ -117,7 +129,10 @@ jobs:
           done
           rm -rf acceptance_draft
           # 가짜 AI 자체 점검은 스택 없이 돈다. 깨졌으면 PR을 열지 않는다.
-          python3 -m pytest -q acceptance/test_fake_ai*.py
+          if ! python3 -m pytest -q acceptance/test_fake_ai*.py; then
+            echo "::error::초안의 가짜 AI가 기존 점검 테스트를 깨뜨렸습니다. 초안은 Artifacts에 보관했습니다. 다시 실행하세요."
+            exit 1
+          fi
           branch="acceptance/phase-${PHASE}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
