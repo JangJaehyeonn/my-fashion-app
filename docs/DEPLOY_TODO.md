@@ -20,7 +20,7 @@
 
 - `deploy.yml` (EC2 배포): **삭제하지 않고 비활성화**했습니다. `push` 트리거를 없애고 `workflow_dispatch`(수동 실행)만 남겼습니다. 복구할 때는 접속 대상 호스트·사용자·키 시크릿과 `cd ~/my-fashion-app` 이후 스크립트를 Tencent 서버 기준으로 바꾸고, `on:`에 `push: branches: [dev]`를 다시 넣으세요.
 - `ci.yml` (백엔드 빌드·테스트): 새로 추가했습니다. 이전에는 빌드·테스트 전용 잡이 없었습니다(`deploy.yml`과 PR 리뷰만 있었음). postgres·redis 서비스 컨테이너를 띄우고 `./gradlew build`를 실행합니다. 시크릿은 필요 없습니다. **GitHub에서의 실제 실행은 아직 확인하지 못했고**, 같은 명령을 로컬에서 통과시킨 상태입니다. (`backend/gradlew`가 실행 권한 없이 커밋돼 있어서 `+x`로 고쳤습니다.)
-- `pr-review.yml`: 그대로입니다. `ANTHROPIC_API_KEY`로 PR마다 Claude API를 호출하는 유료 워크플로입니다. 비용이 걱정되면 이 워크플로도 비활성화하세요.
+- `pr-review.yml`(PR마다 `ANTHROPIC_API_KEY`로 Claude API를 호출하던 유료 리뷰 워크플로)과 `.github/scripts/claude_pr_review.py`는 삭제했습니다. GitHub의 `ANTHROPIC_API_KEY` 시크릿도 이미 지워진 상태입니다(2026-11-08 확인).
 
 ### 더 이상 쓰지 않는 시크릿 (GitHub Settings → Secrets and variables → Actions에서 삭제 대상)
 
@@ -32,7 +32,6 @@
 
 - 확인 시점(2026-11-08, `gh secret list`)에 위 세 개가 **아직 남아 있었습니다.** 삭제하셨다면 반영이 안 된 것이니 다시 확인해 주세요.
 - AWS 액세스 키·S3 버킷 이름은 Actions 시크릿으로 등록된 적이 없고(목록에 없음) `backend/.env`에만 있었습니다. 로컬 `backend/.env`에 남은 `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `S3_BUCKET` 줄은 이제 어디서도 읽지 않으니 지우세요.
-- `ANTHROPIC_API_KEY`는 AWS와 무관합니다 (`pr-review.yml`이 사용 중).
 
 ## 서버·도메인이 준비되면 채울 값과 할 일
 
