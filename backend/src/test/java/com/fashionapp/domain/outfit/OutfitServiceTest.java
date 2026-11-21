@@ -250,7 +250,7 @@ class OutfitServiceTest {
 
     @Test
     @DisplayName("옷장 추천(FR-01): 미분류 옷만 있으면 CLOSET_ALL_UNCLASSIFIED(400)이고 AI 서버는 호출하지 않는다")
-    void recommendByCloset_onlyUnclassified_throwsWithoutAiCall() {
+    void recommendByCloset_onlyUnclassified_throwsWithoutAiCall() throws Exception {
         SituationRecommendRequest request = situationRequest(20.0, "맑음", "DAILY");
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
         given(clothesService.getMyClothes(userId)).willReturn(List.of(unclassified(UNCLASSIFIED_ID)));
