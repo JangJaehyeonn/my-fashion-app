@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "fake_ai"))
+# FAKE_AI_DIR로 다른 사본(인수 테스트 초안의 acceptance_draft/fake_ai)을 점검할 수 있다.
+sys.path.insert(0, os.environ.get("FAKE_AI_DIR") or str(Path(__file__).resolve().parent / "fake_ai"))
 import app as fake  # noqa: E402
 
 client = TestClient(fake.app)
