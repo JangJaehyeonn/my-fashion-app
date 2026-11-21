@@ -7,7 +7,8 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/fashionapp}
     username: ${DB_USERNAME:fashionapp}
-    password: ${DB_PASSWORD:fashionapp}
+    # 비밀값은 기본값 없이 환경 변수로만 받는다. 빠지면 RequiredSecretsValidator가 변수 이름을 알려 주며 기동을 중단한다.
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       # 동시에 열어둘 수 있는 최대 커넥션 수.

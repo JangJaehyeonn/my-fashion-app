@@ -23,12 +23,16 @@ docker ps --format '{{.Names}} {{.Ports}}'   # 둘 다 127.0.0.1:...로 시작�
 | 변수 | 필수 | 용도 |
 |---|---|---|
 | `JWT_SECRET` | ✅ | Base64 32바이트 이상. `openssl rand -base64 48` |
+| `DB_PASSWORD` | ✅ | postgres 비밀번호. 로컬 docker compose는 `POSTGRES_PASSWORD`와 같은 값 |
 | `GOOGLE_CLIENT_ID/SECRET`, `KAKAO_CLIENT_ID/SECRET` | ✅ | 없으면 기동 실패. 아이디 로그인만 쓸 거면 아무 문자열이어도 기동됨 |
+
+비밀값(`JWT_SECRET`, `DB_PASSWORD`, `GOOGLE_CLIENT_SECRET`, `KAKAO_CLIENT_SECRET`)은 설정 파일에 기본값이 없습니다.
+하나라도 비어 있으면 로컬·운영 모두 `RequiredSecretsValidator`가 빠진 변수 이름을 알려 주며 기동을 중단합니다.
 | `STORAGE_TYPE` | | `local`(기본) / `s3` |
 | `STORAGE_LOCAL_ROOT` | | 로컬 이미지 저장 경로. 기본 `~/fashionapp-storage`(프로젝트 밖) |
 | `PUBLIC_BASE_URL` | | 이미지 URL에 쓰는 서버 주소. 기본 `http://localhost:8080` |
 | `WEATHER_API_KEY` | 날씨용 | OpenWeatherMap 키. 백엔드가 직접 호출(AI 서버 불필요). 없으면 날씨가 503 |
-| `DB_*`, `REDIS_*`, `AI_SERVER_*` | | 기본값이 로컬 docker compose |
+| `DB_URL`, `DB_USERNAME`, `REDIS_*`, `AI_SERVER_*` | | 기본값이 로컬 docker compose |
 | `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `OAUTH2_REDIRECT_BASE` | | 로컬 기본값 있음 |
 
 옛 `AWS_ACCESS_KEY`·`AWS_SECRET_KEY`·`S3_BUCKET` 줄은 더 이상 읽지 않으니 지우세요.
