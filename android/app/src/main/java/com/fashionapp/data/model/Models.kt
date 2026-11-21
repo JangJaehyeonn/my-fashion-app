@@ -27,8 +27,17 @@ data class SignupRequest(
     val loginId: String,
     val password: String,
     val nickname: String,
-    // "만 14세 이상입니다" 체크 — 서버가 true가 아니면 400
-    val ageOver14: Boolean
+    // "만 14세 이상입니다" 체크와 이용약관·개인정보처리방침 동의 — 서버가 셋 다 true가 아니면 400 (FR-05)
+    val ageOver14: Boolean,
+    val termsAgreed: Boolean,
+    val privacyAgreed: Boolean
+)
+
+// 소셜 첫 로그인 확인: POST /api/users/me/age-confirmation 본문 (셋 다 true여야 200, 아니면 400)
+data class AgeConfirmationRequest(
+    val ageOver14: Boolean,
+    val termsAgreed: Boolean,
+    val privacyAgreed: Boolean
 )
 
 data class ChangePasswordRequest(

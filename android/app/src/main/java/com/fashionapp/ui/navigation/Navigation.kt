@@ -105,9 +105,13 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.AGE_GATE) {
                     val working by mainViewModel.ageGateWorking.collectAsState()
                     val error by mainViewModel.ageGateError.collectAsState()
+                    val agreements by mainViewModel.ageGateAgreements.collectAsState()
                     AgeGateScreen(
+                        agreements = agreements,
                         isWorking = working,
                         error = error,
+                        onAllChange = mainViewModel::onAgeGateAllChange,
+                        onItemChange = mainViewModel::onAgeGateAgreementChange,
                         onConfirm = mainViewModel::confirmAge,
                         onUnder14 = mainViewModel::declineUnder14
                     )

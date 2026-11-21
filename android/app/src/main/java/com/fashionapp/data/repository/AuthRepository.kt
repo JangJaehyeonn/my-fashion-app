@@ -1,7 +1,8 @@
 package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.AuthApi
-import com.fashionapp.data.datastore.TokenDataStore
+import com.fashionapp.data.datastore.TokenStore
+import com.fashionapp.data.model.AgeConfirmationRequest
 import com.fashionapp.data.model.ChangePasswordRequest
 import com.fashionapp.data.model.ExchangeRequest
 import com.fashionapp.data.model.LoginRequest
@@ -9,6 +10,7 @@ import com.fashionapp.data.model.RefreshRequest
 import com.fashionapp.data.model.SignupRequest
 import com.fashionapp.data.model.UpdateProfileRequest
 import com.fashionapp.data.model.UserProfile
+import com.fashionapp.data.model.Agreements
 import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,7 +18,7 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepository @Inject constructor(
     private val authApi: AuthApi,
-    private val tokenDataStore: TokenDataStore
+    private val tokenDataStore: TokenStore
 ) {
     val accessToken = tokenDataStore.accessToken
     val refreshToken = tokenDataStore.refreshToken
@@ -34,8 +36,16 @@ class AuthRepository @Inject constructor(
     }
 
     // 가입 → 토큰 저장 (바로 로그인 상태)
-    suspend fun signup(loginId: String, password: String, nickname: String, ageOver14: Boolean): Result<Unit> = runCatching {
-        val tokens = authApi.signup(SignupRequest(loginId, password, nickname, ageOver14)).data ?: error("가입 실패")
+    suspend fun signup(loginId: String, password: String, nickname: String, agreements: Agreements): Result<Unit> = runCatching {
+        val request = SignupRequest(
+            loginId = loginId,
+            password = password,
+            nickname = nickname,
+            ageOver14 = agreements.ageOver14,
+            termsAgreed = agreements.terms,
+            privacyAgreed = agreements.privacy
+        )
+        val tokens = authApi.signup(request).data ?: error("가입 실패")
         tokenDataStore.saveTokens(tokens.accessToken, tokens.refreshToken)
     }
 
@@ -69,8 +79,9 @@ class AuthRepository @Inject constructor(
         authApi.getMyProfile().data ?: error("프로필 없음")
     }
 
-    suspend fun confirmAge(): Result<UserProfile> = runCatching {
-        authApi.confirmAge().data ?: error("확인 저장 실패")
+    suspend fun confirmAge(agreements: Agreements): Result<UserProfile> = runCatching {
+        val request = AgeConfirmationRequest(agreements.ageOver14, agreements.terms, agreements.privacy)
+        authApi.confirmAge(request).data ?: error("확인 저장 실패")
     }
 
     suspend fun grantVtonConsent(): Result<UserProfile> = runCatching {
