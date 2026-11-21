@@ -121,7 +121,9 @@ def _reset_fake_ai(request: pytest.FixtureRequest) -> None:
 def token_for(user_id: str) -> str:
     now = int(time.time())
     key = base64.b64decode(JWT_SECRET_B64)
-    return jwt.encode({"sub": user_id, "iat": now, "exp": now + 3600}, key, algorithm="HS256")
+    # 백엔드는 typ=access 토큰만 인증한다 (JwtTokenProvider.TOKEN_TYPE_CLAIM).
+    claims = {"sub": user_id, "typ": "access", "iat": now, "exp": now + 3600}
+    return jwt.encode(claims, key, algorithm="HS256")
 
 
 @dataclass
