@@ -138,8 +138,9 @@ def make_user(stack: Stack, nickname: str = "인수테스트") -> User:
     user_id = str(uuid.uuid4())
     safe = nickname.replace("'", "''")
     stack.sql(
-        "INSERT INTO users (id, nickname, provider, provider_id, created_at, updated_at) "
-        f"VALUES ('{user_id}', '{safe}', 'google', 'acceptance-{user_id}', now(), now())"
+        # 만 14세 이상 확인을 마친 사용자로 만든다 (확인 전에는 대부분의 API가 막힌다).
+        "INSERT INTO users (id, nickname, provider, provider_id, age_confirmed_at, created_at, updated_at) "
+        f"VALUES ('{user_id}', '{safe}', 'google', 'acceptance-{user_id}', now(), now(), now())"
     )
     client = httpx.Client(
         base_url=stack.api,
