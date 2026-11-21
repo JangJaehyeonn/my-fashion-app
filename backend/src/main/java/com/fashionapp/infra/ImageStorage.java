@@ -30,6 +30,9 @@ public interface ImageStorage {
         return Optional.empty();
     }
 
+    /** 저장된 이미지의 바이트 (재분류처럼 서버가 이미지를 다시 보내야 할 때). 없거나 읽지 못하면 empty */
+    Optional<byte[]> readBytes(String storedKey);
+
     /** 저장된 이미지 하나 삭제. 없으면 무시 */
     void delete(String storedKey);
 

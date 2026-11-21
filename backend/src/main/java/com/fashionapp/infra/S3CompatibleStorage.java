@@ -28,6 +28,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -117,6 +118,17 @@ public class S3CompatibleStorage implements ImageStorage {
                 .signatureDuration(Duration.ofDays(7))
                 .getObjectRequest(GetObjectRequest.builder().bucket(bucket).key(ImageKeys.toKey(storedKey)).build())
                 .build()).url().toString();
+    }
+
+    @Override
+    public Optional<byte[]> readBytes(String storedKey) {
+        try {
+            return Optional.of(s3Client.getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(bucket).key(ImageKeys.toKey(storedKey)).build()).asByteArray());
+        } catch (RuntimeException e) {
+            log.warn("S3 image read failed: {}", e.getMessage());
+            return Optional.empty();
+        }
     }
 
     @Override

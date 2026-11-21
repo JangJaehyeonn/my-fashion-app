@@ -100,8 +100,28 @@ class LocalImageIntegrationTest {
         String body = mockMvc.perform(multipart("/api/clothes")
                         .file(new MockMultipartFile("image", "shirt.jpg", "image/jpeg", JPEG))
                         .header("Authorization", token))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return JsonPath.read(body, "$.data.imageUrl"); // 로컬 저장소: 백엔드 이미지 API URL
+    }
+
+    @Test
+    @DisplayName("FR-01 재분류: 로컬 저장소에 저장된 원본 바이트를 그대로 AI 분류에 보낸다")
+    void reclassifySendsStoredBytes() throws Exception {
+        uploadClothes(ownerToken);
+        String id = clothesRepository.findByUser_IdOrderByCreatedAtDesc(owner.getId()).get(0).getId().toString();
+        AiClothesClassifyResponse shoes = new AiClothesClassifyResponse();
+        ReflectionTestUtils.setField(shoes, "category", "SHOES");
+        ReflectionTestUtils.setField(shoes, "color", "화이트");
+        ReflectionTestUtils.setField(shoes, "name", "화이트 스니커즈");
+        given(aiServerClient.classifyClothes(org.mockito.ArgumentMatchers.eq(JPEG),
+                org.mockito.ArgumentMatchers.endsWith(".jpg"), org.mockito.ArgumentMatchers.eq("image/jpeg")))
+                .willReturn(shoes);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/clothes/" + id + "/reclassify").header("Authorization", ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.category").value("SHOES"));
     }
 
     private String pathOf(String url) {

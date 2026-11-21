@@ -87,8 +87,9 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
         given(imageStorage.store(any(), anyString(), any())).willReturn("clothes/x.jpg");
 
         mockMvc.perform(multipart("/api/clothes").file(image("image")).header("Authorization", token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("블랙 티셔츠"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.name").value("블랙 티셔츠"))
+                .andExpect(jsonPath("$.data.classificationFailed").value(false));
 
         assertNoTransactionDuringAiCall();
     }
@@ -131,17 +132,48 @@ class AiCallTransactionIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("AI 타임아웃이면 504 + 안내 메시지, 옷은 저장·업로드되지 않는다")
-    void timeoutReturns504() throws Exception {
+    @DisplayName("FR-01: AI 타임아웃이면 201 + 미분류로 저장된다 (사진은 업로드)")
+    void timeoutSavesUnclassified() throws Exception {
         given(aiServerClient.classifyClothes(any())).willThrow(new CustomException(ErrorCode.AI_SERVER_TIMEOUT));
+        given(imageStorage.store(any(), anyString(), any())).willReturn("clothes/t.jpg");
 
         mockMvc.perform(multipart("/api/clothes").file(image("image")).header("Authorization", token))
-                .andExpect(status().isGatewayTimeout())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value(ErrorCode.AI_SERVER_TIMEOUT.getMessage()));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.classificationFailed").value(true))
+                .andExpect(jsonPath("$.data.category").value("UNCLASSIFIED"));
 
-        verify(imageStorage, never()).store(any(), anyString(), any());
-        assertThat(clothesRepository.findImageUrlsByUserId(user.getId())).isEmpty();
+        verify(imageStorage).store(any(), anyString(), any());
+        assertThat(clothesRepository.findImageUrlsByUserId(user.getId())).containsExactly("clothes/t.jpg");
+    }
+
+    @Test
+    @DisplayName("FR-01: PATCH로 고친 값이 목록에 반영되고, 재분류는 AI 실패 시 503 + 기존 값 유지")
+    void patchAndReclassify() throws Exception {
+        Clothes saved = clothesRepository.save(Clothes.builder().user(user)
+                .imageUrl("clothes/u.jpg").category("UNCLASSIFIED").build());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/clothes/" + saved.getId()).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"BOTTOM\",\"color\":\"블랙\",\"name\":\"블랙 슬랙스\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.classificationFailed").value(false));
+
+        given(imageStorage.readBytes("clothes/u.jpg")).willReturn(java.util.Optional.of(new byte[]{1}));
+        given(aiServerClient.classifyClothes(any(byte[].class), anyString(), anyString()))
+                .willThrow(new CustomException(ErrorCode.AI_SERVER_ERROR));
+        mockMvc.perform(post("/api/clothes/" + saved.getId() + "/reclassify").header("Authorization", token))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(ErrorCode.CLOTHES_RECLASSIFY_UNAVAILABLE.getMessage()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/clothes").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].category").value("BOTTOM"))
+                .andExpect(jsonPath("$.data[0].color").value("블랙"))
+                .andExpect(jsonPath("$.data[0].name").value("블랙 슬랙스"));
     }
 
     private void recordState() {

@@ -53,9 +53,14 @@ public class OutfitService {
     public ClosetRecommendResponse recommendByCloset(UUID userId, SituationRecommendRequest request) {
         User user = findUser(userId);
 
-        List<ClothesResponse> closet = clothesService.getMyClothes(userId);
-        if (closet.isEmpty()) {
+        // FR-01: 미분류 옷은 추천 대상에서 뺀다 (AI에 보내지도, 응답 ID로 받아들이지도 않음)
+        List<ClothesResponse> all = clothesService.getMyClothes(userId);
+        if (all.isEmpty()) {
             throw new CustomException(ErrorCode.CLOSET_EMPTY);
+        }
+        List<ClothesResponse> closet = all.stream().filter(c -> !c.isClassificationFailed()).toList();
+        if (closet.isEmpty()) {
+            throw new CustomException(ErrorCode.CLOSET_ALL_UNCLASSIFIED);
         }
 
         List<AiClosetRecommendRequest.ClosetItem> items = closet.stream()

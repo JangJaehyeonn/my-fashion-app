@@ -59,7 +59,7 @@ class ClothesServiceTest {
 
     @BeforeEach
     void setUp() {
-        clothesService = new ClothesService(clothesRepository, userRepository, aiServerClient, imageStorage);
+        clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage);
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
@@ -119,18 +119,72 @@ class ClothesServiceTest {
     }
 
     @Test
-    @DisplayName("옷 등록: AI 분류가 실패하면 이미지를 저장하지 않는다")
-    void register_aiFailure_doesNotUpload() {
-        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+    @DisplayName("옷 등록(FR-01): AI 서버 오류(다운·5xx)면 사진은 저장하고 미분류로 등록한다")
+    void register_aiServerError_savesUnclassified() {
         willThrow(new CustomException(ErrorCode.AI_SERVER_ERROR)).given(aiServerClient).classifyClothes(image);
 
-        assertThatThrownBy(() -> clothesService.register(userId, image))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.AI_SERVER_ERROR);
+        assertUnclassified(registerExpectingSave());
+    }
 
-        verify(imageStorage, never()).store(any(), anyString(), any());
-        verify(clothesRepository, never()).save(any());
+    @Test
+    @DisplayName("옷 등록(FR-01): AI 타임아웃이어도 미분류로 등록한다")
+    void register_aiTimeout_savesUnclassified() {
+        willThrow(new CustomException(ErrorCode.AI_SERVER_TIMEOUT)).given(aiServerClient).classifyClothes(image);
+
+        assertUnclassified(registerExpectingSave());
+    }
+
+    @Test
+    @DisplayName("옷 등록(FR-01): AI가 잘못된 형식(카테고리·색상 없음)을 주면 미분류로 등록한다")
+    void register_malformedResponse_savesUnclassified() {
+        given(aiServerClient.classifyClothes(image)).willReturn(new AiClothesClassifyResponse());
+
+        assertUnclassified(registerExpectingSave());
+    }
+
+    @Test
+    @DisplayName("옷 등록(FR-01): AI 응답 본문이 비어 있으면(null) 미분류로 등록한다")
+    void register_nullResponse_savesUnclassified() {
+        given(aiServerClient.classifyClothes(image)).willReturn(null);
+
+        assertUnclassified(registerExpectingSave());
+    }
+
+    @Test
+    @DisplayName("옷 등록(FR-01): 분류에 성공하면 분류 실패 표시는 false")
+    void register_success_isNotFailed() {
+        AiClothesClassifyResponse ai = aiResult("TOP", "네이비", "네이비 니트");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(aiServerClient.classifyClothes(image)).willReturn(ai);
+        given(imageStorage.store(image, "clothes", userId)).willReturn("clothes/a.jpg");
+        given(clothesRepository.save(any(Clothes.class))).willAnswer(inv -> inv.getArgument(0));
+
+        ClothesResponse response = clothesService.register(userId, image);
+
+        assertThat(response.isClassificationFailed()).isFalse();
+        assertThat(response.getCategory()).isEqualTo(ClothesCategory.TOP);
+    }
+
+    private ClothesResponse registerExpectingSave() {
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(imageStorage.store(image, "clothes", userId)).willReturn("clothes/a.jpg");
+        given(imageStorage.resolveUrl("clothes/a.jpg")).willReturn("https://img/a.jpg");
+        given(clothesRepository.save(any(Clothes.class))).willAnswer(inv -> inv.getArgument(0));
+
+        ClothesResponse response = clothesService.register(userId, image);
+
+        verify(imageStorage).store(image, "clothes", userId);
+        ArgumentCaptor<Clothes> captor = ArgumentCaptor.forClass(Clothes.class);
+        verify(clothesRepository).save(captor.capture());
+        assertThat(captor.getValue().getCategory()).isEqualTo("UNCLASSIFIED");
+        assertThat(captor.getValue().getColor()).isNull();
+        return response;
+    }
+
+    private static void assertUnclassified(ClothesResponse response) {
+        assertThat(response.isClassificationFailed()).isTrue();
+        assertThat(response.getCategory()).isEqualTo(ClothesCategory.UNCLASSIFIED);
+        assertThat(response.getImageUrl()).isEqualTo("https://img/a.jpg");
     }
 
     @Test

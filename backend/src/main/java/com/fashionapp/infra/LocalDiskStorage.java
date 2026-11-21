@@ -96,6 +96,20 @@ public class LocalDiskStorage implements ImageStorage {
     }
 
     @Override
+    public Optional<byte[]> readBytes(String storedKey) {
+        Optional<Resource> resource = load(ImageKeys.toKey(storedKey));
+        if (resource.isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(resource.get().getContentAsByteArray());
+        } catch (IOException e) {
+            log.warn("local image read failed: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    @Override
     public void delete(String storedKey) {
         String key = ImageKeys.toKey(storedKey);
         if (!ImageKeys.isValidKey(key)) {
