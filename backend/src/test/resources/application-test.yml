@@ -2,6 +2,9 @@
 # DB/Redis는 로컬 docker compose(postgres, redis)를 그대로 쓰고, 외부 서비스 자격 증명은 전부 더미 값으로 덮어써서
 # backend/.env의 실제 키가 테스트에 쓰이지 않게 한다 (S3·AI 서버 빈은 테스트에서 @MockBean으로 대체).
 spring:
+  datasource:
+    # 로컬·CI 테스트용 postgres 컨테이너의 테스트 전용 비밀번호 (실제 비밀값 아님)
+    password: fashionapp
   security:
     oauth2:
       client:
