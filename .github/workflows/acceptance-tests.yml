@@ -1,0 +1,135 @@
+name: Acceptance tests draft
+
+# Phase를 시작할 때 실행한다 (phase.yml이 자동으로, 또는 사람이 수동으로).
+# Claude가 그 Phase 요구사항의 인수 기준을 HTTP 테스트 초안으로 만들고, 필요한 가짜 AI 엔드포인트도 함께 추가한다.
+# 이 워크플로가 보호 폴더(acceptance/)로 옮겨 dev 대상 PR을 연다. 재현이 PR 하나로 승인한다.
+# verify = "human"인 요구사항(앱 화면)은 테스트를 만들지 않는다 (이슈의 human-verify 라벨로 사람이 확인).
+# Phase의 요구사항이 전부 human이면 초안 없이 바로 그 Phase 이슈를 ready로 만든다.
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "인수 테스트를 만들 Phase 번호 (1~5)"
+        required: true
+        type: choice
+        options: ["1", "2", "3", "4", "5"]
+
+permissions: {}
+
+jobs:
+  draft:
+    concurrency:
+      group: claude-implement
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: write
+    env:
+      PHASE: ${{ inputs.phase }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: 테스트로 옮길 요구사항 고르기
+        id: scope
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, tomllib
+          reqs = tomllib.load(open("docs/requirements/issues.toml", "rb"))["requirement"]
+          phase = int(os.environ["PHASE"])
+          auto = [r["id"] for r in reqs if r["phase"] == phase and r.get("verify") != "human"]
+          human = [r["id"] for r in reqs if r["phase"] == phase and r.get("verify") == "human"]
+          print("auto=" + ",".join(auto))
+          print("human=" + ",".join(human))
+          PY
+      - name: 사람 확인 요구사항뿐이면 바로 ready
+        if: steps.scope.outputs.auto == ''
+        run: |
+          echo "Phase $PHASE는 앱 화면(사람 확인) 요구사항만 있어 인수 테스트 초안을 만들지 않습니다."
+          python3 scripts/create_issues.py --mark-ready "$PHASE"
+          gh workflow run feeder.yml --ref "${{ github.event.repository.default_branch }}"
+      - uses: ./.github/actions/setup-wearon
+        if: steps.scope.outputs.auto != ''
+      - uses: anthropics/claude-code-action@v1
+        if: steps.scope.outputs.auto != ''
+        # 요구사항이 많은 Phase는 턴 한도를 넘길 수 있다. 초안 파일이 만들어졌는지는 다음 단계가 확인한다.
+        continue-on-error: true
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: "github-actions"
+          prompt: |
+            `docs/requirements/issues.toml`에서 다음 요구사항의 `acceptance` 항목을 pytest + httpx 인수 테스트로 옮기세요: ${{ steps.scope.outputs.auto }}
+            (같은 Phase의 앱 화면 요구사항 ${{ steps.scope.outputs.human }}은 사람이 확인하므로 테스트를 만들지 마세요.)
+            먼저 `acceptance/README.md`, `acceptance/conftest.py`, `acceptance/fake_ai/app.py`, `acceptance/smoke/test_smoke.py`, CLAUDE.md를 읽으세요.
+            - 테스트 파일은 `acceptance_draft/phase${{ inputs.phase }}/test_<fr번호소문자>.py`에만 쓰세요 (예: test_fr09.py). 다른 경로는 수정하지 마세요.
+            - 모든 테스트 함수에 `@pytest.mark.fr("FR-xx")`를 붙이세요. 픽스처 `stack`, `user`, `fake_ai`, `tiny_jpg`와 `make_user`를 쓰세요.
+              옷 데이터는 API로 등록하세요 (가짜 AI가 업로드 파일 이름 `top_navy_knit.jpg`로 분류를 정합니다). DB를 직접 고쳐야 하면 `stack.sql`을 쓰세요.
+            - 아직 구현이 없으므로 테스트는 실패해도 됩니다. 구현 방법이 아니라 사용자가 받는 결과(HTTP 상태, 응답 JSON 필드와 값)를 검증하세요.
+              요구사항에 적힌 필드 이름·숫자·문구를 그대로 쓰고, 적혀 있지 않은 세부(정확한 문장 등)는 가정하지 마세요.
+            - 판정과 숫자는 규칙으로 정해지므로 기대값을 직접 계산해 단정하세요 (예: 상의2·하의2·신발1이면 유효 코디 4개).
+            - 이 요구사항들이 새 AI 서버 엔드포인트(임베딩, 이유 문장 생성, 속성 추출 등)를 쓰면, `acceptance/fake_ai/app.py`를 복사해
+              `acceptance_draft/fake_ai/app.py`에 엔드포인트를 추가하세요. 응답은 입력으로부터 결정적이어야 합니다
+              (예: 임베딩은 속성 문장 해시로 만든 고정 벡터, 이유 문장은 고정 문구). 실제 AI 서버 스키마와 같은 camelCase 형식을 쓰세요.
+              추가한 규칙은 파일 위 docstring에 적고, `acceptance_draft/test_fake_ai_phase${{ inputs.phase }}.py`에 `@pytest.mark.smoke` 점검 테스트를 쓰세요.
+            - 테스트에서 실제 OpenAI를 부르지 마세요.
+            - 필요한 샘플이나 가정은 `acceptance_draft/phase${{ inputs.phase }}/NOTES.md`에 적으세요.
+            - 커밋하지 마세요. 파일만 만드세요.
+          claude_args: >-
+            --max-turns 120
+            --model claude-opus-5-5
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(python3 -m pytest:*),Bash(python3:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(grep:*),Bash(find:*),Bash(mkdir:*),Bash(cp acceptance/fake_ai/app.py acceptance_draft/fake_ai/app.py)"
+      - name: 보호 폴더로 옮기고 PR 열기
+        if: steps.scope.outputs.auto != ''
+        env:
+          REPO: ${{ github.repository }}
+          HUMAN: ${{ steps.scope.outputs.human }}
+        run: |
+          set -euo pipefail
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          src="acceptance_draft/phase${PHASE}"
+          dest="acceptance/phase${PHASE}"
+          if [ ! -d "$src" ] || ! find "$src" -name 'test_*.py' | grep -q .; then
+            echo "::error::테스트 초안이 만들어지지 않았습니다."
+            exit 1
+          fi
+          mkdir -p "$dest"
+          for f in "$src"/*; do
+            name=$(basename "$f")
+            if [ -e "$dest/$name" ]; then
+              echo "::error::이미 있는 인수 테스트를 덮어쓰려 합니다: $dest/$name"
+              exit 1
+            fi
+          done
+          cp -r "$src"/. "$dest/"
+          touch "$dest/__init__.py"
+          if [ -f acceptance_draft/fake_ai/app.py ]; then
+            cp acceptance_draft/fake_ai/app.py acceptance/fake_ai/app.py
+          fi
+          for f in acceptance_draft/test_fake_ai_phase*.py; do
+            [ -e "$f" ] && cp "$f" acceptance/
+          done
+          rm -rf acceptance_draft
+          # 가짜 AI 자체 점검은 스택 없이 돈다. 깨졌으면 PR을 열지 않는다.
+          python3 -m pytest -q acceptance/test_fake_ai*.py
+          branch="acceptance/phase-${PHASE}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add acceptance
+          git commit -m "test(acceptance): Phase ${PHASE} 인수 기준 테스트 초안"
+          git push -u origin "$branch"
+          prev=$((PHASE - 1))
+          body=$(printf '%s\n\n%s\n\n%s\n' \
+            "Phase ${PHASE} 요구사항(${{ steps.scope.outputs.auto }})의 인수 기준을 테스트로 옮긴 초안입니다. 재현 승인 후 머지하면 이 Phase 구현 PR들의 합격 기준이 됩니다." \
+            "앱 화면 요구사항(사람 확인): ${HUMAN:-없음}" \
+            "머지 전에 docs/phase-gate.md의 체크리스트(Phase ${prev}의 human-verify 이슈 에뮬레이터 확인 포함)를 확인하세요.")
+          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$branch" \
+            --title "test(acceptance): Phase ${PHASE} 인수 기준 테스트" --body "$body"
+          gh workflow run CI --ref "$branch"

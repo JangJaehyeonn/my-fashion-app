@@ -1,0 +1,58 @@
+# 인수 테스트 스택. 모든 포트는 127.0.0.1에만 연다.
+# 값은 테스트 전용 가짜 값이다 (실제 비밀값 아님). 외부 AI는 fake-ai가 대신한다.
+name: wearon-acceptance
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: fashionapp
+      POSTGRES_USER: fashionapp
+      POSTGRES_PASSWORD: fashionapp
+    ports: ["127.0.0.1:15432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fashionapp -d fashionapp"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  fake-ai:
+    build: ./fake_ai
+    ports: ["127.0.0.1:18000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  backend:
+    build: ../backend
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      fake-ai: {condition: service_healthy}
+    ports: ["127.0.0.1:18080:8080"]
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/fashionapp
+      DB_USERNAME: fashionapp
+      DB_PASSWORD: fashionapp
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      AI_SERVER_URL: http://fake-ai:8000
+      # 테스트 전용 HS256 키 (base64). conftest.py가 같은 값으로 토큰을 만든다.
+      JWT_SECRET: d2Vhcm9uLWFjY2VwdGFuY2UtdGVzdC1vbmx5LXNlY3JldC1rZXktMzJieXRlcyE=
+      GOOGLE_CLIENT_ID: acceptance
+      GOOGLE_CLIENT_SECRET: acceptance
+      KAKAO_CLIENT_ID: acceptance
+      KAKAO_CLIENT_SECRET: acceptance
+      AWS_ACCESS_KEY: acceptance
+      AWS_SECRET_KEY: acceptance
+      AWS_REGION: ap-northeast-2
+      S3_BUCKET: acceptance
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_ROOT: /tmp/wearon-storage
+      JAVA_TOOL_OPTIONS: -Xmx512m

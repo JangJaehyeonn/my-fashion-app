@@ -1,38 +1,106 @@
 name: CI
 
-# 백엔드 빌드·테스트. 통합 테스트는 로컬과 같은 postgres·redis가 필요해 서비스 컨테이너로 띄운다.
-# 외부 호출(AI 서버·저장소)은 테스트에서 전부 목/임시 디렉터리라 시크릿이 필요 없다.
 on:
-  push:
-    branches: [dev, master]
   pull_request:
+    # edited: PR 제목(FR-xx)을 고치면 인수 테스트 대상이 바뀌므로 다시 돈다.
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [dev]
+  workflow_dispatch:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
+    name: backend
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: fashionapp
-          POSTGRES_USER: fashionapp
-          POSTGRES_PASSWORD: fashionapp
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U fashionapp" --health-interval 5s --health-timeout 5s --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports: ["6379:6379"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: ./.github/actions/setup-wearon
+      - name: 백엔드 테스트
+        run: backend/gradlew -p backend test --no-daemon
+
+  ai-server:
+    name: ai-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-wearon
+      - name: 자동화 스크립트 테스트
+        run: python3 -m pytest -q scripts/tests
+      - name: AI 서버 테스트
+        run: |
+          if [ ! -d ai-server/tests ]; then echo "::notice::ai-server/tests가 아직 없습니다."; exit 0; fi
+          python3 -m pytest -q ai-server/tests
+
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-wearon
+      - name: 앱 빌드·단위 테스트
+        run: android/gradlew -p android assembleDebug testDebugUnitTest --no-daemon
+
+  acceptance:
+    name: acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-wearon
+      - name: 인수 테스트 대상 계산 (완료된 요구사항 + 이 PR의 요구사항)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python3 scripts/active_frs.py "$PR_TITLE" >> "$GITHUB_ENV"
+      - name: 인수 테스트 (스모크 + 대상 요구사항)
+        run: |
+          echo "실행 대상 요구사항: ${WEARON_ACTIVE_FRS:-없음 (스모크만)}"
+          python3 -m pytest -q acceptance
+
+  guard:
+    name: protected-paths
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'claude/')
+    runs-on: ubuntu-latest
+    env:
+      BASE_REF: ${{ github.base_ref }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+    steps:
+      - uses: actions/checkout@v4
         with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-      - name: Build and test
-        working-directory: backend
-        run: ./gradlew build --no-daemon
+          fetch-depth: 0
+      - name: PR 제목에 요구사항 ID 필수
+        run: |
+          if ! printf '%s' "$PR_TITLE" | grep -Eq 'FR-[0-9]{2}'; then
+            echo "::error::PR 제목에 요구사항 ID(FR-xx)가 없습니다. 인수 테스트 대상이 정해지지 않습니다."
+            exit 1
+          fi
+      - name: 보호 경로 수정 금지
+        run: |
+          git diff --name-only --no-renames -z "origin/${BASE_REF}...HEAD" | python3 -c '
+          import re, sys
+          protected = re.compile(
+              r"^(acceptance/|scripts/|\.github/|\.claude/|docs/requirements/|docs/design/|CLAUDE\.md$)"
+          )
+          paths = [p for p in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0") if p]
+          print("\n".join(paths))
+          bad = [p for p in paths if protected.match(p)]
+          for p in bad:
+              print(f"::error file={p}::Claude 브랜치에서 보호 경로를 수정했습니다. 구현을 고치세요.")
+          sys.exit(1 if bad else 0)
+          '
+      - name: 테스트 건너뛰기 추가 금지
+        run: |
+          if git diff "origin/${BASE_REF}...HEAD" -- backend/src/test android/app/src/test ai-server/tests \
+              | grep -E '^\+.*(@Disabled|@Ignore|Assumptions\.assume|pytest\.mark\.(skip|xfail)|pytest\.skip\(|pytest\.xfail\()'; then
+            echo "::error::테스트에 건너뛰기(@Disabled·skip·xfail 등)를 추가했습니다. 구현을 고치세요."
+            exit 1
+          fi
