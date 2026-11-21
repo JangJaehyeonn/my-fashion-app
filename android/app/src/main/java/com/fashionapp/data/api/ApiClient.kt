@@ -9,6 +9,8 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.runBlocking
 import okhttp3.Authenticator
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -43,6 +45,8 @@ class TokenAuthenticator @Inject constructor(
 
     override fun authenticate(route: Route?, response: Response): Request? {
         if (responseCount(response) >= 2) return null
+        // 로그인·재발급 같은 /auth/ 요청의 401은 토큰 만료가 아니라 요청 자체의 실패(코드 만료 등) — 재발급 시도 안 함
+        if (response.request.url.encodedPath.contains("/auth/")) return null
 
         val refreshToken = runBlocking { tokenDataStore.refreshToken.firstOrNull() } ?: return null
 
@@ -101,6 +105,32 @@ class LongRunningTimeoutInterceptor : Interceptor {
     }
 }
 
+/**
+ * 이미지 로딩(Coil)용 OkHttpClient 구성 요소. 로컬 저장소의 이미지는 `/api/images/...`로 내려오며 JWT가 필요하다.
+ * 반면 피팅·옷장의 "상품 주소로 등록"은 쇼핑몰 같은 외부 이미지도 Coil로 불러오므로,
+ * 토큰은 **백엔드 호스트로 가는 요청에만** 붙이고 외부 호스트에는 절대 보내지 않는다.
+ */
+object BackendHost {
+    private val backend: HttpUrl = BuildConfig.BASE_URL.toHttpUrl()
+    fun matches(url: HttpUrl) = url.host == backend.host && url.port == backend.port && url.scheme == backend.scheme
+}
+
+class BackendOnlyAuthInterceptor(private val delegate: Interceptor) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response =
+        if (BackendHost.matches(chain.request().url)) delegate.intercept(chain) else chain.proceed(chain.request())
+}
+
+class BackendOnlyAuthenticator(private val delegate: Authenticator) : Authenticator {
+    override fun authenticate(route: Route?, response: Response): Request? =
+        if (BackendHost.matches(response.request.url)) delegate.authenticate(route, response) else null
+}
+
+fun imageOkHttpClient(authInterceptor: Interceptor, authenticator: Authenticator): OkHttpClient =
+    OkHttpClient.Builder()
+        .addInterceptor(BackendOnlyAuthInterceptor(authInterceptor))
+        .authenticator(BackendOnlyAuthenticator(authenticator))
+        .build()
+
 @Singleton
 class ApiClient @Inject constructor(
     authInterceptor: AuthInterceptor,
@@ -111,9 +141,8 @@ class ApiClient @Inject constructor(
         .addInterceptor(authInterceptor)
         .addInterceptor(LongRunningTimeoutInterceptor())
         .authenticator(tokenAuthenticator)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        })
+        // 릴리즈에선 본문(토큰·presigned URL·이미지)이 logcat에 남지 않도록 로깅을 끄고, 디버그에서도 인증 헤더는 가린다
+        .addInterceptor(DebugHttpLogging.create())
         .build()
 
     val retrofit: Retrofit = Retrofit.Builder()
@@ -121,4 +150,29 @@ class ApiClient @Inject constructor(
         .client(okHttpClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
+}
+
+/**
+ * 디버그 빌드 HTTP 로그. 릴리즈는 아무것도 남기지 않는다.
+ * 디버그에서도 비밀번호·토큰이 오가는 요청(/auth/ 아래 경로, 비밀번호 변경)은 본문을 빼고 요청 줄과 상태만 남긴다 —
+ * 디버그 로그가 버그 리포트 등으로 공유될 때 비밀번호가 함께 나가지 않도록. Authorization 헤더는 항상 가린다.
+ * 위치(좌표)가 URL 쿼리로 가는 날씨 요청은 아예 로깅하지 않는다.
+ */
+object DebugHttpLogging {
+    private fun isLocation(path: String) = path.endsWith("/weather")
+    private fun isSensitive(path: String) = path.contains("/auth/") || path.endsWith("/users/me/password")
+
+    fun create(): Interceptor {
+        if (!BuildConfig.DEBUG) return Interceptor { it.proceed(it.request()) }
+        val body = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+            redactHeader("Authorization")
+        }
+        val basic = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
+        return Interceptor { chain ->
+            val path = chain.request().url.encodedPath
+            if (isLocation(path)) chain.proceed(chain.request())
+            else (if (isSensitive(path)) basic else body).intercept(chain)
+        }
+    }
 }

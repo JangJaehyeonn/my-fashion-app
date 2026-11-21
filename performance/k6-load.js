@@ -12,7 +12,7 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { Rate, Trend, Counter } from "k6/metrics";
 
-const BASE_URL = "http://fashion-app-jh.duckdns.org";
+const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const JWT_TOKEN = __ENV.JWT_TOKEN;
 
 const errorRate = new Rate("error_rate");

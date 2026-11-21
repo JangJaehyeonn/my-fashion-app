@@ -1,6 +1,7 @@
 package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.OutfitApi
+import com.fashionapp.data.location.Coordinates
 import com.fashionapp.data.model.SituationRecommendRequest
 import com.fashionapp.data.model.ClosetRecommendResponse
 import com.fashionapp.data.model.Weather
@@ -15,7 +16,7 @@ class OutfitRepository @Inject constructor(
         outfitApi.recommendByCloset(request).data ?: error("옷장 기반 추천 실패")
     }
 
-    suspend fun getWeather(): Result<Weather> = runCatching {
-        outfitApi.getWeather().data ?: error("날씨 조회 실패")
+    suspend fun getWeather(coordinates: Coordinates): Result<Weather> = runCatching {
+        outfitApi.getWeather(coordinates.lat, coordinates.lon).data ?: error("날씨 조회 실패")
     }
 }

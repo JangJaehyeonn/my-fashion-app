@@ -38,6 +38,8 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    // AI 서버 지연·오류 응답 흉내 (실제 AI 서버 호출 없이 타임아웃 검증)
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 }
 

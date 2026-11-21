@@ -1,6 +1,6 @@
 # DuckDNS auto-update (EC2 boot)
 
-Keeps `fashion-app-jh.duckdns.org` pointed at this EC2 instance's current public IP.
+Keeps `<your-subdomain>.duckdns.org` pointed at this EC2 instance's current public IP.
 Runs once automatically every time the instance boots (systemd oneshot service),
 so a stop/start (which changes the public IP unless an Elastic IP is attached)
 doesn't leave the domain stale.
@@ -15,8 +15,8 @@ chmod +x infra/duckdns/update-duckdns.sh
 # 1. Create the token file OUTSIDE the repo — never commit the real token.
 sudo mkdir -p /etc/duckdns
 sudo tee /etc/duckdns/duckdns.env > /dev/null <<'EOF'
-DUCKDNS_DOMAIN=fashion-app-jh
-DUCKDNS_TOKEN=610403c9-b7d4-41ab-9019-6cd38f72d3e8
+DUCKDNS_DOMAIN=your-subdomain
+DUCKDNS_TOKEN=<your-duckdns-token>
 EOF
 sudo chmod 600 /etc/duckdns/duckdns.env
 sudo chown root:root /etc/duckdns/duckdns.env

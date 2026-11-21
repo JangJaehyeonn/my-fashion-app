@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 홈 날씨를 현재 위치 기준으로 조회 (대략적인 위치만, 정밀 위치 불필요) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application

@@ -32,7 +32,7 @@ class UserPreferredStylesTest {
     private UserService userService;
 
     private User legacyUser(User.PreferredStyle legacy) {
-        return User.builder()
+        return User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(UUID.randomUUID())
                 .email("test@example.com")
                 .nickname("테스터")

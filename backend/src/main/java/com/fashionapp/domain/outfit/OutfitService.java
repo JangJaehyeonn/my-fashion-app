@@ -13,7 +13,6 @@ import com.fashionapp.infra.AiSituationRecommendRequest;
 import com.fashionapp.infra.AiSituationRecommendResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -35,7 +34,8 @@ public class OutfitService {
     private final AiServerClient aiServerClient;
     private final ClothesService clothesService;
 
-    @Transactional(readOnly = true)
+    // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
+    // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
     public AiSituationRecommendResponse recommendBySituation(UUID userId, SituationRecommendRequest request) {
         User user = findUser(userId);
 
@@ -48,7 +48,8 @@ public class OutfitService {
         return join(aiServerClient.recommendOutfitsBySituation(aiRequest));
     }
 
-    @Transactional(readOnly = true)
+    // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
+    // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
     public ClosetRecommendResponse recommendByCloset(UUID userId, SituationRecommendRequest request) {
         User user = findUser(userId);
 

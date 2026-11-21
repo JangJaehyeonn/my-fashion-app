@@ -48,7 +48,7 @@ class ShoppingServiceTest {
     void setUp() {
         shoppingService = new ShoppingService(userRepository, aiServerClient);
         userId = UUID.randomUUID();
-        user = User.builder()
+        user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
                 .email("test@example.com")
                 .nickname("테스터")

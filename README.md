@@ -3,11 +3,11 @@
 > 내 옷장 기반 AI 코디 추천 + 쇼핑몰 상품 가상 피팅 Android 앱  
 > 기획 · Android · 백엔드 · AI 서버 · 인프라까지 혼자 만들고 운영 서버에 배포한 풀스택 프로젝트
 
-- **API 서버**: `https://fashion-app-jh.duckdns.org` (HTTPS, Let's Encrypt)
+- **API 서버**: 현재 로컬 전용 (AWS 정리 후 Tencent 서버 + 새 도메인으로 재배포 예정, [`docs/DEPLOY_TODO.md`](docs/DEPLOY_TODO.md))
 - **클라이언트**: Android (Kotlin, Jetpack Compose) — Play Store 등록 준비 중
 - **개발 기록**: [`CLAUDE.md`](CLAUDE.md)의 개발 일지, 트러블슈팅은 [`docs/troubleshooting.md`](docs/troubleshooting.md)
 
-> 비용 관리를 위해 EC2 인스턴스를 중지해 두는 기간이 있어, 그동안은 API가 응답하지 않을 수 있습니다.
+> 운영 서버는 내려 둔 상태라 앱은 로컬 백엔드로만 동작합니다. 실행 방법은 [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md)를 보세요. 아래 인프라·배포 설명은 이전 AWS 구성 기준의 기록입니다.
 
 | 홈 | 옷장 | 피팅 | 마이 |
 |:---:|:---:|:---:|:---:|

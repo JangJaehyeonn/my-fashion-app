@@ -2,6 +2,7 @@ package com.fashionapp.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fashionapp.data.location.LocationProvider
 import com.fashionapp.data.model.Situation
 import com.fashionapp.data.model.SituationRecommendRequest
 import com.fashionapp.data.model.Weather
@@ -16,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val outfitRepository: OutfitRepository,
-    private val clothesRepository: ClothesRepository
+    private val clothesRepository: ClothesRepository,
+    private val locationProvider: LocationProvider
 ) : ViewModel() {
 
     private val _weather = MutableStateFlow<Weather?>(null)
@@ -41,14 +43,33 @@ class HomeViewModel @Inject constructor(
     private val _isClosetEmpty = MutableStateFlow(false)
     val isClosetEmpty = _isClosetEmpty.asStateFlow()
 
+    // 날씨 카드에 표시할 위치 이름 — 기기 위치를 쓰면 "내 위치", 권한 거부·위치 실패 시 "서울"
+    private val _locationLabel = MutableStateFlow("서울")
+    val locationLabel = _locationLabel.asStateFlow()
+
+    // 위치 권한이 없고 아직 한 번도 안내하지 않았으면 화면이 안내 다이얼로그 → 권한 요청을 띄움
+    private val _needsLocationPrompt = MutableStateFlow(
+        !locationProvider.hasPermission() && !locationProvider.isPromptShown
+    )
+    val needsLocationPrompt = _needsLocationPrompt.asStateFlow()
+
     init {
+        // 권한 안내를 띄워야 하면 응답을 받은 뒤(onLocationPermissionResult) 불러옴 — 서울 날씨를 먼저 받았다가 바뀌는 것 방지
+        if (!_needsLocationPrompt.value) loadWeather()
+    }
+
+    fun onLocationPermissionResult() {
+        locationProvider.isPromptShown = true
+        _needsLocationPrompt.value = false
         loadWeather()
     }
 
     fun loadWeather() {
         viewModelScope.launch {
             _isWeatherLoading.value = true
-            outfitRepository.getWeather()
+            val deviceCoordinates = locationProvider.currentCoordinates()
+            _locationLabel.value = if (deviceCoordinates != null) "내 위치" else "서울"
+            outfitRepository.getWeather(deviceCoordinates ?: LocationProvider.SEOUL)
                 .onSuccess { _weather.value = it }
                 .onFailure { _errorMessage.value = "날씨를 불러올 수 없습니다." }
             _isWeatherLoading.value = false
