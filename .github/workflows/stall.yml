@@ -1,0 +1,73 @@
+name: Stall check
+
+# Claude PR이 오래 움직이지 않으면 사람에게 알린다. 멘션은 GitHub 알림(폰 앱 포함)으로 간다.
+# 1) ai-review 상태가 pending인 채 60분이 넘은 PR (리뷰 잡이 죽었거나 막힘)
+# 2) 90분 동안 변화가 없는 PR (CI·리뷰·자동 수정 모두 대기)
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+      statuses: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      STALL_MINUTES: "90"
+      REVIEW_PENDING_MINUTES: "60"
+    steps:
+      - name: 오래 걸리는 AI 리뷰 알리기
+        run: |
+          set -euo pipefail
+          now=$(date -u +%s)
+          gh pr list --repo "$REPO" --state open --limit 100 \
+            --json number,headRefName,headRefOid,labels \
+            --jq '.[] | select(.headRefName | startswith("claude/"))
+                  | select([.labels[].name] | index("needs-human") | not)
+                  | "\(.number) \(.headRefOid)"' |
+          while read -r n sha; do
+            st=$(gh api "repos/$REPO/commits/$sha/status" \
+              --jq '[.statuses[] | select(.context == "ai-review")] | first | "\(.state // "") \(.updated_at // "")"')
+            state=${st%% *}; ts=${st#* }
+            [ "$state" = "pending" ] && [ -n "$ts" ] || continue
+            age=$(( (now - $(date -u -d "$ts" +%s)) / 60 ))
+            [ "$age" -ge "$REVIEW_PENDING_MINUTES" ] || continue
+            if gh api --paginate "repos/$REPO/issues/$n/comments?per_page=100" --jq '.[].body' \
+                | grep -F "wearon-review-pending:$sha" >/dev/null; then continue; fi
+            gh pr comment "$n" --repo "$REPO" --body "<!-- wearon-review-pending:$sha -->
+          @JangJaehyeonn AI 리뷰가 ${age}분째 pending입니다 (커밋 ${sha:0:7}). Actions의 AI review 실행을 확인해 주세요." \
+              || echo "::warning::PR #$n 알림 실패"
+          done
+
+      - name: 멈춘 Claude PR 찾기
+        run: |
+          set -euo pipefail
+          gh label create needs-human --repo "$REPO" --color b60205 \
+            --description "에이전트가 해결하지 못해 사람 확인이 필요함" 2>/dev/null || true
+          now=$(date -u +%s)
+          gh pr list --repo "$REPO" --state open --limit 100 \
+            --json number,headRefName,updatedAt,labels \
+            --jq '.[] | select(.headRefName | startswith("claude/"))
+                  | select([.labels[].name] | index("needs-human") | not)
+                  | "\(.number) \(.updatedAt)"' |
+          while read -r n ts; do
+            age=$(( (now - $(date -u -d "$ts" +%s)) / 60 ))
+            if [ "$age" -ge "$STALL_MINUTES" ]; then
+              echo "PR #$n: ${age}분째 변화 없음"
+              last=$(gh api --paginate "repos/$REPO/issues/$n/comments?per_page=100" --jq '.[] | .body | @json' \
+                | tail -n 1 | jq -r '. // ""')
+              if ! printf '%s' "$last" | grep -q 'wearon-stall'; then
+                gh pr comment "$n" --repo "$REPO" --body "<!-- wearon-stall -->
+          @JangJaehyeonn 이 PR이 ${age}분 동안 변화가 없어 멈춘 것으로 보입니다 (CI·AI 리뷰·자동 수정 모두 대기). 확인이 필요합니다." || continue
+              fi
+              gh pr edit "$n" --repo "$REPO" --add-label needs-human || echo "::warning::PR #$n 라벨 추가 실패"
+            fi
+          done

@@ -1,0 +1,25 @@
+name: Wearon 빌드 환경
+description: JDK 17 + Gradle 캐시 + Python 3.11 + AI 서버·인수 테스트 의존성. Android SDK는 ubuntu-latest 러너에 기본 설치돼 있다.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "17"
+    - uses: gradle/actions/setup-gradle@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: pip
+        cache-dependency-path: |
+          ai-server/requirements.txt
+          acceptance/requirements.txt
+    - name: Python 의존성
+      shell: bash
+      run: |
+        python3 -m pip install -r ai-server/requirements.txt -r acceptance/requirements.txt
+        python3 -m pip install fastapi python-multipart
+    - name: gradlew 실행 권한
+      shell: bash
+      run: chmod +x backend/gradlew android/gradlew
