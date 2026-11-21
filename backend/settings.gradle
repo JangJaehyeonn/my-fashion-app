@@ -1,1 +1,11 @@
+// 플러그인 의존성을 Gradle 플러그인 포털에서만 찾으면 포털이 흔들릴 때 빌드가 깨진다
+// (2026-11-21 인수 테스트 Docker 빌드에서 spring-boot-gradle-plugin 의존성을 못 찾음).
+// Maven Central을 먼저 보게 한다.
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
 rootProject.name = 'fashion-app'
