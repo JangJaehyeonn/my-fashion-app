@@ -38,4 +38,24 @@ public class Clothes {
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    /** Overwrites category, color and name with an AI classification result. */
+    public void applyClassification(ClothesClassification classification) {
+        this.category = classification.category().name();
+        this.color = classification.color();
+        this.name = classification.name();
+    }
+
+    /** User edit: null arguments keep the current value. */
+    public void editByUser(ClothesCategory category, String color, String name) {
+        if (category != null) {
+            this.category = category.name();
+        }
+        if (color != null) {
+            this.color = color;
+        }
+        if (name != null) {
+            this.name = name;
+        }
+    }
 }

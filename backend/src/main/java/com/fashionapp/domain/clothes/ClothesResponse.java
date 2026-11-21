@@ -15,5 +15,7 @@ public class ClothesResponse {
     private ClothesCategory category;
     private String color;
     private String name;
+    // true when the category is UNCLASSIFIED (AI classification failed and the user has not fixed it yet)
+    private boolean classificationFailed;
     private LocalDateTime createdAt;
 }

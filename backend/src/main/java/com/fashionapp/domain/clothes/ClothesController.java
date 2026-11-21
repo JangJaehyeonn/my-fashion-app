@@ -4,6 +4,7 @@ import com.fashionapp.domain.user.UserPrincipal;
 import com.fashionapp.global.common.ApiResponse;
 import com.fashionapp.global.jwt.CurrentUser;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +25,8 @@ public class ClothesController {
     public ResponseEntity<ApiResponse<ClothesResponse>> register(
             @CurrentUser UserPrincipal userPrincipal,
             @RequestParam("image") MultipartFile image) {
-        return ResponseEntity.ok(ApiResponse.success(clothesService.register(userPrincipal.getId(), image)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(clothesService.register(userPrincipal.getId(), image)));
     }
 
     @GetMapping
@@ -32,6 +34,23 @@ public class ClothesController {
     public ResponseEntity<ApiResponse<List<ClothesResponse>>> getMyClothes(
             @CurrentUser UserPrincipal userPrincipal) {
         return ResponseEntity.ok(ApiResponse.success(clothesService.getMyClothes(userPrincipal.getId())));
+    }
+
+    @PatchMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ClothesResponse>> update(
+            @CurrentUser UserPrincipal userPrincipal,
+            @PathVariable UUID id,
+            @RequestBody ClothesUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(clothesService.update(userPrincipal.getId(), id, request)));
+    }
+
+    @PostMapping("/{id}/reclassify")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ClothesResponse>> reclassify(
+            @CurrentUser UserPrincipal userPrincipal,
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(clothesService.reclassify(userPrincipal.getId(), id)));
     }
 
     @DeleteMapping("/{id}")

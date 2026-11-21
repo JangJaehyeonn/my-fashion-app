@@ -144,17 +144,36 @@ public class AiServerClient {
         try {
             MultipartBodyBuilder builder = new MultipartBodyBuilder();
             addImagePart(builder, "image", file);
-
-            return restClient.post()
-                    .uri(aiServerUrl + "/ai/clothes/classify")
-                    .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(builder.build())
-                    .retrieve()
-                    .body(AiClothesClassifyResponse.class);
-
+            return postClassify(builder);
         } catch (IOException | RestClientException e) {
             throw toAiException("clothes classify", e);
         }
+    }
+
+    /** Classify an image the server already stores (reclassification). */
+    public AiClothesClassifyResponse classifyClothes(byte[] bytes, String filename, String contentType) {
+        try {
+            ByteArrayResource resource = new ByteArrayResource(bytes) {
+                @Override
+                public String getFilename() { return filename; }
+            };
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            builder.part("image", resource)
+                    .filename(filename)
+                    .contentType(MediaType.parseMediaType(contentType));
+            return postClassify(builder);
+        } catch (RestClientException e) {
+            throw toAiException("clothes classify", e);
+        }
+    }
+
+    private AiClothesClassifyResponse postClassify(MultipartBodyBuilder builder) {
+        return restClient.post()
+                .uri(aiServerUrl + "/ai/clothes/classify")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(builder.build())
+                .retrieve()
+                .body(AiClothesClassifyResponse.class);
     }
 
     public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {

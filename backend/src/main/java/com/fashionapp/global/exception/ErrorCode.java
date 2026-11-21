@@ -43,7 +43,11 @@ public enum ErrorCode {
 
     DIAGNOSIS_NOT_FOUND(HttpStatus.NOT_FOUND, "진단 기록을 찾을 수 없습니다."),
     CLOTHES_NOT_FOUND(HttpStatus.NOT_FOUND, "옷을 찾을 수 없습니다."),
-    CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다.");
+    INVALID_CLOTHES_UPDATE(HttpStatus.BAD_REQUEST, "카테고리는 상의·하의·아우터·신발·기타 중에서 고르고, 색상·이름은 1~50자로 입력해 주세요."),
+    CLOTHES_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "옷 사진을 찾을 수 없어 다시 분류할 수 없어요."),
+    CLOTHES_RECLASSIFY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 AI 분류를 할 수 없어요. 잠시 후 다시 시도하거나 직접 입력해 주세요."),
+    CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다."),
+    CLOSET_ALL_UNCLASSIFIED(HttpStatus.BAD_REQUEST, "분류된 옷이 없어 코디를 추천할 수 없어요. 미분류 옷의 종류를 먼저 정해 주세요.");
 
     private final HttpStatus status;
     private final String message;

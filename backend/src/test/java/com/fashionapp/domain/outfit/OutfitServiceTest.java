@@ -236,4 +236,56 @@ class OutfitServiceTest {
                 .isEqualTo(ErrorCode.CLOSET_EMPTY);
         verify(aiServerClient, never()).recommendOutfitsByCloset(any());
     }
+
+    private static final String UNCLASSIFIED_ID = "00000000-0000-0000-0000-000000000009";
+
+    private ClothesResponse unclassified(String id) {
+        return ClothesResponse.builder()
+                .id(UUID.fromString(id))
+                .imageUrl("https://presigned/" + id)
+                .category(ClothesCategory.UNCLASSIFIED)
+                .classificationFailed(true)
+                .build();
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-01): 미분류 옷만 있으면 CLOSET_ALL_UNCLASSIFIED(400)이고 AI 서버는 호출하지 않는다")
+    void recommendByCloset_onlyUnclassified_throwsWithoutAiCall() throws Exception {
+        SituationRecommendRequest request = situationRequest(20.0, "맑음", "DAILY");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(unclassified(UNCLASSIFIED_ID)));
+
+        assertThatThrownBy(() -> outfitService.recommendByCloset(userId, request))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CLOSET_ALL_UNCLASSIFIED);
+        assertThat(ErrorCode.CLOSET_ALL_UNCLASSIFIED.getStatus().is4xxClientError()).isTrue();
+        verify(aiServerClient, never()).recommendOutfitsByCloset(any());
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-01): 미분류 옷은 AI에 보내지 않고, AI가 그 ID를 돌려줘도 결과에 넣지 않는다")
+    void recommendByCloset_excludesUnclassified() throws Exception {
+        SituationRecommendRequest request = situationRequest(20.0, "맑음", "DAILY");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                clothes(TOP_ID, ClothesCategory.TOP, "블랙 티셔츠"),
+                unclassified(UNCLASSIFIED_ID),
+                clothes(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙 슬랙스")));
+        given(aiServerClient.recommendOutfitsByCloset(any())).willReturn(CompletableFuture.completedFuture(closetResponse("""
+                {"outfits": [{"clothesIds": ["%s", "%s", "%s"], "reason": "ok", "styleTag": "캐주얼"}]}
+                """.formatted(TOP_ID, UNCLASSIFIED_ID, BOTTOM_ID))));
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, request);
+
+        ArgumentCaptor<AiClosetRecommendRequest> captor = ArgumentCaptor.forClass(AiClosetRecommendRequest.class);
+        verify(aiServerClient).recommendOutfitsByCloset(captor.capture());
+        assertThat(captor.getValue().getClothes())
+                .extracting(AiClosetRecommendRequest.ClosetItem::getId)
+                .containsExactly(TOP_ID, BOTTOM_ID);
+        assertThat(result.getOutfits()).hasSize(1);
+        assertThat(result.getOutfits().get(0).getItems())
+                .extracting(c -> c.getId().toString())
+                .containsExactly(TOP_ID, BOTTOM_ID);
+    }
 }

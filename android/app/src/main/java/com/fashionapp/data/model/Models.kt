@@ -154,7 +154,9 @@ data class VtonResult(
 
 // Closet (옷장)
 enum class ClothesCategory(val label: String) {
-    TOP("상의"), BOTTOM("하의"), OUTER("아우터"), SHOES("신발"), ETC("기타")
+    TOP("상의"), BOTTOM("하의"), OUTER("아우터"), SHOES("신발"), ETC("기타"),
+    // Backend FR-01: AI classification failed. Without this value Gson would leave category null.
+    UNCLASSIFIED("미분류")
 }
 
 data class Clothes(
@@ -163,7 +165,8 @@ data class Clothes(
     val category: ClothesCategory,
     val color: String?,
     val name: String?,
-    val createdAt: String?
+    val createdAt: String?,
+    val classificationFailed: Boolean = false
 )
 
 // Closet-based recommend (내 옷장 옷들로 코디 조합)
