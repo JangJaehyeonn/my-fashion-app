@@ -1,5 +1,6 @@
 package com.fashionapp.domain.user;
 
+import com.fashionapp.domain.consent.RequiredAgreements;
 import com.fashionapp.global.common.ApiResponse;
 import com.fashionapp.global.jwt.CurrentUser;
 import lombok.RequiredArgsConstructor;
@@ -50,10 +51,14 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.revokeVtonConsent(userPrincipal.getId())));
     }
 
-    // "만 14세 이상입니다" 확인. 확인 전에는 이 경로와 GET·DELETE /api/users/me, /api/auth/**만 쓸 수 있다 (AgeGateInterceptor)
+    // "만 14세 이상입니다" 확인과 이용약관·개인정보처리방침 동의 (본문 ageOver14·termsAgreed·privacyAgreed 모두 true여야 함).
+    // 확인 전에는 이 경로와 GET·DELETE /api/users/me, /api/auth/**만 쓸 수 있다 (AgeGateInterceptor)
     @PostMapping("/me/age-confirmation")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<UserResponse>> confirmAge(@CurrentUser UserPrincipal userPrincipal) {
-        return ResponseEntity.ok(ApiResponse.success(userService.confirmAge(userPrincipal.getId())));
+    public ResponseEntity<ApiResponse<UserResponse>> confirmAge(
+            @CurrentUser UserPrincipal userPrincipal,
+            @RequestBody(required = false) AgeConfirmationRequest request) {
+        RequiredAgreements agreements = request == null ? RequiredAgreements.NONE : request.agreements();
+        return ResponseEntity.ok(ApiResponse.success(userService.confirmAge(userPrincipal.getId(), agreements)));
     }
 }

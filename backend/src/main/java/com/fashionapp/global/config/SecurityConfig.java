@@ -48,8 +48,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/**", "/login/**", "/api/auth/**").permitAll()
-                        // 개인정보처리방침·계정 삭제 안내 (LegalPagesController)
-                        .requestMatchers("/privacy", "/account-deletion").permitAll()
+                        // 이용약관·개인정보처리방침·계정 삭제 안내 (LegalPagesController)
+                        .requestMatchers("/terms", "/privacy", "/account-deletion").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

@@ -48,7 +48,8 @@ abstract class LocalAuthTestSupport extends IntegrationTest {
 
     ResultActions signup(String loginId, String password, String nickname) throws Exception {
         return mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json("loginId", loginId, "password", password, "nickname", nickname, "ageOver14", "true")));
+                .content(json("loginId", loginId, "password", password, "nickname", nickname,
+                        "ageOver14", "true", "termsAgreed", "true", "privacyAgreed", "true")));
     }
 
     /** 가입하고 응답의 토큰을 돌려줌 [accessToken, refreshToken] */

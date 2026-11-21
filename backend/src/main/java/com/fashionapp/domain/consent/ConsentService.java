@@ -34,6 +34,19 @@ public class ConsentService {
         consentRecordRepository.save(ConsentRecord.agreed(userId, type, type.currentVersion(), at));
     }
 
+    /**
+     * Records the three required agreements (terms, privacy, 14 or older). Idempotent per type.
+     *
+     * @param ageConfirmedAt users.age_confirmed_at, kept as the agreed time of the age row
+     */
+    @Transactional
+    public void recordRequiredAgreements(UUID userId, LocalDateTime ageConfirmedAt) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        ensureAgreed(userId, ConsentType.TERMS, now);
+        ensureAgreed(userId, ConsentType.PRIVACY, now);
+        ensureAgreed(userId, ConsentType.AGE_OVER_14, ageConfirmedAt);
+    }
+
     /** Sets the revoke time on every active row of this type. Rows are never deleted. */
     @Transactional
     public void revoke(UUID userId, ConsentType type) {

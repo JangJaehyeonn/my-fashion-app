@@ -38,6 +38,8 @@ public enum ErrorCode {
 
     // 만 14세 미만은 가입 불가 — 가입 시 확인 체크 필수, 소셜·기존 사용자는 확인 전까지 대부분의 API 차단
     AGE_REQUIRED_FOR_SIGNUP(HttpStatus.BAD_REQUEST, "만 14세 이상만 가입할 수 있어요."),
+    // 이용약관·개인정보처리방침 동의 필수 (가입, 소셜 첫 로그인 확인)
+    TERMS_AGREEMENT_REQUIRED(HttpStatus.BAD_REQUEST, "이용약관과 개인정보처리방침에 동의해 주세요."),
     AGE_CONFIRMATION_REQUIRED(HttpStatus.FORBIDDEN, "만 14세 이상인지 확인이 필요해요."),
     VTON_CONSENT_REQUIRED(HttpStatus.FORBIDDEN, "가상 피팅을 쓰려면 사진 전송에 동의해 주세요."),
 

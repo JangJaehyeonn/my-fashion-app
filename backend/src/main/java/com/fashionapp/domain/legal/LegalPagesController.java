@@ -13,8 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
- * 로그인 없이 열리는 법적 고지 페이지(개인정보처리방침, 계정 삭제 안내). 앱의 처리방침 링크와 Play Store의
- * 개인정보처리방침·계정 삭제 URL로 쓴다. 정본은 classpath의 legal/*.html. 보안 설정에서 이 두 경로만 permitAll.
+ * 로그인 없이 열리는 법적 고지 페이지(이용약관, 개인정보처리방침, 계정 삭제 안내). 앱의 약관·처리방침 링크와 Play Store의
+ * 개인정보처리방침·계정 삭제 URL로 쓴다. 정본은 classpath의 legal/*.html. 보안 설정에서 이 세 경로만 permitAll.
  *
  * <p>정적 리소스 대신 컨트롤러로 내려주는 이유: Content-Type에 charset=UTF-8을 정확히 붙이면서도
  * 인코딩 강제 설정(이미지 응답에 charset이 붙음)을 전역으로 켜지 않기 위함.
@@ -24,8 +24,14 @@ public class LegalPagesController {
 
     private static final MediaType HTML_UTF8 = new MediaType("text", "html", StandardCharsets.UTF_8);
 
+    private final String terms = read("legal/terms.html");
     private final String privacy = read("legal/privacy.html");
     private final String accountDeletion = read("legal/account-deletion.html");
+
+    @GetMapping("/terms")
+    public ResponseEntity<String> terms() {
+        return page(terms);
+    }
 
     @GetMapping("/privacy")
     public ResponseEntity<String> privacy() {

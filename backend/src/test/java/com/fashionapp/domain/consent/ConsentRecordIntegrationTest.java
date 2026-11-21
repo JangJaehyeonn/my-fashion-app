@@ -27,6 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** FR-04 동의 이력: 실제 DB로 동의·철회·재동의 이력, 만 14세 확인 기록, 탈퇴 시 삭제, 기존 값 백필을 확인 */
 class ConsentRecordIntegrationTest extends IntegrationTest {
 
+    private static final String ALL_AGREED = "{\"ageOver14\":true,\"termsAgreed\":true,\"privacyAgreed\":true}";
+
     @Autowired MockMvc mockMvc;
     @Autowired UserRepository userRepository;
     @Autowired ConsentRecordRepository consentRecordRepository;
@@ -81,13 +83,14 @@ class ConsentRecordIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("만 14세 확인: 응답 형식은 그대로이고 이력 1건이 남는다 (다시 확인해도 1건)")
+    @DisplayName("만 14세 확인·약관 동의: 응답 형식은 그대로이고 이력 3건(약관·방침·만 14세)이 남는다 (다시 확인해도 3건)")
     void ageConfirmationIsRecorded() throws Exception {
         User user = saveUser(null, null);
         String token = bearer(user);
 
         for (int i = 0; i < 2; i++) {
-            mockMvc.perform(post("/api/users/me/age-confirmation").header("Authorization", token))
+            mockMvc.perform(post("/api/users/me/age-confirmation").header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON).content(ALL_AGREED))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.id").value(user.getId().toString()))
@@ -95,26 +98,29 @@ class ConsentRecordIntegrationTest extends IntegrationTest {
         }
 
         List<ConsentRecord> records = consentRecordRepository.findByUserIdOrderByAgreedAtAsc(user.getId());
-        assertThat(records).singleElement().satisfies(r -> {
-            assertThat(r.getConsentType()).isEqualTo(ConsentType.AGE_OVER_14);
-            assertThat(r.getRevokedAt()).isNull();
+        assertThat(records).hasSize(3).allMatch(ConsentRecord::isActive)
+                .extracting(ConsentRecord::getConsentType)
+                .containsExactlyInAnyOrder(ConsentType.TERMS, ConsentType.PRIVACY, ConsentType.AGE_OVER_14);
+        assertThat(records).filteredOn(r -> r.getConsentType() == ConsentType.AGE_OVER_14).singleElement().satisfies(r -> {
             assertThat(r.getAgreedAt().truncatedTo(ChronoUnit.MILLIS)).isEqualTo(
                     userRepository.findById(user.getId()).orElseThrow().getAgeConfirmedAt().truncatedTo(ChronoUnit.MILLIS));
         });
     }
 
     @Test
-    @DisplayName("아이디 가입은 만 14세 확인 이력을 남긴다")
+    @DisplayName("아이디 가입은 약관·방침·만 14세 확인 이력 3건을 남긴다")
     void localSignupRecordsAgeConsent() throws Exception {
         String loginId = "cr" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"loginId\":\"" + loginId + "\",\"password\":\"Passw0rd!x\",\"nickname\":\"가입이력\",\"ageOver14\":true}"))
+                        .content("{\"loginId\":\"" + loginId + "\",\"password\":\"Passw0rd!x\",\"nickname\":\"가입이력\","
+                                + ALL_AGREED.substring(1)))
                 .andExpect(status().isOk());
         User user = userRepository.findByLoginId(loginId).orElseThrow();
         createdUsers.add(user.getId());
 
         assertThat(consentRecordRepository.findByUserIdOrderByAgreedAtAsc(user.getId()))
-                .extracting(ConsentRecord::getConsentType).containsExactly(ConsentType.AGE_OVER_14);
+                .extracting(ConsentRecord::getConsentType)
+                .containsExactlyInAnyOrder(ConsentType.TERMS, ConsentType.PRIVACY, ConsentType.AGE_OVER_14);
     }
 
     @Test

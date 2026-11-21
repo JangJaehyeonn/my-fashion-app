@@ -22,7 +22,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 만 14세 이상 확인: 아이디 가입은 체크 필수, 소셜·기존 사용자는 확인 전까지 대부분의 API 403 */
+/**
+ * 만 14세 이상 확인과 약관·방침 동의 (FR-05): 아이디 가입은 셋 다 필수, 소셜·기존 사용자는 확인 API에서 셋을 모두 보내기 전까지
+ * 대부분의 API 403
+ */
 class AgeGateIntegrationTest extends IntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -50,9 +53,28 @@ class AgeGateIntegrationTest extends IntegrationTest {
         return "Bearer " + jwtTokenProvider.createAccessToken(user.getId());
     }
 
+    /** 값이 null인 항목은 본문에서 뺀다 */
+    private static String agreements(String ageOver14, String terms, String privacy) {
+        StringBuilder sb = new StringBuilder();
+        String[][] pairs = {{"ageOver14", ageOver14}, {"termsAgreed", terms}, {"privacyAgreed", privacy}};
+        for (String[] kv : pairs) {
+            if (kv[1] != null) sb.append(",\"").append(kv[0]).append("\":").append(kv[1]);
+        }
+        return sb.toString();
+    }
+
+    private static final String ALL_AGREED = "{" + agreements("true", "true", "true").substring(1) + "}";
+
     private String signupBody(String loginId, String ageOver14) {
-        String age = ageOver14 == null ? "" : ",\"ageOver14\":" + ageOver14;
-        return "{\"loginId\":\"" + loginId + "\",\"password\":\"secret1234\",\"nickname\":\"테스터\"" + age + "}";
+        return signupJson(loginId, agreements(ageOver14, "true", "true"));
+    }
+
+    private String signupBody(String loginId, String ageOver14, String terms, String privacy) {
+        return signupJson(loginId, agreements(ageOver14, terms, privacy));
+    }
+
+    private static String signupJson(String loginId, String agreementFields) {
+        return "{\"loginId\":\"" + loginId + "\",\"password\":\"secret1234\",\"nickname\":\"테스터\"" + agreementFields + "}";
     }
 
     @Test
@@ -87,7 +109,8 @@ class AgeGateIntegrationTest extends IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"height\":170}"))
                 .andExpect(status().isForbidden());
 
-        mockMvc.perform(post("/api/users/me/age-confirmation").header("Authorization", token))
+        mockMvc.perform(post("/api/users/me/age-confirmation").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(ALL_AGREED))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.ageConfirmedAt").exists());
         mockMvc.perform(get("/api/clothes").header("Authorization", token)).andExpect(status().isOk());
@@ -100,5 +123,57 @@ class AgeGateIntegrationTest extends IntegrationTest {
         UUID id = created.get(0);
         mockMvc.perform(delete("/api/users/me").header("Authorization", token)).andExpect(status().isOk());
         assertThat(userRepository.findById(id)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("아이디 가입: 약관·방침 동의가 없거나 false면 400이고 계정이 만들어지지 않는다")
+    void signupRequiresTermsAndPrivacy() throws Exception {
+        String id = "trm" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        loginIds.add(id);
+        String[][] missing = {{null, "true"}, {"false", "true"}, {"true", null}, {"true", "false"}, {null, null}};
+        for (String[] tp : missing) {
+            mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                            .content(signupBody(id, "true", tp[0], tp[1])))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.message").value("이용약관과 개인정보처리방침에 동의해 주세요."));
+        }
+        assertThat(userRepository.findByLoginId(id)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("소셜 확인: 본문이 없거나 약관·방침·만 14세 중 하나라도 빠지면 400이고 계속 확인 전 범위만 허용된다")
+    void socialConfirmationWithoutAllAgreementsKeepsGate() throws Exception {
+        String token = unconfirmedSocialUserToken();
+        UUID userId = created.get(0);
+
+        mockMvc.perform(post("/api/users/me/age-confirmation").header("Authorization", token))
+                .andExpect(status().isBadRequest());
+        String[] partialBodies = {
+                "{" + agreements("true", "true", null).substring(1) + "}",
+                "{" + agreements("true", null, "true").substring(1) + "}",
+                "{" + agreements("false", "true", "true").substring(1) + "}",
+        };
+        for (String body : partialBodies) {
+            mockMvc.perform(post("/api/users/me/age-confirmation").header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false));
+        }
+
+        assertThat(userRepository.findById(userId).orElseThrow().getAgeConfirmedAt()).isNull();
+        mockMvc.perform(get("/api/users/me").header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/clothes").header("Authorization", token)).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/users/me/consents/vton").header("Authorization", token)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("이 기능 이전에 만 14세 확인을 마친 사용자는 약관 이력이 없어도 계속 API를 쓸 수 있다")
+    void previouslyConfirmedUserKeepsAccess() throws Exception {
+        User user = userRepository.save(User.builder().nickname("기존").provider(User.AuthProvider.google)
+                .providerId("age-legacy-" + UUID.randomUUID()).ageConfirmedAt(java.time.LocalDateTime.now()).build());
+        created.add(user.getId());
+        String token = "Bearer " + jwtTokenProvider.createAccessToken(user.getId());
+        mockMvc.perform(get("/api/clothes").header("Authorization", token)).andExpect(status().isOk());
     }
 }

@@ -1,7 +1,6 @@
 package com.fashionapp.domain.auth;
 
 import com.fashionapp.domain.consent.ConsentService;
-import com.fashionapp.domain.consent.ConsentType;
 import com.fashionapp.domain.user.AuthTokenService;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
@@ -41,9 +40,8 @@ public class LocalAuthService {
         LocalAuthRules.requireLoginId(request.getLoginId());
         LocalAuthRules.requirePassword(request.getPassword());
         String nickname = LocalAuthRules.requireNickname(request.getNickname());
-        if (!Boolean.TRUE.equals(request.getAgeOver14())) {
-            throw new CustomException(ErrorCode.AGE_REQUIRED_FOR_SIGNUP);
-        }
+        // 이용약관·개인정보처리방침·만 14세 이상 동의가 모두 있어야 계정을 만든다
+        request.agreements().requireAll();
 
         if (userRepository.existsByLoginId(request.getLoginId())) {
             throw new CustomException(ErrorCode.DUPLICATE_LOGIN_ID);
@@ -57,7 +55,7 @@ public class LocalAuthService {
             // 중복 확인과 저장 사이에 같은 아이디로 동시에 가입한 경우 (login_id unique 제약)
             throw new CustomException(ErrorCode.DUPLICATE_LOGIN_ID);
         }
-        consentService.ensureAgreed(user.getId(), ConsentType.AGE_OVER_14, user.getAgeConfirmedAt());
+        consentService.recordRequiredAgreements(user.getId(), user.getAgeConfirmedAt());
         log.info("local signup loginId={} userId={}", user.getLoginId(), user.getId());
         return authTokenService.issueTokens(user.getId());
     }
