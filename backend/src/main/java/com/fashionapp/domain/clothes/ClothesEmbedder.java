@@ -105,14 +105,28 @@ public class ClothesEmbedder {
         }
     }
 
+    /**
+     * FR-11: embedding of a piece that is not in the closet (a purchase candidate), built from the same text as
+     * closet pieces so the two are comparable. Empty when the AI call fails or the piece is unclassified.
+     */
+    public Optional<float[]> embedCandidate(ClothesClassification classification) {
+        return embeddingText(classification.category(), classification.color(), classification.fit(),
+                classification.material(), classification.pattern(), classification.name())
+                .flatMap(this::embed);
+    }
+
     /** '카테고리 색상 핏 소재 패턴 이름' with nulls left out. Empty for unclassified clothes. */
     static Optional<String> embeddingText(Clothes clothes) {
-        ClothesCategory category = ClothesCategory.from(clothes.getCategory());
+        return embeddingText(ClothesCategory.from(clothes.getCategory()), clothes.getColor(), clothes.getFit(),
+                clothes.getMaterial(), clothes.getPattern(), clothes.getName());
+    }
+
+    private static Optional<String> embeddingText(ClothesCategory category, String color, String fit,
+                                                  String material, String pattern, String name) {
         if (category == ClothesCategory.UNCLASSIFIED) {
             return Optional.empty();
         }
-        String text = Stream.of(CATEGORY_LABELS.get(category), clothes.getColor(), clothes.getFit(),
-                        clothes.getMaterial(), clothes.getPattern(), clothes.getName())
+        String text = Stream.of(CATEGORY_LABELS.get(category), color, fit, material, pattern, name)
                 .filter(Objects::nonNull)
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())

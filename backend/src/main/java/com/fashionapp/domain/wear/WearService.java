@@ -60,6 +60,19 @@ public class WearService {
                 .collect(Collectors.toMap(WearStat::clothesId, Function.identity()));
     }
 
+    /** FR-11: per-piece stats for days in [from, to] keyed by clothes id; pieces not worn then are absent. */
+    @Transactional(readOnly = true)
+    public Map<UUID, WearStat> statsBetween(UUID userId, LocalDate from, LocalDate to) {
+        return wearRecordRepository.findStatsByUserIdBetween(userId, from, to).stream()
+                .collect(Collectors.toMap(WearStat::clothesId, Function.identity()));
+    }
+
+    /** FR-11: the first day the user recorded a wear (empty without records). */
+    @Transactional(readOnly = true)
+    public Optional<LocalDate> firstWornOn(UUID userId) {
+        return Optional.ofNullable(wearRecordRepository.findFirstWornOn(userId));
+    }
+
     @Transactional(readOnly = true)
     public WearSummaryResponse summary(UUID userId) {
         LocalDate today = WearCalendar.today(clock);

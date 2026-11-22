@@ -25,6 +25,16 @@ public interface WearRecordRepository extends JpaRepository<WearRecord, UUID> {
             + "from WearRecord r where r.userId = :userId group by r.clothesId")
     List<WearStat> findStatsByUserId(@Param("userId") UUID userId);
 
+    /** FR-11: per-piece stats limited to days in [from, to]. */
+    @Query("select new com.fashionapp.domain.wear.WearStat(r.clothesId, count(r), max(r.wornOn)) "
+            + "from WearRecord r where r.userId = :userId and r.wornOn between :from and :to group by r.clothesId")
+    List<WearStat> findStatsByUserIdBetween(@Param("userId") UUID userId, @Param("from") LocalDate from,
+                                            @Param("to") LocalDate to);
+
+    /** FR-11: the earliest day the user recorded a wear, or null with no records. */
+    @Query("select min(r.wornOn) from WearRecord r where r.userId = :userId")
+    LocalDate findFirstWornOn(@Param("userId") UUID userId);
+
     long countByUserIdAndWornOnBetween(UUID userId, LocalDate from, LocalDate to);
 
     long countByUserId(UUID userId);
