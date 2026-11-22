@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "laundryDays": 3,
+  "cooldownDays": {
+    "TOP": 3,
+    "BOTTOM": 2,
+    "OUTER": 0,
+    "SHOES": 0
+  }
+}

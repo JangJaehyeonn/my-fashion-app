@@ -64,9 +64,13 @@ public class OutfitService {
         if (all.isEmpty()) {
             throw new CustomException(ErrorCode.CLOSET_EMPTY);
         }
-        List<ClothesResponse> closet = all.stream().filter(c -> !c.isClassificationFailed()).toList();
-        if (closet.isEmpty()) {
+        if (all.stream().allMatch(ClothesResponse::isClassificationFailed)) {
             throw new CustomException(ErrorCode.CLOSET_ALL_UNCLASSIFIED);
+        }
+        // FR-27: only clothes I can wear now (not in laundry, not on wear cooldown, classified) are candidates
+        List<ClothesResponse> closet = all.stream().filter(ClothesResponse::isAvailable).toList();
+        if (closet.isEmpty()) {
+            throw new CustomException(ErrorCode.CLOSET_NONE_AVAILABLE);
         }
 
         List<AiClosetRecommendRequest.ClosetItem> items = closet.stream()

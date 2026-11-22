@@ -62,6 +62,10 @@ public enum ErrorCode {
     // FR-13 속성 수정 후 재판정
     INVALID_PURCHASE_ATTRIBUTES(HttpStatus.BAD_REQUEST, "카테고리는 상의·하의·아우터·신발·기타, 계절은 봄·여름·가을·겨울 중에서 고르고, 색상·이름·핏·소재·패턴은 1~50자로 입력해 주세요."),
     PURCHASE_CHECK_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "살까 말까는 하루 30번까지 쓸 수 있어요. 내일 다시 시도해 주세요."),
+    // FR-27 옷 상태(세탁 중)
+    INVALID_CLOTHES_STATUS_REQUEST(HttpStatus.BAD_REQUEST, "상태를 바꿀 옷을 하나 이상 고르고, 상태는 AVAILABLE 또는 LAUNDRY 중에서 골라 주세요."),
+    INVALID_STATUS_CLOTHES(HttpStatus.BAD_REQUEST, "내 옷장에 없는 옷이 있어 상태를 바꾸지 않았어요."),
+    CLOSET_NONE_AVAILABLE(HttpStatus.BAD_REQUEST, "지금 입을 수 있는 옷이 없어요. 세탁이 끝난 옷은 상태를 바꿔 주세요."),
     CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다."),
     CLOSET_ALL_UNCLASSIFIED(HttpStatus.BAD_REQUEST, "분류된 옷이 없어 코디를 추천할 수 없어요. 미분류 옷의 종류를 먼저 정해 주세요.");
 

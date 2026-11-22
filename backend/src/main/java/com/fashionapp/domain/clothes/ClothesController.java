@@ -43,6 +43,15 @@ public class ClothesController {
         return ResponseEntity.ok(ApiResponse.success(clothesService.getSummary(userPrincipal.getId())));
     }
 
+    // FR-27: several pieces at once. Declared before /{id} for readability; the literal path wins either way.
+    @PatchMapping("/status")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ClothesStatusResponse>> changeStatus(
+            @CurrentUser UserPrincipal userPrincipal,
+            @RequestBody ClothesStatusRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(clothesService.changeStatus(userPrincipal.getId(), request)));
+    }
+
     @PatchMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ClothesResponse>> update(

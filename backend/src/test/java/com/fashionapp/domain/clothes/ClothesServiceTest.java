@@ -65,7 +65,8 @@ class ClothesServiceTest {
     @BeforeEach
     void setUp() {
         clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage, clothesEmbedder,
-                com.fashionapp.domain.combo.ComboTestSupport.defaultService(), wearRecordRepository, eventRecorder);
+                com.fashionapp.domain.combo.ComboTestSupport.defaultService(), wearRecordRepository, eventRecorder,
+                ClothesAvailabilityTest.defaultAvailability());
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)

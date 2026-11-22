@@ -163,6 +163,8 @@ class OutfitServiceTest {
                 .category(category)
                 .color("블랙")
                 .name(name)
+                .status(com.fashionapp.domain.clothes.ClothesStatus.AVAILABLE)
+                .available(true)
                 .build();
     }
 
@@ -289,5 +291,53 @@ class OutfitServiceTest {
         assertThat(result.getOutfits().get(0).getItems())
                 .extracting(c -> c.getId().toString())
                 .containsExactly(TOP_ID, BOTTOM_ID);
+    }
+
+    private static final String LAUNDRY_ID = "00000000-0000-0000-0000-000000000010";
+
+    private ClothesResponse notAvailable(String id, ClothesCategory category) {
+        return clothes(id, category, "못 입는 옷").toBuilder()
+                .status(com.fashionapp.domain.clothes.ClothesStatus.LAUNDRY).available(false).build();
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-27): 입을 수 없는 옷(세탁 중·쿨다운)은 AI 후보에 넣지 않고, AI가 돌려줘도 결과에 넣지 않는다")
+    void recommendByCloset_excludesUnavailable() throws Exception {
+        SituationRecommendRequest request = situationRequest(12.0, "맑음", "DAILY");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                notAvailable(LAUNDRY_ID, ClothesCategory.TOP),
+                clothes(TOP_ID, ClothesCategory.TOP, "블랙 티셔츠"),
+                clothes(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙 슬랙스")));
+        given(aiServerClient.recommendOutfitsByCloset(any())).willReturn(CompletableFuture.completedFuture(closetResponse("""
+                {"outfits": [{"clothesIds": ["%s", "%s", "%s"], "reason": "ok", "styleTag": "캐주얼"}]}
+                """.formatted(LAUNDRY_ID, TOP_ID, BOTTOM_ID))));
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, request);
+
+        ArgumentCaptor<AiClosetRecommendRequest> captor = ArgumentCaptor.forClass(AiClosetRecommendRequest.class);
+        verify(aiServerClient).recommendOutfitsByCloset(captor.capture());
+        assertThat(captor.getValue().getClothes())
+                .extracting(AiClosetRecommendRequest.ClosetItem::getId)
+                .containsExactly(TOP_ID, BOTTOM_ID);
+        assertThat(result.getOutfits().get(0).getItems())
+                .extracting(c -> c.getId().toString())
+                .containsExactly(TOP_ID, BOTTOM_ID);
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-27): 분류된 옷이 모두 입을 수 없으면 CLOSET_NONE_AVAILABLE(400)이고 AI 서버는 호출하지 않는다")
+    void recommendByCloset_noneAvailable_throws() throws Exception {
+        SituationRecommendRequest request = situationRequest(12.0, "맑음", "DAILY");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                notAvailable(LAUNDRY_ID, ClothesCategory.TOP), unclassified(UNCLASSIFIED_ID)));
+
+        assertThatThrownBy(() -> outfitService.recommendByCloset(userId, request))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CLOSET_NONE_AVAILABLE);
+        assertThat(ErrorCode.CLOSET_NONE_AVAILABLE.getStatus().is4xxClientError()).isTrue();
+        verify(aiServerClient, never()).recommendOutfitsByCloset(any());
     }
 }
