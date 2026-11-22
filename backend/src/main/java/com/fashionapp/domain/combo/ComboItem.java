@@ -2,6 +2,7 @@ package com.fashionapp.domain.combo;
 
 import com.fashionapp.domain.clothes.Clothes;
 import com.fashionapp.domain.clothes.ClothesCategory;
+import com.fashionapp.domain.clothes.ClothesResponse;
 
 import java.util.UUID;
 
@@ -15,5 +16,11 @@ public record ComboItem(UUID id, ClothesCategory category, String color, String 
     public static ComboItem of(Clothes clothes) {
         return new ComboItem(clothes.getId(), ClothesCategory.from(clothes.getCategory()), clothes.getColor(),
                 clothes.getSeason(), clothes.getPattern(), clothes.getFit(), clothes.getMaterial());
+    }
+
+    public static ComboItem of(ClothesResponse clothes) {
+        return new ComboItem(clothes.getId(), clothes.getCategory(), clothes.getColor(),
+                clothes.getSeason() == null ? null : clothes.getSeason().name(),
+                clothes.getPattern(), clothes.getFit(), clothes.getMaterial());
     }
 }

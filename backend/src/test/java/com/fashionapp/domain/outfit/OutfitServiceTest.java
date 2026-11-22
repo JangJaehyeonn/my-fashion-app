@@ -52,12 +52,18 @@ class OutfitServiceTest {
 
     private OutfitService outfitService;
 
+    // 2026-11-25 (Wednesday) 12:00 KST
+    private static final java.time.Clock CLOCK = java.time.Clock.fixed(
+            java.time.Instant.parse("2026-11-25T03:00:00Z"), java.time.ZoneId.of("Asia/Seoul"));
+    private static final java.time.LocalDate TODAY = java.time.LocalDate.of(2026, 11, 25);
+
     private UUID userId;
     private User user;
 
     @BeforeEach
     void setUp() {
-        outfitService = new OutfitService(userRepository, aiServerClient, clothesService, eventRecorder);
+        outfitService = new OutfitService(userRepository, aiServerClient, clothesService, eventRecorder,
+                new ClosetPlanner(com.fashionapp.domain.combo.ComboTestSupport.defaultEngine(), CLOCK, 60));
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
@@ -339,5 +345,106 @@ class OutfitServiceTest {
                 .isEqualTo(ErrorCode.CLOSET_NONE_AVAILABLE);
         assertThat(ErrorCode.CLOSET_NONE_AVAILABLE.getStatus().is4xxClientError()).isTrue();
         verify(aiServerClient, never()).recommendOutfitsByCloset(any());
+    }
+
+    // ---- FR-29 안 입는 옷 살리기 ----
+
+    private static final String OLD_TOP_ID = "00000000-0000-0000-0000-000000000021";
+
+    private ClothesResponse oldTop(String color) {
+        return clothes(OLD_TOP_ID, ClothesCategory.TOP, "오래된 셔츠").toBuilder()
+                .color(color)
+                .createdAt(TODAY.minusDays(90).atStartOfDay())
+                .lastWornAt(TODAY.minusDays(70))
+                .build();
+    }
+
+    private User userRevivedOn(java.time.LocalDate day) {
+        return User.builder().id(userId).provider(User.AuthProvider.google).providerId("google-1")
+                .ageConfirmedAt(java.time.LocalDateTime.now()).lastRevivedOn(day).build();
+    }
+
+    private void closetWithOldTop(User owner, String oldColor, String aiJson) throws Exception {
+        given(userRepository.findById(userId)).willReturn(Optional.of(owner));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                clothes(TOP_ID, ClothesCategory.TOP, "블랙 티셔츠"),
+                oldTop(oldColor),
+                clothes(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙 슬랙스").toBuilder().color("그린").build(),
+                clothes(SHOES_ID, ClothesCategory.SHOES, "블랙 로퍼")));
+        given(aiServerClient.recommendOutfitsByCloset(any()))
+                .willReturn(CompletableFuture.completedFuture(closetResponse(aiJson)));
+    }
+
+    private static final String AI_PICKS_FIRST_TOP = """
+            {"outfits": [{"clothesIds": ["%s", "%s", "%s"], "reason": "AI 이유", "styleTag": "캐주얼"}]}
+            """.formatted(TOP_ID, BOTTOM_ID, SHOES_ID);
+
+    private AiClosetRecommendRequest sentRequest() {
+        ArgumentCaptor<AiClosetRecommendRequest> captor = ArgumentCaptor.forClass(AiClosetRecommendRequest.class);
+        verify(aiServerClient).recommendOutfitsByCloset(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("FR-29: 이번 주 첫 추천이면 오래 안 입은 옷의 조합을 후보 맨 앞과 응답 맨 앞에 revived=true로 넣고 노출일을 기록한다")
+    void recommendByCloset_revivesLongUnwornFirst() throws Exception {
+        closetWithOldTop(userRevivedOn(null), "화이트", AI_PICKS_FIRST_TOP);
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, situationRequest(12.0, "맑음", "DAILY"));
+
+        assertThat(sentRequest().getCandidates().get(0).getClothesIds())
+                .containsExactly(OLD_TOP_ID, BOTTOM_ID, SHOES_ID);
+        assertThat(result.getOutfits()).hasSize(2);
+        ClosetRecommendResponse.ClosetOutfit first = result.getOutfits().get(0);
+        assertThat(first.isRevived()).isTrue();
+        assertThat(first.getRevivedClothesId()).isEqualTo(UUID.fromString(OLD_TOP_ID));
+        assertThat(first.getItems()).extracting(c -> c.getId().toString()).containsExactly(OLD_TOP_ID, BOTTOM_ID, SHOES_ID);
+        assertThat(first.getReason()).isEqualTo(OutfitService.REVIVED_DEFAULT_REASON);
+        assertThat(result.getOutfits().get(1).isRevived()).isFalse();
+        assertThat(result.getOutfits().get(1).getRevivedClothesId()).isNull();
+        verify(userRepository).markRevived(userId, TODAY);
+    }
+
+    @Test
+    @DisplayName("FR-29: AI가 같은 조합을 골랐으면 그 코디(AI 이유)를 맨 앞으로 옮겨 revived로 표시하고 중복으로 넣지 않는다")
+    void recommendByCloset_revivedPickedByAiMovesToFront() throws Exception {
+        closetWithOldTop(userRevivedOn(null), "화이트", """
+                {"outfits": [
+                  {"clothesIds": ["%s", "%s", "%s"], "reason": "AI 이유", "styleTag": "캐주얼"},
+                  {"clothesIds": ["%s", "%s", "%s"], "reason": "되살린 조합", "styleTag": "미니멀"}
+                ]}
+                """.formatted(TOP_ID, BOTTOM_ID, SHOES_ID, SHOES_ID, OLD_TOP_ID, BOTTOM_ID));
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, situationRequest(12.0, "맑음", "DAILY"));
+
+        assertThat(result.getOutfits()).hasSize(2);
+        assertThat(result.getOutfits().get(0).isRevived()).isTrue();
+        assertThat(result.getOutfits().get(0).getReason()).isEqualTo("되살린 조합");
+        assertThat(result.getOutfits().get(1).getReason()).isEqualTo("AI 이유");
+    }
+
+    @Test
+    @DisplayName("FR-29: 같은 주에 이미 노출했으면 revived가 없고 노출일도 다시 기록하지 않는다")
+    void recommendByCloset_sameWeek_noRevived() throws Exception {
+        closetWithOldTop(userRevivedOn(TODAY.minusDays(2)), "화이트", AI_PICKS_FIRST_TOP);
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, situationRequest(12.0, "맑음", "DAILY"));
+
+        assertThat(result.getOutfits()).noneMatch(ClosetRecommendResponse.ClosetOutfit::isRevived);
+        assertThat(sentRequest().getCandidates().get(0).getClothesIds()).containsExactly(TOP_ID, BOTTOM_ID, SHOES_ID);
+        verify(userRepository, never()).markRevived(any(), any());
+    }
+
+    @Test
+    @DisplayName("FR-29: 오래 안 입은 옷이 든 유효 조합이 없으면(레드–그린 충돌) revived가 없고 후보에도 그 옷이 없다")
+    void recommendByCloset_noValidComboForOldPiece_noRevived() throws Exception {
+        closetWithOldTop(userRevivedOn(null), "레드", AI_PICKS_FIRST_TOP);
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, situationRequest(12.0, "맑음", "DAILY"));
+
+        assertThat(result.getOutfits()).noneMatch(ClosetRecommendResponse.ClosetOutfit::isRevived);
+        assertThat(sentRequest().getCandidates())
+                .allSatisfy(c -> assertThat(c.getClothesIds()).doesNotContain(OLD_TOP_ID));
+        verify(userRepository, never()).markRevived(any(), any());
     }
 }

@@ -16,9 +16,11 @@ import com.fashionapp.infra.AiSituationRecommendResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -31,11 +33,15 @@ public class OutfitService {
 
     // 상의 하나만 있는 조합처럼 코디로 보기 어려운 결과는 버림
     private static final int MIN_ITEMS_PER_OUTFIT = 2;
+    // FR-29 rule-based text when the AI did not pick the revived combo itself
+    static final String REVIVED_DEFAULT_REASON = "한동안 입지 않은 옷이에요. 이 조합으로 다시 꺼내 입어 보세요.";
+    static final String REVIVED_STYLE_TAG = "다시 입기";
 
     private final UserRepository userRepository;
     private final AiServerClient aiServerClient;
     private final ClothesService clothesService;
     private final EventRecorder eventRecorder;
+    private final ClosetPlanner closetPlanner;
 
     // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
     // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
@@ -77,10 +83,15 @@ public class OutfitService {
                 .map(c -> new AiClosetRecommendRequest.ClosetItem(
                         c.getId().toString(), c.getCategory().name(), c.getColor(), c.getName()))
                 .toList();
+        // FR-29: rules pick the valid combos (and, once a week, a long-unworn piece's combo first)
+        ClosetPlanner.ClosetPlan plan = closetPlanner.plan(closet, user.getLastRevivedOn());
+        List<AiClosetRecommendRequest.Candidate> candidates = plan.candidates().stream()
+                .map(combo -> new AiClosetRecommendRequest.Candidate(
+                        ClosetPlanner.idsOf(combo).stream().map(UUID::toString).toList()))
+                .toList();
 
-        AiClosetRecommendResponse aiResult = join(aiServerClient.recommendOutfitsByCloset(
-                new AiClosetRecommendRequest(toWeatherInfo(request), request.getSituation(), toBodyProfile(user), items)
-        ));
+        AiClosetRecommendResponse aiResult = join(aiServerClient.recommendOutfitsByCloset(new AiClosetRecommendRequest(
+                toWeatherInfo(request), request.getSituation(), toBodyProfile(user), items, candidates)));
 
         // AI 서버에서도 걸러내지만, 응답 ID가 내 옷장에 실제로 있는지 여기서 한 번 더 검증
         Map<String, ClothesResponse> byId = closet.stream()
@@ -95,9 +106,37 @@ public class OutfitService {
                                 o.getStyleTag()))
                         .filter(o -> o.getItems().size() >= MIN_ITEMS_PER_OUTFIT)
                         .toList();
+        if (plan.revival() != null) {
+            outfits = withRevivedFirst(outfits, plan.revival(), byId);
+            userRepository.markRevived(userId, closetPlanner.today());
+        }
 
         eventRecorder.record(userId, EventType.OUTFIT_RECOMMENDED, Map.of("mode", "CLOSET", "outfits", outfits.size()));
         return new ClosetRecommendResponse(outfits);
+    }
+
+    /**
+     * FR-29: the revived combo always comes first, marked revived. If the AI picked the same pieces, that outfit
+     * (with the AI's reason) moves to the front; otherwise the rule combo is added with a default reason.
+     */
+    static List<ClosetRecommendResponse.ClosetOutfit> withRevivedFirst(List<ClosetRecommendResponse.ClosetOutfit> outfits,
+                                                                       ClosetPlanner.Revival revival,
+                                                                       Map<String, ClothesResponse> byId) {
+        Set<UUID> revivedIds = Set.copyOf(ClosetPlanner.idsOf(revival.combo()));
+        ClosetRecommendResponse.ClosetOutfit picked = outfits.stream()
+                .filter(o -> o.getItems().stream().map(ClothesResponse::getId).collect(Collectors.toSet()).equals(revivedIds))
+                .findFirst()
+                .orElse(null);
+        ClosetRecommendResponse.ClosetOutfit revived = picked != null
+                ? new ClosetRecommendResponse.ClosetOutfit(picked.getItems(), picked.getReason(), picked.getStyleTag(),
+                        true, revival.clothesId())
+                : new ClosetRecommendResponse.ClosetOutfit(
+                        ClosetPlanner.idsOf(revival.combo()).stream().map(id -> byId.get(id.toString())).toList(),
+                        REVIVED_DEFAULT_REASON, REVIVED_STYLE_TAG, true, revival.clothesId());
+        List<ClosetRecommendResponse.ClosetOutfit> result = new ArrayList<>();
+        result.add(revived);
+        outfits.stream().filter(o -> o != picked).forEach(result::add);
+        return result;
     }
 
     private User findUser(UUID userId) {

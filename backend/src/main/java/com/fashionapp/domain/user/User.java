@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,6 +74,10 @@ public class User {
     // 가상 피팅 사진 전송(Hugging Face 공개 서비스) 동의 시각. null이면 미동의 — 피팅 API가 403으로 막는다
     @Column(name = "vton_consent_at")
     private LocalDateTime vtonConsentAt;
+
+    // FR-29: Korean day a long-unworn piece was last put first in a closet recommendation. null = never
+    @Column(name = "last_revived_on")
+    private LocalDate lastRevivedOn;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

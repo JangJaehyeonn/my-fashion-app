@@ -136,6 +136,9 @@ wearon:
     daily-limit: ${WEARON_PURCHASE_DAILY_LIMIT:30}
     # FR-12 30분 지난 임시 사진을 지우는 스케줄러 간격 (ISO-8601 기간)
     cleanup-delay: PT1M
+  revival:
+    # FR-29 이 일수 이상 착용 기록이 없는(착용 기록이 없으면 등록일 기준) 분류된 옷을 '오래 안 입은 옷'으로 본다
+    unworn-days: ${WEARON_REVIVAL_UNWORN_DAYS:60}
   events:
     # FR-14 1년 지난 이벤트를 지우는 시각 (cron, 한국 시각)
     retention-cron: "0 30 4 * * *"
