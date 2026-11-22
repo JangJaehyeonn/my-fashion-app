@@ -1,5 +1,7 @@
 package com.fashionapp.domain.vton;
 
+import com.fashionapp.domain.event.EventRecorder;
+import com.fashionapp.domain.event.EventType;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.global.exception.CustomException;
@@ -22,6 +24,7 @@ public class VtonService {
     private final UserRepository userRepository;
     private final AiServerClient aiServerClient;
     private final ImageStorage imageStorage;
+    private final EventRecorder eventRecorder;
 
     // 결과 이미지는 DB에 기록이 없어 vton/{userId}/ 아래에 저장 → 회원 탈퇴 시 prefix로 한꺼번에 삭제
     public static String storageDir(UUID userId) {
@@ -51,6 +54,7 @@ public class VtonService {
         byte[] resultBytes = Base64.getDecoder().decode(aiResult.getResultImageBase64());
         String imageUrl = imageStorage.storeBytes(resultBytes, "image/png", "vton", userId);
 
+        eventRecorder.record(userId, EventType.VTON_USED);
         return VtonResponse.builder()
                 .resultImageUrl(imageStorage.resolveUrl(imageUrl))
                 .build();

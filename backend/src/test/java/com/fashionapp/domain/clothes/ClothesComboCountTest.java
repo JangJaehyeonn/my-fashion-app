@@ -40,7 +40,8 @@ class ClothesComboCountTest {
     @BeforeEach
     void setUp() {
         clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient),
-                imageStorage, clothesEmbedder, ComboTestSupport.defaultService(), wearRecordRepository);
+                imageStorage, clothesEmbedder, ComboTestSupport.defaultService(), wearRecordRepository,
+                org.mockito.Mockito.mock(com.fashionapp.domain.event.EventRecorder.class));
     }
 
     @Test

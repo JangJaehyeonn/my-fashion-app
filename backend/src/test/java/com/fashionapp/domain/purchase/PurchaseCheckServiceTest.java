@@ -63,6 +63,7 @@ class PurchaseCheckServiceTest {
     @Mock private AiServerClient aiServerClient;
     @Mock private PurchaseDailyLimiter dailyLimiter;
     @Mock private PurchaseRecordService recordService;
+    @Mock private com.fashionapp.domain.event.EventRecorder eventRecorder;
 
     private static final UUID CHECK_ID = UUID.randomUUID();
 
@@ -75,7 +76,7 @@ class PurchaseCheckServiceTest {
     void setUp() {
         service = new PurchaseCheckService(clothesRepository, clothesClassifier, clothesEmbedder, embeddingStore,
                 comboCountService, wearService, new PurchaseExplainer(aiServerClient),
-                new PurchaseCheckRules(0.85, 5), dailyLimiter, recordService, CLOCK);
+                new PurchaseCheckRules(0.85, 5), dailyLimiter, recordService, CLOCK, eventRecorder);
         given(recordService.open(eq(userId), any(), any(), any(), any(), anyInt(), any(), any()))
                 .willReturn(CHECK_ID);
         given(clothesClassifier.classify(any(org.springframework.web.multipart.MultipartFile.class)))
@@ -136,6 +137,17 @@ class PurchaseCheckServiceTest {
         verify(dailyLimiter).acquire(userId);
         verify(recordService).open(eq(userId), eq(JPEG), eq("image/jpeg"), eq(response.item()),
                 eq(response.verdict()), eq(response.plus()), eq(39000L), eq(vector));
+    }
+
+    @Test
+    @DisplayName("FR-14: 판정하면 PURCHASE_CHECKED(verdict, plus)를 남긴다")
+    void checkRecordsEvent() {
+        closet(2, 2, 2);
+
+        PurchaseCheckResponse response = service.check(userId, image, "39000");
+
+        verify(eventRecorder).record(userId, com.fashionapp.domain.event.EventType.PURCHASE_CHECKED,
+                Map.of("verdict", response.verdict().name(), "plus", response.plus(), "priced", true));
     }
 
     @Test

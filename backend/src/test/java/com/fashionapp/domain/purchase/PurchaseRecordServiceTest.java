@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -54,6 +55,7 @@ class PurchaseRecordServiceTest {
     @Mock private ImageStorage imageStorage;
     @Mock private ClothesService clothesService;
     @Mock private ClothesRepository clothesRepository;
+    @Mock private com.fashionapp.domain.event.EventRecorder eventRecorder;
 
     private final UUID userId = UUID.randomUUID();
     private PurchaseRecordService service;
@@ -61,7 +63,7 @@ class PurchaseRecordServiceTest {
     @BeforeEach
     void setUp() {
         service = new PurchaseRecordService(repository, draftStore, imageStorage, clothesService, clothesRepository,
-                CLOCK);
+                CLOCK, eventRecorder);
         given(imageStorage.storeBytesAt(anyString(), any(), anyString())).willAnswer(inv -> inv.getArgument(0));
         given(imageStorage.resolveUrl(anyString())).willAnswer(inv -> "http://img/" + inv.getArgument(0));
         given(repository.claimUndecided(any(), anyString())).willReturn(1);
@@ -178,6 +180,20 @@ class PurchaseRecordServiceTest {
         assertThat(response.check().imageUrl()).isNull();
         assertThat(check.getTempPhotoKey()).isNull();
         verify(clothesService, never()).registerPurchased(any(), any(), any(), any());
+        verify(eventRecorder).record(userId, com.fashionapp.domain.event.EventType.PURCHASE_DECIDED,
+                Map.of("decision", "SKIP", "verdict", check.getVerdict()));
+    }
+
+    @Test
+    @DisplayName("FR-14: 결정이 실패하면 PURCHASE_DECIDED를 남기지 않는다")
+    void failedDecisionRecordsNoEvent() {
+        PurchaseCheck check = stored(NOW.minus(Duration.ofMinutes(1)));
+        given(imageStorage.storeBytes(any(), anyString(), anyString(), any()))
+                .willThrow(new CustomException(ErrorCode.IMAGE_UPLOAD_FAILED));
+
+        assertThatThrownBy(() -> service.decide(userId, check.getId(), PurchaseDecisionRequest.Choice.BUY))
+                .isInstanceOf(CustomException.class);
+        verify(eventRecorder, never()).record(any(), any(), any());
     }
 
     @Test

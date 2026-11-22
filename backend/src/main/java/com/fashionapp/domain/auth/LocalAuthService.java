@@ -1,6 +1,8 @@
 package com.fashionapp.domain.auth;
 
 import com.fashionapp.domain.consent.ConsentService;
+import com.fashionapp.domain.event.EventRecorder;
+import com.fashionapp.domain.event.EventType;
 import com.fashionapp.domain.user.AuthTokenService;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
@@ -34,6 +36,7 @@ public class LocalAuthService {
     private final LoginAttemptLimiter loginAttemptLimiter;
     private final ConsentService consentService;
     private final Clock clock;
+    private final EventRecorder eventRecorder;
 
     /** 가입 후 바로 로그인 상태가 되도록 토큰을 함께 발급 */
     public Map<String, String> signup(SignupRequest request) {
@@ -57,6 +60,7 @@ public class LocalAuthService {
         }
         consentService.recordRequiredAgreements(user.getId(), user.getAgeConfirmedAt());
         log.info("local signup loginId={} userId={}", user.getLoginId(), user.getId());
+        eventRecorder.record(user.getId(), EventType.SIGNUP, Map.of("method", "LOCAL"));
         return authTokenService.issueTokens(user.getId());
     }
 

@@ -7,6 +7,8 @@ import com.fashionapp.domain.clothes.ClothesRepository;
 import com.fashionapp.domain.clothes.ClothesResponse;
 import com.fashionapp.domain.clothes.ClothesSeason;
 import com.fashionapp.domain.clothes.ClothesService;
+import com.fashionapp.domain.event.EventRecorder;
+import com.fashionapp.domain.event.EventType;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.ImageKeys;
@@ -44,6 +46,7 @@ public class PurchaseRecordService {
     private final ClothesService clothesService;
     private final ClothesRepository clothesRepository;
     private final Clock clock;
+    private final EventRecorder eventRecorder;
 
     /** Stores the photo under tmp/ and records an UNDECIDED check. Returns the check id. */
     public UUID open(UUID userId, byte[] photo, String contentType, PurchaseCheckResponse.Item item,
@@ -112,7 +115,11 @@ public class PurchaseRecordService {
         if (check.isExpired(clock.instant())) {
             throw new CustomException(ErrorCode.PURCHASE_CHECK_EXPIRED);
         }
-        return choice == PurchaseDecisionRequest.Choice.BUY ? buy(userId, check) : skip(userId, check);
+        PurchaseDecisionResponse response = choice == PurchaseDecisionRequest.Choice.BUY
+                ? buy(userId, check) : skip(userId, check);
+        eventRecorder.record(userId, EventType.PURCHASE_DECIDED,
+                Map.of("decision", choice.name(), "verdict", String.valueOf(check.getVerdict())));
+        return response;
     }
 
     private PurchaseDecisionResponse skip(UUID userId, PurchaseCheck check) {
