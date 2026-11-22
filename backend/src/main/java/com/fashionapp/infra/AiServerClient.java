@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -174,6 +175,20 @@ public class AiServerClient {
                 .body(builder.build())
                 .retrieve()
                 .body(AiClothesClassifyResponse.class);
+    }
+
+    /** FR-07: text embedding (text-embedding-3-small on the AI server). */
+    public AiEmbedResponse embed(String text) {
+        try {
+            return restClient.post()
+                    .uri(aiServerUrl + "/ai/embed")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("text", text))
+                    .retrieve()
+                    .body(AiEmbedResponse.class);
+        } catch (RestClientException e) {
+            throw toAiException("embed", e);
+        }
     }
 
     public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {

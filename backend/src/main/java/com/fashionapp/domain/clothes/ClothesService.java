@@ -27,6 +27,7 @@ public class ClothesService {
     private final UserRepository userRepository;
     private final ClothesClassifier clothesClassifier;
     private final ImageStorage imageStorage;
+    private final ClothesEmbedder clothesEmbedder;
 
     // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
     // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
@@ -48,12 +49,16 @@ public class ClothesService {
                 .build();
         classification.ifPresent(clothes::applyClassification);
 
-        ClothesResponse response = toResponse(clothesRepository.save(clothes));
+        Clothes saved = clothesRepository.save(clothes);
         long t3 = System.nanoTime();
+        // FR-07: embedding failure must not fail registration (the embedding just stays empty)
+        clothesEmbedder.refresh(saved);
+        long t4 = System.nanoTime();
+        ClothesResponse response = toResponse(saved);
         // 옷 등록이 느릴 때 어느 구간(AI 분류 / 이미지 저장 / DB·URL 변환)인지 가려내기 위한 구간별 소요 시간
-        log.info("clothes.register size={}KB classified={} classify={}ms s3={}ms db={}ms",
+        log.info("clothes.register size={}KB classified={} classify={}ms s3={}ms db={}ms embed={}ms",
                 image.getSize() / 1024, classification.isPresent(),
-                (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000, (t3 - t2) / 1_000_000);
+                (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000, (t3 - t2) / 1_000_000, (t4 - t3) / 1_000_000);
         return response;
     }
 
@@ -65,16 +70,26 @@ public class ClothesService {
                 .toList();
     }
 
-    @Transactional
+    // 임베딩 재계산(AI 호출)을 기다리는 동안 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 (register와 같은 이유)
     public ClothesResponse update(UUID userId, UUID clothesId, ClothesUpdateRequest request) {
         ClothesCategory category = request.getCategory() == null ? null
                 : ClothesCategory.parseAssignable(request.getCategory())
                         .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CLOTHES_UPDATE));
         String color = normalizeText(request.getColor());
         String name = normalizeText(request.getName());
+        String fit = normalizeText(request.getFit());
+        String material = normalizeText(request.getMaterial());
+        String pattern = normalizeText(request.getPattern());
+        ClothesSeason season = request.getSeason() == null ? null
+                : ClothesSeason.parse(request.getSeason())
+                        .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CLOTHES_UPDATE));
 
         Clothes clothes = findOwned(userId, clothesId);
         clothes.editByUser(category, color, name);
+        clothes.editAttributesByUser(fit, material, pattern, season);
+        clothesRepository.save(clothes);
+        // FR-07: attributes changed, so the embedding is recomputed (failure only empties it)
+        clothesEmbedder.refresh(clothes);
         return toResponse(clothes);
     }
 
@@ -91,7 +106,9 @@ public class ClothesService {
         // AI를 기다리는 동안 삭제됐을 수 있으므로 다시 읽어서 갱신
         Clothes clothes = findOwned(userId, clothesId);
         clothes.applyClassification(classification);
-        return toResponse(clothesRepository.save(clothes));
+        Clothes saved = clothesRepository.save(clothes);
+        clothesEmbedder.refresh(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -138,6 +155,10 @@ public class ClothesService {
                 .name(clothes.getName())
                 .classificationFailed(category == ClothesCategory.UNCLASSIFIED)
                 .createdAt(clothes.getCreatedAt())
+                .fit(clothes.getFit())
+                .material(clothes.getMaterial())
+                .pattern(clothes.getPattern())
+                .season(ClothesSeason.parse(clothes.getSeason()).orElse(null))
                 .build();
     }
 }
