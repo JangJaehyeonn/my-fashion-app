@@ -61,6 +61,10 @@ class PurchaseCheckServiceTest {
     @Mock private ClothesEmbeddingStore embeddingStore;
     @Mock private WearService wearService;
     @Mock private AiServerClient aiServerClient;
+    @Mock private PurchaseDailyLimiter dailyLimiter;
+    @Mock private PurchaseRecordService recordService;
+
+    private static final UUID CHECK_ID = UUID.randomUUID();
 
     private final UUID userId = UUID.randomUUID();
     private final ComboCountService comboCountService = ComboTestSupport.defaultService();
@@ -71,7 +75,9 @@ class PurchaseCheckServiceTest {
     void setUp() {
         service = new PurchaseCheckService(clothesRepository, clothesClassifier, clothesEmbedder, embeddingStore,
                 comboCountService, wearService, new PurchaseExplainer(aiServerClient),
-                new PurchaseCheckRules(0.85, 5), CLOCK);
+                new PurchaseCheckRules(0.85, 5), dailyLimiter, recordService, CLOCK);
+        given(recordService.open(eq(userId), any(), any(), any(), any(), anyInt(), any(), any()))
+                .willReturn(CHECK_ID);
         given(clothesClassifier.classify(any(org.springframework.web.multipart.MultipartFile.class)))
                 .willReturn(Optional.of(new ClothesClassification(ClothesCategory.TOP, "블랙", "블랙 hoodie")));
         given(clothesEmbedder.embedCandidate(any())).willReturn(Optional.of(new float[]{1f}));
@@ -102,6 +108,34 @@ class PurchaseCheckServiceTest {
         }
         given(clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId)).willReturn(closet);
         return closet;
+    }
+
+    @Test
+    @DisplayName("FR-12: 하루 한도를 넘으면 429이고 AI를 부르지도 기록을 남기지도 않는다")
+    void dailyLimitStopsBeforeAi() {
+        closet(2, 2, 2);
+        org.mockito.BDDMockito.willThrow(new CustomException(ErrorCode.PURCHASE_CHECK_LIMIT))
+                .given(dailyLimiter).acquire(userId);
+        assertThatThrownBy(() -> service.check(userId, image, null))
+                .isInstanceOfSatisfying(CustomException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PURCHASE_CHECK_LIMIT));
+        verify(clothesClassifier, never()).classify(any(org.springframework.web.multipart.MultipartFile.class));
+        verify(recordService, never()).open(any(), any(), any(), any(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    @DisplayName("FR-12: 판정 결과의 id는 기록 id이고, 사진·분석 결과·판정·plus·가격·임베딩을 기록에 넘긴다")
+    void checkIsRecorded() {
+        closet(2, 2, 2);
+        float[] vector = {1f};
+        given(clothesEmbedder.embedCandidate(any())).willReturn(Optional.of(vector));
+
+        PurchaseCheckResponse response = service.check(userId, image, "39000");
+
+        assertThat(response.id()).isEqualTo(CHECK_ID);
+        verify(dailyLimiter).acquire(userId);
+        verify(recordService).open(eq(userId), eq(JPEG), eq("image/jpeg"), eq(response.item()),
+                eq(response.verdict()), eq(response.plus()), eq(39000L), eq(vector));
     }
 
     @Test

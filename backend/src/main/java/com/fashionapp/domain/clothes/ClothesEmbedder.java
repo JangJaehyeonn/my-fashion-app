@@ -49,6 +49,18 @@ public class ClothesEmbedder {
         }
     }
 
+    /**
+     * FR-12: stores an embedding that was already computed for the same attributes (a purchase check), so no AI call
+     * is made. Falls back to {@link #refresh} when there is none or it cannot be stored.
+     */
+    public void storeOrRefresh(Clothes clothes, float[] vector) {
+        boolean stored = clothes.getId() != null && vector != null
+                && vector.length == ClothesEmbeddingStore.DIMENSIONS && embeddingStore.save(clothes.getId(), vector);
+        if (!stored) {
+            refresh(clothes);
+        }
+    }
+
     /** Outcome of {@link #fillBatch}: how many clothes had an embedding text and how many vectors were stored. */
     public record BatchResult(int attempted, int saved) {
         /** True when there was something to embed but nothing could be stored (AI or DB down). */

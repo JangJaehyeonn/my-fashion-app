@@ -43,6 +43,29 @@ class LocalDiskStorageTest {
     }
 
     @Test
+    @DisplayName("FR-12 임시 사진: tmp/{owner}/{checkId}.jpg에 저장되고, 사용자 prefix 삭제로 폴더째 사라진다")
+    void storeBytesAt_tempKeyAndPrefixDelete() {
+        UUID checkId = UUID.randomUUID();
+        String key = storage.storeBytesAt(ImageKeys.tempKey(owner, checkId, "image/jpeg"), JPEG, "image/jpeg");
+
+        assertThat(key).isEqualTo("tmp/" + owner + "/" + checkId + ".jpg");
+        assertThat(storage.readBytes(key)).contains(JPEG);
+
+        assertThat(storage.deleteByPrefix(ImageKeys.tempPrefix(owner))).isEqualTo(1);
+        assertThat(root.resolve("tmp/" + owner)).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("FR-12 임시 사진: 키 형식이 아니거나 이미지가 아니면 저장하지 않는다")
+    void storeBytesAt_rejectsBadKeyOrContent() {
+        assertThatThrownBy(() -> storage.storeBytesAt("tmp/../x.jpg", JPEG, "image/jpeg"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> storage.storeBytesAt(ImageKeys.tempKey(owner, UUID.randomUUID(), "image/jpeg"),
+                PNG, "image/jpeg")).isInstanceOf(CustomException.class);
+        assertThat(root).isEmptyDirectory();
+    }
+
+    @Test
     @DisplayName("검증: 허용 안 된 MIME / 내용과 MIME 불일치 / 빈 파일 / 용량 초과는 INVALID_IMAGE_FORMAT")
     void store_rejectsInvalidUploads() {
         assertInvalid(new MockMultipartFile("image", "a.gif", "image/gif", JPEG));

@@ -5,6 +5,7 @@ import com.fashionapp.domain.clothes.ClothesRepository;
 import com.fashionapp.domain.combo.ComboCountService;
 import com.fashionapp.domain.consent.ConsentService;
 import com.fashionapp.domain.diagnosis.StyleDiagnosisRepository;
+import com.fashionapp.domain.purchase.PurchaseTempPhotoCleaner;
 import com.fashionapp.domain.vton.VtonService;
 import com.fashionapp.domain.wear.WearRecordRepository;
 import com.fashionapp.global.exception.CustomException;
@@ -25,7 +26,8 @@ import java.util.UUID;
  *
  * <p>아이디·비밀번호(local) 사용자도 같은 흐름으로 삭제한다 — login_id가 users 행과 함께 사라지므로 같은 아이디로 다시 가입할 수 있다.
  *
- * <p>삭제 대상: 옷(clothes) 행·사진, 진단 기록(style_diagnoses) 행·사진, 동의 이력(consent_records) 행, 착용 기록(wear_records) 행, 가상 피팅 결과 사진(vton/{userId}/),
+ * <p>삭제 대상: 옷(clothes) 행·사진, 진단 기록(style_diagnoses) 행·사진, 동의 이력(consent_records) 행, 착용 기록(wear_records) 행,
+ * 살까 말까 기록(purchase_checks) 행·임시 사진(tmp/{userId}/)·Redis 임시 속성, 가상 피팅 결과 사진(vton/{userId}/),
  * Redis 리프레시 토큰, 사용자 행. 코디 추천은 저장하지 않고(요청마다 생성) 피팅 결과도 DB 기록이 없어 지울 행은 없다.
  *
  * <p>순서와 실패 처리:
@@ -56,10 +58,12 @@ public class AccountDeletionService {
     private final ConsentService consentService;
     private final ComboCountService comboCountService;
     private final WearRecordRepository wearRecordRepository;
+    private final PurchaseTempPhotoCleaner purchaseCleaner;
 
     public void deleteAccount(UUID userId) {
         // 1) DB — 실패 시 전부 롤백
         String[] loginId = new String[1];
+        List<UUID> pendingChecks = new ArrayList<>();
         List<String> imageUrls = transactionTemplate.execute(status -> {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -69,6 +73,8 @@ public class AccountDeletionService {
 
             // FR-10: wear records have no FK, so they go first in the same transaction
             wearRecordRepository.deleteAllByUserId(userId);
+            // FR-12: purchase check records have no FK either
+            pendingChecks.addAll(purchaseCleaner.deleteRecords(userId));
             clothesRepository.deleteAllByUserId(userId);
             styleDiagnosisRepository.deleteAllByUserId(userId);
             consentService.deleteAll(userId);
@@ -106,6 +112,12 @@ public class AccountDeletionService {
         } catch (RuntimeException e) {
             failed++;
             log.warn("account.delete userId={} image prefix delete failed prefix={}: {}", userId, vtonPrefix, e.getMessage());
+        }
+        try {
+            purchaseCleaner.deleteFiles(userId, pendingChecks);
+        } catch (RuntimeException e) {
+            failed++;
+            log.warn("account.delete userId={} purchase temp photo delete failed: {}", userId, e.getMessage());
         }
         log.info("account.delete userId={} images={} s3Failures={}", userId, imageUrls.size(), failed);
     }

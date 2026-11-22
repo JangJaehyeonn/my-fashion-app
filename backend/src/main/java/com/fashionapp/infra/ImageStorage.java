@@ -22,6 +22,9 @@ public interface ImageStorage {
     /** AI가 만든 결과 이미지처럼 서버가 가진 바이트를 저장 */
     String storeBytes(byte[] bytes, String contentType, String category, UUID ownerId);
 
+    /** FR-12: 서버가 정한 키(예: {@link ImageKeys#tempKey})에 바이트를 검증 후 저장하고 그 키를 반환 */
+    String storeBytesAt(String key, byte[] bytes, String contentType);
+
     /** DB에 저장된 키(옛 데이터는 S3 URL)를 클라이언트가 이미지를 가져올 수 있는 URL로 변환 */
     String resolveUrl(String storedKey);
 
