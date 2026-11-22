@@ -2,6 +2,7 @@ package com.fashionapp.domain.user;
 
 import com.fashionapp.domain.auth.LoginAttemptLimiter;
 import com.fashionapp.domain.clothes.ClothesRepository;
+import com.fashionapp.domain.combo.ComboCountService;
 import com.fashionapp.domain.consent.ConsentService;
 import com.fashionapp.domain.diagnosis.StyleDiagnosisRepository;
 import com.fashionapp.domain.vton.VtonService;
@@ -52,6 +53,7 @@ public class AccountDeletionService {
     private final TransactionTemplate transactionTemplate;
     private final LoginAttemptLimiter loginAttemptLimiter;
     private final ConsentService consentService;
+    private final ComboCountService comboCountService;
 
     public void deleteAccount(UUID userId) {
         // 1) DB — 실패 시 전부 롤백
@@ -80,6 +82,9 @@ public class AccountDeletionService {
         } catch (RuntimeException e) {
             log.warn("account.delete userId={} refresh token delete failed: {}", userId, e.getMessage());
         }
+
+        // FR-09: drop the per-user combo count cache (in-memory only, cannot fail)
+        comboCountService.evict(userId);
 
         // 3) 이미지 파일 — best-effort
         int failed = 0;

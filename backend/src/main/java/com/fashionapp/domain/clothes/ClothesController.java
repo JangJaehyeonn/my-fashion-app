@@ -36,6 +36,13 @@ public class ClothesController {
         return ResponseEntity.ok(ApiResponse.success(clothesService.getMyClothes(userPrincipal.getId())));
     }
 
+    @GetMapping("/summary")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ClosetSummaryResponse>> getSummary(
+            @CurrentUser UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(ApiResponse.success(clothesService.getSummary(userPrincipal.getId())));
+    }
+
     @PatchMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ClothesResponse>> update(

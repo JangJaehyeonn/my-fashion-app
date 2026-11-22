@@ -1,5 +1,7 @@
 package com.fashionapp.domain.clothes;
 
+import com.fashionapp.domain.combo.ComboCountService;
+import com.fashionapp.domain.combo.ComboStats;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.global.exception.CustomException;
@@ -28,6 +30,7 @@ public class ClothesService {
     private final ClothesClassifier clothesClassifier;
     private final ImageStorage imageStorage;
     private final ClothesEmbedder clothesEmbedder;
+    private final ComboCountService comboCountService;
 
     // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
     // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
@@ -64,10 +67,18 @@ public class ClothesService {
 
     @Transactional(readOnly = true)
     public List<ClothesResponse> getMyClothes(UUID userId) {
-        return clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId)
-                .stream()
-                .map(this::toResponse)
+        List<Clothes> closet = clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId);
+        ComboStats stats = comboCountService.statsFor(userId, closet);
+        return closet.stream()
+                .map(clothes -> toResponse(clothes, stats.countOf(clothes.getId())))
                 .toList();
+    }
+
+    /** FR-09: closet summary with the total number of valid combos. */
+    @Transactional(readOnly = true)
+    public ClosetSummaryResponse getSummary(UUID userId) {
+        List<Clothes> closet = clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId);
+        return new ClosetSummaryResponse(comboCountService.statsFor(userId, closet).total());
     }
 
     // 임베딩 재계산(AI 호출)을 기다리는 동안 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 (register와 같은 이유)
@@ -146,6 +157,10 @@ public class ClothesService {
     }
 
     private ClothesResponse toResponse(Clothes clothes) {
+        return toResponse(clothes, null);
+    }
+
+    private ClothesResponse toResponse(Clothes clothes, Integer comboCount) {
         ClothesCategory category = ClothesCategory.from(clothes.getCategory());
         return ClothesResponse.builder()
                 .id(clothes.getId())
@@ -159,6 +174,7 @@ public class ClothesService {
                 .material(clothes.getMaterial())
                 .pattern(clothes.getPattern())
                 .season(ClothesSeason.parse(clothes.getSeason()).orElse(null))
+                .comboCount(comboCount)
                 .build();
     }
 }
