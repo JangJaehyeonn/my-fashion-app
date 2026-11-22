@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "neutralColors": ["화이트", "블랙", "네이비", "그레이", "베이지"],
+  "colorConflicts": [
+    ["레드", "그린"],
+    ["오렌지", "퍼플"]
+  ],
+  "seasonConflicts": [
+    ["SUMMER", "WINTER"]
+  ],
+  "styleConflicts": {
+    "attribute": "pattern",
+    "pairs": [
+      ["체크", "스트라이프"],
+      ["체크", "플로럴"],
+      ["스트라이프", "플로럴"],
+      ["도트", "플로럴"]
+    ]
+  }
+}

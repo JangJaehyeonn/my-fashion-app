@@ -1,5 +1,6 @@
 package com.fashionapp.domain.clothes;
 
+import com.fashionapp.domain.combo.ComboTestSupport;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.global.exception.CustomException;
@@ -49,7 +50,8 @@ class ClothesEditServiceTest {
 
     @BeforeEach
     void setUp() {
-        clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage, clothesEmbedder);
+        clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage, clothesEmbedder,
+                ComboTestSupport.defaultService());
         userId = UUID.randomUUID();
         clothesId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(LocalDateTime.now()).id(userId).nickname("테스터")

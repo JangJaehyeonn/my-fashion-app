@@ -28,4 +28,6 @@ public class ClothesResponse {
     private String pattern;
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private ClothesSeason season;
+    // FR-09: valid combos this piece is in (0 for unclassified/ETC). Filled in the clothes list; null elsewhere.
+    private Integer comboCount;
 }
