@@ -35,4 +35,8 @@ public class ClothesResponse {
     private Integer wearCount;
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private LocalDate lastWornAt;
+    // FR-27: effective status (LAUNDRY past its days reads AVAILABLE) and "can wear now"
+    // (AVAILABLE, not on wear cooldown, classified). Pieces just registered have no wears, so no cooldown.
+    private ClothesStatus status;
+    private boolean available;
 }

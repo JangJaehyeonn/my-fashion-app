@@ -18,10 +18,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,6 +45,7 @@ public class ClothesService {
     private final ComboCountService comboCountService;
     private final WearRecordRepository wearRecordRepository;
     private final EventRecorder eventRecorder;
+    private final ClothesAvailability availability;
 
     // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
     // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
@@ -108,8 +113,42 @@ public class ClothesService {
         Map<UUID, WearStat> wears = wearRecordRepository.findStatsByUserId(userId).stream()
                 .collect(Collectors.toMap(WearStat::clothesId, Function.identity()));
         return closet.stream()
-                .map(clothes -> withWears(toResponse(clothes, stats.countOf(clothes.getId())), wears.get(clothes.getId())))
+                .map(clothes -> withWears(clothes, toResponse(clothes, stats.countOf(clothes.getId())), wears.get(clothes.getId())))
                 .toList();
+    }
+
+    /**
+     * FR-27: sets the status of several pieces at once. Every id must be the user's own piece, otherwise 400 and
+     * nothing changes. LAUNDRY counts as AVAILABLE again after the configured days (computed when read).
+     */
+    @Transactional
+    public ClothesStatusResponse changeStatus(UUID userId, ClothesStatusRequest request) {
+        ClothesStatus status = ClothesStatus.parse(request.getStatus())
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CLOTHES_STATUS_REQUEST));
+        Set<UUID> ids = parseIds(request.getClothesIds());
+        List<Clothes> owned = clothesRepository.findByUser_IdAndIdIn(userId, ids);
+        if (owned.size() != ids.size()) {
+            throw new CustomException(ErrorCode.INVALID_STATUS_CLOTHES);
+        }
+        LocalDateTime until = status == ClothesStatus.LAUNDRY ? availability.laundryUntil() : null;
+        owned.forEach(clothes -> clothes.changeStatus(status, until));
+        clothesRepository.saveAll(owned);
+        return new ClothesStatusResponse(List.copyOf(ids), status, until);
+    }
+
+    private static Set<UUID> parseIds(List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_CLOTHES_STATUS_REQUEST);
+        }
+        Set<UUID> ids = new LinkedHashSet<>();
+        for (String value : raw) {
+            try {
+                ids.add(UUID.fromString(value));
+            } catch (IllegalArgumentException | NullPointerException e) {
+                throw new CustomException(ErrorCode.INVALID_CLOTHES_STATUS_REQUEST);
+            }
+        }
+        return ids;
     }
 
     /** FR-09: closet summary with the total number of valid combos. */
@@ -139,7 +178,7 @@ public class ClothesService {
         clothesRepository.save(clothes);
         // FR-07: attributes changed, so the embedding is recomputed (failure only empties it)
         clothesEmbedder.refresh(clothes);
-        return toResponse(clothes);
+        return withWears(clothes, toResponse(clothes), wearOf(userId, clothesId));
     }
 
     // AI 호출 중에는 트랜잭션을 걸지 않음 (register와 같은 이유). 실패하면 기존 값을 건드리지 않고 503
@@ -157,7 +196,7 @@ public class ClothesService {
         clothes.applyClassification(classification);
         Clothes saved = clothesRepository.save(clothes);
         clothesEmbedder.refresh(saved);
-        return toResponse(saved);
+        return withWears(saved, toResponse(saved), wearOf(userId, clothesId));
     }
 
     @Transactional
@@ -196,10 +235,20 @@ public class ClothesService {
         return key.substring(key.lastIndexOf('/') + 1);
     }
 
-    private static ClothesResponse withWears(ClothesResponse response, WearStat wear) {
+    /** FR-27: wear stat of one piece so availability (cooldown) is exact outside the clothes list too. */
+    private WearStat wearOf(UUID userId, UUID clothesId) {
+        return wearRecordRepository.findStatsByUserId(userId).stream()
+                .filter(stat -> clothesId.equals(stat.clothesId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private ClothesResponse withWears(Clothes clothes, ClothesResponse response, WearStat wear) {
+        LocalDate lastWornOn = wear == null ? null : wear.lastWornOn();
         return response.toBuilder()
                 .wearCount(wear == null ? 0 : (int) wear.count())
-                .lastWornAt(wear == null ? null : wear.lastWornOn())
+                .lastWornAt(lastWornOn)
+                .available(availability.isAvailable(clothes, lastWornOn))
                 .build();
     }
 
@@ -222,6 +271,8 @@ public class ClothesService {
                 .pattern(clothes.getPattern())
                 .season(ClothesSeason.parse(clothes.getSeason()).orElse(null))
                 .comboCount(comboCount)
+                .status(availability.effectiveStatus(clothes))
+                .available(availability.isAvailable(clothes, null))
                 .build();
     }
 }

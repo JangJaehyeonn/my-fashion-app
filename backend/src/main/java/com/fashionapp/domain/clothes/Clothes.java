@@ -54,6 +54,26 @@ public class Clothes {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    // FR-27 ClothesStatus name (nullable; null = AVAILABLE for rows before FR-27). Read through ClothesAvailability.
+    @Column(length = 20)
+    private String status;
+
+    // FR-27: for LAUNDRY, the moment it counts as AVAILABLE again. Null for AVAILABLE.
+    private LocalDateTime statusUntil;
+
+    @PrePersist
+    void defaultStatus() {
+        if (status == null) {
+            status = ClothesStatus.AVAILABLE.name();
+        }
+    }
+
+    /** FR-27 status change. {@code until} is kept only for LAUNDRY. */
+    public void changeStatus(ClothesStatus newStatus, LocalDateTime until) {
+        this.status = newStatus.name();
+        this.statusUntil = newStatus == ClothesStatus.LAUNDRY ? until : null;
+    }
+
     /** Overwrites category, color, name and the FR-07 attributes with an AI classification result. */
     public void applyClassification(ClothesClassification classification) {
         this.category = classification.category().name();

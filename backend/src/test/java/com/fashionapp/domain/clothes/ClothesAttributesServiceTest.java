@@ -50,7 +50,8 @@ class ClothesAttributesServiceTest {
     void setUp() {
         clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient),
                 imageStorage, clothesEmbedder, com.fashionapp.domain.combo.ComboTestSupport.defaultService(), wearRecordRepository,
-                org.mockito.Mockito.mock(com.fashionapp.domain.event.EventRecorder.class));
+                org.mockito.Mockito.mock(com.fashionapp.domain.event.EventRecorder.class),
+                ClothesAvailabilityTest.defaultAvailability());
         userId = UUID.randomUUID();
         clothesId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(LocalDateTime.now()).id(userId).nickname("테스터")
