@@ -32,6 +32,19 @@ PHASE_NAMES = {
     5: "출시 후",
 }
 ROOT = Path(__file__).resolve().parent.parent
+# Workflow name -> what it means on the board. Unlisted workflows are not shown.
+RUN_LABELS = {
+    "Issue feeder": "다음 이슈 고르기",
+    "Claude": "Opus 구현",
+    "CI": "CI 검사",
+    "AI review": "Sonnet 리뷰",
+    "Fix AI review": "리뷰 지적 수정 (Opus)",
+    "Fix failing CI": "CI 실패 수정 (Opus)",
+    "Fix merge conflicts": "충돌 해결 (Opus)",
+    "Acceptance tests draft": "인수 테스트 초안·대조",
+    "Phase advance": "Phase 전환",
+    "AI review retry": "리뷰 재시도",
+}
 
 
 def gh_input(args: list[str], text: str) -> str:
@@ -69,6 +82,32 @@ def bar(done: int, total: int, width: int = 10) -> str:
 def load_requirements() -> list[dict[str, Any]]:
     with (ROOT / "docs/requirements/issues.toml").open("rb") as f:
         return list(tomllib.load(f)["requirement"])
+
+
+def running_lines(runs: list[dict[str, Any]]) -> list[str]:
+    """Format in-progress/queued workflow runs as board lines (oldest first)."""
+    lines: list[tuple[str, str]] = []
+    for run in runs:
+        label = RUN_LABELS.get(run.get("name", ""))
+        if not label or run.get("status") not in ("in_progress", "queued", "waiting"):
+            continue
+        started = run.get("run_started_at") or run.get("created_at") or ""
+        where = run.get("display_title") or run.get("head_branch") or ""
+        state = "실행 중" if run["status"] == "in_progress" else "대기 중"
+        lines.append(
+            (started, f"{label} · {state} · {kst(started)} 시작 · [{where}]({run['html_url']})")
+        )
+    return [text for _, text in sorted(lines)]
+
+
+def active_runs(name: str) -> list[dict[str, Any]]:
+    runs: list[dict[str, Any]] = []
+    for status in ("in_progress", "queued"):
+        data = json.loads(
+            str(gh("api", f"repos/{name}/actions/runs?status={status}&per_page=50"))
+        )
+        runs += data.get("workflow_runs", [])
+    return runs
 
 
 def build(name: str) -> str:
@@ -163,6 +202,8 @@ def build(name: str) -> str:
 
     out += ["", "## 🙋 재현이 할 일"]
     out += [f"- {a}" for a in attention] or ["- 없음"]
+    out += ["", "## ⚙️ 지금 돌아가는 작업"]
+    out += [f"- {r}" for r in running_lines(active_runs(name))] or ["- 없음"]
     out += ["", "## 🔨 진행 중"]
     out += [f"- {w}" for w in working] or ["- 없음"]
     out += ["", "## ⏭️ 다음 순서"]
