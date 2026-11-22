@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -63,6 +64,18 @@ public class PurchaseCheckController {
             @RequestBody(required = false) PurchaseDecisionRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 purchaseRecordService.decide(userPrincipal.getId(), checkId(id), choiceOf(request))));
+    }
+
+    /** FR-13: re-judge with corrected attributes (omitted = unchanged), skipping classification. Decided = 409. */
+    @PatchMapping("/{id}/attributes")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<PurchaseCheckResponse>> recheck(
+            @CurrentUser UserPrincipal userPrincipal, @PathVariable("id") String id,
+            @RequestBody(required = false) PurchaseAttributesRequest request) {
+        PurchaseAttributesRequest body = request == null
+                ? new PurchaseAttributesRequest(null, null, null, null, null, null, null) : request;
+        return ResponseEntity.ok(ApiResponse.success(
+                purchaseCheckService.recheck(userPrincipal.getId(), checkId(id), body)));
     }
 
     /** A malformed id cannot be anyone's check: 404 like a missing one. */

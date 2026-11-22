@@ -56,8 +56,7 @@ public class PurchaseRecordService {
             deletePhoto(tempKey);
             throw e;
         }
-        draftStore.save(checkId, new PurchaseDraftStore.Draft(item.fit(), item.material(), item.pattern(),
-                item.season(), embedding));
+        draftStore.save(checkId, draftOf(item, embedding));
         return checkId;
     }
 
@@ -70,6 +69,39 @@ public class PurchaseRecordService {
     public List<PurchaseRecordResponse> history(UUID userId) {
         return toResponses(userId,
                 repository.findByUserIdOrderByCreatedAtDescIdDesc(userId, PageRequest.of(0, HISTORY_LIMIT)));
+    }
+
+    /** FR-13: an undecided check whose photo is still there, with its analysed attributes and price. */
+    public record Editable(ClothesClassification current, Long price) {
+    }
+
+    /** FR-13: someone else's = 404, decided = 409, expired = 410 (the photo and so BUY are gone). */
+    public Editable editable(UUID userId, UUID checkId) {
+        PurchaseCheck check = findOwned(userId, checkId);
+        if (check.decisionValue() != PurchaseDecision.UNDECIDED) {
+            throw new CustomException(ErrorCode.PURCHASE_ALREADY_DECIDED);
+        }
+        if (check.isExpired(clock.instant())) {
+            throw new CustomException(ErrorCode.PURCHASE_CHECK_EXPIRED);
+        }
+        return new Editable(classificationOf(check, draftStore.find(checkId).orElse(null)), check.getPrice());
+    }
+
+    /**
+     * FR-13: stores a re-judgement on the same record and draft (BUY then registers the corrected piece). 409 when a
+     * decision was made while re-judging.
+     */
+    public void reanalyzed(UUID checkId, PurchaseCheckResponse.Item item, PurchaseVerdict verdict, int plus,
+                           float[] embedding) {
+        if (repository.updateUndecided(checkId, item.name(), item.category().name(), item.color(), verdict.name(),
+                plus) == 0) {
+            throw new CustomException(ErrorCode.PURCHASE_ALREADY_DECIDED);
+        }
+        draftStore.save(checkId, draftOf(item, embedding));
+    }
+
+    private static PurchaseDraftStore.Draft draftOf(PurchaseCheckResponse.Item item, float[] embedding) {
+        return new PurchaseDraftStore.Draft(item.fit(), item.material(), item.pattern(), item.season(), embedding);
     }
 
     public PurchaseDecisionResponse decide(UUID userId, UUID checkId, PurchaseDecisionRequest.Choice choice) {
