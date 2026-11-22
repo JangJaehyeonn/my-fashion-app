@@ -206,6 +206,20 @@ public class AiServerClient {
         }
     }
 
+    /** FR-11: representative combos and reason sentences for a rule-decided purchase check. */
+    public AiPurchaseExplainResponse explainPurchase(AiPurchaseExplainRequest request) {
+        try {
+            return restClient.post()
+                    .uri(aiServerUrl + "/ai/purchase-check/explain")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(AiPurchaseExplainResponse.class);
+        } catch (RestClientException e) {
+            throw toAiException("purchase explain", e);
+        }
+    }
+
     public AiDiagnosisResponse diagnoseOutfit(MultipartFile file) {
         try {
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";

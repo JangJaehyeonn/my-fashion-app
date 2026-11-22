@@ -85,6 +85,29 @@ public class ClothesEmbeddingStore implements ApplicationRunner {
         }
     }
 
+    /** One similarity search hit: a closet piece and its cosine similarity (-1..1) to the query vector. */
+    public record SimilarityHit(UUID clothesId, double similarity) {
+    }
+
+    static final String SIMILAR_SQL = "SELECT id, 1 - (embedding <=> CAST(? AS vector)) AS similarity FROM clothes "
+            + "WHERE user_id = ? AND category = ? AND embedding IS NOT NULL "
+            + "ORDER BY embedding <=> CAST(? AS vector), id LIMIT ?";
+
+    /**
+     * FR-11: the user's pieces of one category closest to {@code vector} by cosine similarity, most similar first
+     * (ties by id). Pieces without an embedding (unclassified or not embedded yet) are never returned.
+     * Throws {@link DataAccessException} on DB failure so the caller can refuse to judge without a comparison.
+     */
+    public List<SimilarityHit> findMostSimilar(UUID userId, ClothesCategory category, float[] vector, int limit) {
+        if (!available) {
+            throw new IllegalStateException("clothes embeddings are unavailable");
+        }
+        String literal = toLiteral(vector);
+        return jdbcTemplate.query(SIMILAR_SQL,
+                (rs, i) -> new SimilarityHit(rs.getObject("id", UUID.class), rs.getDouble("similarity")),
+                literal, userId, category.name(), literal, limit);
+    }
+
     /** Removes a stale embedding (the text it was computed from has changed). */
     public void clear(UUID clothesId) {
         if (!available) {

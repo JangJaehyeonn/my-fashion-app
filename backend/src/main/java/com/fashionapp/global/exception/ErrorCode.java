@@ -50,6 +50,10 @@ public enum ErrorCode {
     CLOTHES_RECLASSIFY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 AI 분류를 할 수 없어요. 잠시 후 다시 시도하거나 직접 입력해 주세요."),
     INVALID_WEAR_REQUEST(HttpStatus.BAD_REQUEST, "입은 옷을 하나 이상 고르고, 날짜는 오늘이나 지난 날짜로 골라 주세요."),
     INVALID_WEAR_CLOTHES(HttpStatus.BAD_REQUEST, "내 옷장에 없는 옷이 있어 착용 기록을 남기지 않았어요."),
+    // FR-11 살까 말까
+    CLOSET_TOO_SMALL(HttpStatus.BAD_REQUEST, "옷장에 5벌 이상 있어야 비교할 수 있어요."),
+    INVALID_PURCHASE_PRICE(HttpStatus.BAD_REQUEST, "가격은 0원 이상 숫자로 입력해 주세요."),
+    PURCHASE_CHECK_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 옷을 분석할 수 없어요. 잠시 후 다시 시도해 주세요."),
     CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다."),
     CLOSET_ALL_UNCLASSIFIED(HttpStatus.BAD_REQUEST, "분류된 옷이 없어 코디를 추천할 수 없어요. 미분류 옷의 종류를 먼저 정해 주세요.");
 

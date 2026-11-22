@@ -139,4 +139,20 @@ class ClothesEmbedderTest {
 
         verify(aiServerClient, never()).embed(anyString());
     }
+
+    @Test
+    @DisplayName("FR-11: 살까 말까 후보 옷은 옷장 옷과 같은 문장으로 임베딩하고 저장하지 않는다. 실패하면 빈 값")
+    void embedCandidate() {
+        given(aiServerClient.embed("상의 블랙 슬림 니트 블랙 knit probe"))
+                .willReturn(response(vector(ClothesEmbeddingStore.DIMENSIONS)));
+        ClothesClassification candidate = new ClothesClassification(ClothesCategory.TOP, "블랙", "블랙 knit probe",
+                "슬림", "니트", null, null);
+
+        assertThat(embedder.embedCandidate(candidate)).hasValueSatisfying(v -> assertThat(v[0]).isEqualTo(0.5f));
+        verify(embeddingStore, never()).save(any(), any());
+
+        org.mockito.BDDMockito.willThrow(new CustomException(ErrorCode.AI_SERVER_ERROR))
+                .given(aiServerClient).embed(anyString());
+        assertThat(embedder.embedCandidate(candidate)).isEmpty();
+    }
 }

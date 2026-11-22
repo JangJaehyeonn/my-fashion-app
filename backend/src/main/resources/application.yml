@@ -127,6 +127,11 @@ wearon:
     # FR-08: true면 기동 때 새 속성(fit·material·pattern·season)이 비어 있는 옷의 사진을 다시 분류한다 (옷마다 분류 API 1회).
     # 기본값 false. 임베딩이 비어 있는 옷을 채우는 백필은 이 설정과 무관하게 늘 돈다.
     reclassify: ${WEARON_BACKFILL_RECLASSIFY:false}
+  purchase-check:
+    # FR-11 살까 말까 판정 규칙. 같은 카테고리 옷 중 코사인 유사도가 이 값 이상인 옷이 있으면 SIMILAR
+    similar-threshold: ${WEARON_PURCHASE_SIMILAR_THRESHOLD:0.85}
+    # 비슷한 옷이 없을 때 +N이 이 값 이상이면 BUY, 아니면 THINK
+    buy-min-plus: ${WEARON_PURCHASE_BUY_MIN_PLUS:5}
 
 spring.servlet.multipart:
   max-file-size: 10MB
