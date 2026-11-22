@@ -1,7 +1,7 @@
 """진행 현황판을 노션에도 반영한다 (status_board.py가 만든 마크다운을 노션 블록으로 바꿔 덮어쓴다).
 
-NOTION_PAGE_ID 페이지 자체는 건드리지 않는다. 그 아래 하위 페이지 "진행 현황 (자동 갱신)"을 찾아(없으면 만들어)
-그 하위 페이지만 덮어쓴다. 사람이 쓴 상위 페이지 내용이 지워지지 않게 하기 위해서다.
+NOTION_PAGE_ID 페이지(재현이 여는 Wearon 페이지)의 본문을 현황판으로 덮어쓴다. 하위 페이지·데이터베이스는 지우지 않는다.
+예전 방식의 하위 페이지 "진행 현황 (자동 갱신)"이 남아 있으면 헷갈리지 않게 휴지통으로 보낸다.
 
 환경 변수:
   NOTION_TOKEN    노션 내부 연동(Internal integration) 비밀값. 상위 페이지에 연결돼 있어야 한다.
@@ -151,31 +151,21 @@ def replace_page(page_id: str, token: str, blocks: list[dict[str, Any]]) -> None
         call("PATCH", f"/blocks/{page_id}/children", token, {"children": chunk})
 
 
-CHILD_TITLE = "진행 현황 (자동 갱신)"
+OLD_CHILD_TITLE = "진행 현황 (자동 갱신)"
 
 
-def child_page(parent_id: str, token: str) -> str:
-    """상위 페이지 아래의 자동 갱신 하위 페이지 ID를 돌려준다. 없으면 만든다."""
+def archive_old_child(parent_id: str, token: str) -> None:
+    """Move the old auto-updated sub page to trash so only the main page is live."""
     cursor: str | None = None
     while True:
         query = f"?page_size=100&start_cursor={cursor}" if cursor else "?page_size=100"
         res = call("GET", f"/blocks/{parent_id}/children{query}", token)
         for b in res.get("results", []):
-            if b.get("type") == "child_page" and b["child_page"].get("title") == CHILD_TITLE:
-                return str(b["id"])
+            if b.get("type") == "child_page" and b["child_page"].get("title") == OLD_CHILD_TITLE:
+                call("PATCH", f"/pages/{b['id']}", token, {"archived": True})
         if not res.get("has_more"):
             break
         cursor = res["next_cursor"]
-    created = call(
-        "POST",
-        "/pages",
-        token,
-        {
-            "parent": {"page_id": parent_id},
-            "properties": {"title": {"title": [{"text": {"content": CHILD_TITLE}}]}},
-        },
-    )
-    return str(created["id"])
 
 
 def sync(markdown: str) -> int:
@@ -186,7 +176,8 @@ def sync(markdown: str) -> int:
         print("노션 동기화 건너뜀 (NOTION_TOKEN 또는 NOTION_PAGE_ID 없음)")
         return 0
     try:
-        replace_page(child_page(page_id, token), token, to_blocks(markdown))
+        replace_page(page_id, token, to_blocks(markdown))
+        archive_old_child(page_id, token)
     except Exception as exc:  # optional mirror must not fail the board
         print(f"::warning::노션 동기화 실패: {exc}", file=sys.stderr)
         return 0
