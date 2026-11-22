@@ -65,6 +65,25 @@ public class Clothes {
         this.season = classification.season() == null ? null : classification.season().name();
     }
 
+    /**
+     * FR-08 reclassify backfill: an unclassified item takes the whole classification; otherwise only empty fields are
+     * filled so values the user (or an earlier classification) set are kept.
+     */
+    public void fillMissingFrom(ClothesClassification classification) {
+        if (ClothesCategory.from(category) == ClothesCategory.UNCLASSIFIED) {
+            applyClassification(classification);
+            return;
+        }
+        color = color == null ? classification.color() : color;
+        name = name == null ? classification.name() : name;
+        fit = fit == null ? classification.fit() : fit;
+        material = material == null ? classification.material() : material;
+        pattern = pattern == null ? classification.pattern() : pattern;
+        if (season == null && classification.season() != null) {
+            season = classification.season().name();
+        }
+    }
+
     /** User edit of the FR-07 attributes: null arguments keep the current value. */
     public void editAttributesByUser(String fit, String material, String pattern, ClothesSeason season) {
         if (fit != null) {
