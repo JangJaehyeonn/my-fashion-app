@@ -28,6 +28,7 @@ class ClothesComboCountTest {
     @Mock private AiServerClient aiServerClient;
     @Mock private ImageStorage imageStorage;
     @Mock private ClothesEmbedder clothesEmbedder;
+    @org.mockito.Mock private com.fashionapp.domain.wear.WearRecordRepository wearRecordRepository;
 
     private ClothesService clothesService;
     private final UUID userId = UUID.randomUUID();
@@ -39,7 +40,7 @@ class ClothesComboCountTest {
     @BeforeEach
     void setUp() {
         clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient),
-                imageStorage, clothesEmbedder, ComboTestSupport.defaultService());
+                imageStorage, clothesEmbedder, ComboTestSupport.defaultService(), wearRecordRepository);
     }
 
     @Test

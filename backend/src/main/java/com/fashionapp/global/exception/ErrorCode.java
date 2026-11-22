@@ -48,6 +48,8 @@ public enum ErrorCode {
     INVALID_CLOTHES_UPDATE(HttpStatus.BAD_REQUEST, "카테고리는 상의·하의·아우터·신발·기타, 계절은 봄·여름·가을·겨울 중에서 고르고, 색상·이름·핏·소재·패턴은 1~50자로 입력해 주세요."),
     CLOTHES_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "옷 사진을 찾을 수 없어 다시 분류할 수 없어요."),
     CLOTHES_RECLASSIFY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 AI 분류를 할 수 없어요. 잠시 후 다시 시도하거나 직접 입력해 주세요."),
+    INVALID_WEAR_REQUEST(HttpStatus.BAD_REQUEST, "입은 옷을 하나 이상 고르고, 날짜는 오늘이나 지난 날짜로 골라 주세요."),
+    INVALID_WEAR_CLOTHES(HttpStatus.BAD_REQUEST, "내 옷장에 없는 옷이 있어 착용 기록을 남기지 않았어요."),
     CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다."),
     CLOSET_ALL_UNCLASSIFIED(HttpStatus.BAD_REQUEST, "분류된 옷이 없어 코디를 추천할 수 없어요. 미분류 옷의 종류를 먼저 정해 주세요.");
 

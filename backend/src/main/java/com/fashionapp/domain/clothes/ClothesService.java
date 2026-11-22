@@ -4,6 +4,8 @@ import com.fashionapp.domain.combo.ComboCountService;
 import com.fashionapp.domain.combo.ComboStats;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
+import com.fashionapp.domain.wear.WearRecordRepository;
+import com.fashionapp.domain.wear.WearStat;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.ImageKeys;
@@ -15,8 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -31,6 +36,7 @@ public class ClothesService {
     private final ImageStorage imageStorage;
     private final ClothesEmbedder clothesEmbedder;
     private final ComboCountService comboCountService;
+    private final WearRecordRepository wearRecordRepository;
 
     // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
     // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
@@ -69,8 +75,11 @@ public class ClothesService {
     public List<ClothesResponse> getMyClothes(UUID userId) {
         List<Clothes> closet = clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId);
         ComboStats stats = comboCountService.statsFor(userId, closet);
+        // FR-10: wear count and last worn day per piece (never worn = 0 and null)
+        Map<UUID, WearStat> wears = wearRecordRepository.findStatsByUserId(userId).stream()
+                .collect(Collectors.toMap(WearStat::clothesId, Function.identity()));
         return closet.stream()
-                .map(clothes -> toResponse(clothes, stats.countOf(clothes.getId())))
+                .map(clothes -> withWears(toResponse(clothes, stats.countOf(clothes.getId())), wears.get(clothes.getId())))
                 .toList();
     }
 
@@ -126,6 +135,8 @@ public class ClothesService {
     public void delete(UUID userId, UUID clothesId) {
         Clothes clothes = findOwned(userId, clothesId);
 
+        // FR-10: wear records have no FK to clothes, so they are removed together here
+        wearRecordRepository.deleteAllByClothesId(clothesId);
         clothesRepository.delete(clothes);
         try {
             imageStorage.delete(clothes.getImageUrl());
@@ -154,6 +165,13 @@ public class ClothesService {
 
     private static String fileNameOf(String key) {
         return key.substring(key.lastIndexOf('/') + 1);
+    }
+
+    private static ClothesResponse withWears(ClothesResponse response, WearStat wear) {
+        return response.toBuilder()
+                .wearCount(wear == null ? 0 : (int) wear.count())
+                .lastWornAt(wear == null ? null : wear.lastWornOn())
+                .build();
     }
 
     private ClothesResponse toResponse(Clothes clothes) {

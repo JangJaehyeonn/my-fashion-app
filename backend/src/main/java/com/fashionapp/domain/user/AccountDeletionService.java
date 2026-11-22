@@ -6,6 +6,7 @@ import com.fashionapp.domain.combo.ComboCountService;
 import com.fashionapp.domain.consent.ConsentService;
 import com.fashionapp.domain.diagnosis.StyleDiagnosisRepository;
 import com.fashionapp.domain.vton.VtonService;
+import com.fashionapp.domain.wear.WearRecordRepository;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.ImageStorage;
@@ -24,7 +25,7 @@ import java.util.UUID;
  *
  * <p>아이디·비밀번호(local) 사용자도 같은 흐름으로 삭제한다 — login_id가 users 행과 함께 사라지므로 같은 아이디로 다시 가입할 수 있다.
  *
- * <p>삭제 대상: 옷(clothes) 행·사진, 진단 기록(style_diagnoses) 행·사진, 동의 이력(consent_records) 행, 가상 피팅 결과 사진(vton/{userId}/),
+ * <p>삭제 대상: 옷(clothes) 행·사진, 진단 기록(style_diagnoses) 행·사진, 동의 이력(consent_records) 행, 착용 기록(wear_records) 행, 가상 피팅 결과 사진(vton/{userId}/),
  * Redis 리프레시 토큰, 사용자 행. 코디 추천은 저장하지 않고(요청마다 생성) 피팅 결과도 DB 기록이 없어 지울 행은 없다.
  *
  * <p>순서와 실패 처리:
@@ -54,6 +55,7 @@ public class AccountDeletionService {
     private final LoginAttemptLimiter loginAttemptLimiter;
     private final ConsentService consentService;
     private final ComboCountService comboCountService;
+    private final WearRecordRepository wearRecordRepository;
 
     public void deleteAccount(UUID userId) {
         // 1) DB — 실패 시 전부 롤백
@@ -65,6 +67,8 @@ public class AccountDeletionService {
             List<String> urls = new ArrayList<>(clothesRepository.findImageUrlsByUserId(userId));
             urls.addAll(styleDiagnosisRepository.findImageUrlsByUserId(userId));
 
+            // FR-10: wear records have no FK, so they go first in the same transaction
+            wearRecordRepository.deleteAllByUserId(userId);
             clothesRepository.deleteAllByUserId(userId);
             styleDiagnosisRepository.deleteAllByUserId(userId);
             consentService.deleteAll(userId);
