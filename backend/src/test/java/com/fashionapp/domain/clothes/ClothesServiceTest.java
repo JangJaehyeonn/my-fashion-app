@@ -53,6 +53,7 @@ class ClothesServiceTest {
 
     @Mock
     private ClothesEmbedder clothesEmbedder;
+    @org.mockito.Mock private com.fashionapp.domain.wear.WearRecordRepository wearRecordRepository;
 
     private ClothesService clothesService;
 
@@ -63,7 +64,7 @@ class ClothesServiceTest {
     @BeforeEach
     void setUp() {
         clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage, clothesEmbedder,
-                com.fashionapp.domain.combo.ComboTestSupport.defaultService());
+                com.fashionapp.domain.combo.ComboTestSupport.defaultService(), wearRecordRepository);
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)

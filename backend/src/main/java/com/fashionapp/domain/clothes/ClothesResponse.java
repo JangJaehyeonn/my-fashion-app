@@ -4,11 +4,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class ClothesResponse {
 
     private UUID id;
@@ -30,4 +31,8 @@ public class ClothesResponse {
     private ClothesSeason season;
     // FR-09: valid combos this piece is in (0 for unclassified/ETC). Filled in the clothes list; null elsewhere.
     private Integer comboCount;
+    // FR-10: days this piece was worn and the last of them ("YYYY-MM-DD", null if never). Filled in the clothes list; null elsewhere.
+    private Integer wearCount;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private LocalDate lastWornAt;
 }

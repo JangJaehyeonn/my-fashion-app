@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +15,8 @@ import java.util.UUID;
 public interface ClothesRepository extends JpaRepository<Clothes, UUID> {
     List<Clothes> findByUser_IdOrderByCreatedAtDesc(UUID userId);
     Optional<Clothes> findByIdAndUser_Id(UUID id, UUID userId);
+    // FR-10: only the user's own clothes among the ids (ownership check)
+    List<Clothes> findByUser_IdAndIdIn(UUID userId, Collection<UUID> ids);
 
     // FR-08 재분류 백필: 새 속성(fit·material·pattern·season)이 모두 비어 있는 옷을 id 순으로 (keyset 페이지)
     @Query("select e from Clothes e where e.fit is null and e.material is null and e.pattern is null "
