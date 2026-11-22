@@ -43,7 +43,12 @@
 | 만 14세 이상 확인: 아이디 가입·소셜 첫 가입 모두, 시각 저장 | `SignupRequest.ageOver14`, `User.ageConfirmedAt`, `AgeGateInterceptor`, 앱 `AgeGateScreen` (`AgeGateIntegrationTest`) |
 | OpenAI 이전 항목에 쇼핑 예산 포함 | `ai-server/app/services/shopping_service.py` 프롬프트 |
 | Hugging Face Space 운영자 | `ai-server/app/core/config.py` `hf_vton_space_id = "yisol/IDM-VTON"` |
-| 탈퇴 시 계정·옷·진단·피팅 결과·토큰 삭제 | `AccountDeletionService` (테스트 `AccountDeletionIntegrationTest`, `LocalImageIntegrationTest`) |
+| 살까 말까 사진 30분 임시 보관, 결정 즉시·30분 뒤 삭제, 사면 옷장 사진으로 이동 | `PurchaseCheck.PHOTO_TTL`(30분), `PurchaseRecordService.finish`·`buy`, `PurchaseTempPhotoCleaner.deleteExpiredPhotos`(1분마다), Redis 임시 속성 `PurchaseDraftStore` |
+| 살까 말까 기록: 사진 없이 이름·카테고리·색상·가격·판정·코디 수·결정 | `PurchaseCheck`(`purchase_checks`), `PurchaseRecordResponse` |
+| 착용 기록: 옷·날짜, 옷 삭제·탈퇴 시 삭제 | `WearRecord`(`wear_records`), `ClothesService.delete`, `AccountDeletionService` |
+| 이벤트 기록: 기능 종류·시각·코드/숫자만, 1년 보관 | `EventType`, `EventRecorder`(코드·숫자 외 문자열 버림), `EventService.deleteExpired`(`RETENTION_YEARS = 1`) |
+| OpenAI 이전 항목에 임베딩용 옷 속성 텍스트, 살까 말까 사진·설명용 정보 | `ClothesEmbedder.embeddingText`(종류·색상·핏·소재·패턴·이름), `ai-server/app/services/embedding_service.py`, `PurchaseCheckService`(분류), `PurchaseExplainer.toRequest` |
+| 탈퇴 시 계정·옷·진단·피팅 결과·토큰·착용·살까 말까·이벤트 기록 삭제 | `AccountDeletionService` (테스트 `AccountDeletionIntegrationTest`, `LocalImageIntegrationTest`) |
 | 이미지는 본인에게만 제공 | `ImageController`(소유자 확인, 남의 이미지 404), S3 모드는 7일 presigned URL |
 | 광고·분석 SDK 없음 | `android/app/build.gradle.kts` 의존성에 해당 라이브러리 없음 |
 | 통신 HTTPS | 릴리즈 빌드는 cleartext 차단(`network_security_config`), 운영 nginx는 TLS 종료 — 새 서버에서 다시 구성 필요 |
