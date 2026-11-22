@@ -26,8 +26,5 @@ storage:
     root: ${java.io.tmpdir}/fashionapp-test-storage
 
 app:
-  # 스케줄 작업(FR-12 임시 사진 정리)은 테스트에서 끈다. 필요한 테스트는 메서드를 직접 부른다
-  scheduling:
-    enabled: false
   # 실제 AI 서버로 나가지 않도록 존재하지 않는 포트로 지정 (AiServerClient도 목으로 대체됨)
   ai-server-url: http://127.0.0.1:9

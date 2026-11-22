@@ -30,8 +30,8 @@ public class PurchaseTempPhotoCleaner {
     private final ImageStorage imageStorage;
     private final Clock clock;
 
-    @Scheduled(fixedDelayString = "${wearon.purchase-check.cleanup-delay:60s}",
-            initialDelayString = "${wearon.purchase-check.cleanup-delay:60s}")
+    @Scheduled(fixedDelayString = "${wearon.purchase-check.cleanup-delay:PT1M}",
+            initialDelayString = "${wearon.purchase-check.cleanup-delay:PT1M}")
     public void deleteExpiredPhotos() {
         Instant cutoff = clock.instant().minus(PurchaseCheck.PHOTO_TTL);
         int deleted = 0;

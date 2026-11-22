@@ -134,8 +134,8 @@ wearon:
     buy-min-plus: ${WEARON_PURCHASE_BUY_MIN_PLUS:5}
     # FR-12 사용자당 하루(한국 날짜) 판정 요청 한도. 넘으면 429
     daily-limit: ${WEARON_PURCHASE_DAILY_LIMIT:30}
-    # FR-12 30분 지난 임시 사진을 지우는 스케줄러 간격
-    cleanup-delay: 60s
+    # FR-12 30분 지난 임시 사진을 지우는 스케줄러 간격 (ISO-8601 기간)
+    cleanup-delay: PT1M
 
 spring.servlet.multipart:
   max-file-size: 10MB
