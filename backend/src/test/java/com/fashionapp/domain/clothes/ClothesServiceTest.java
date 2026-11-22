@@ -51,6 +51,9 @@ class ClothesServiceTest {
     @Mock
     private ImageStorage imageStorage;
 
+    @Mock
+    private ClothesEmbedder clothesEmbedder;
+
     private ClothesService clothesService;
 
     private UUID userId;
@@ -59,7 +62,7 @@ class ClothesServiceTest {
 
     @BeforeEach
     void setUp() {
-        clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage);
+        clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage, clothesEmbedder);
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)

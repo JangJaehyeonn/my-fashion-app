@@ -36,14 +36,49 @@ public class Clothes {
 
     private String name;
 
+    // FR-07 attributes (nullable, null = unknown). The embedding vector(1536) column is not mapped here:
+    // it is written with native SQL by ClothesEmbeddingStore (see docs/adr/0006-clothes-embedding-pgvector.md).
+    @Column(length = 50)
+    private String fit;
+
+    @Column(length = 50)
+    private String material;
+
+    @Column(length = 50)
+    private String pattern;
+
+    // ClothesSeason name
+    @Column(length = 10)
+    private String season;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    /** Overwrites category, color and name with an AI classification result. */
+    /** Overwrites category, color, name and the FR-07 attributes with an AI classification result. */
     public void applyClassification(ClothesClassification classification) {
         this.category = classification.category().name();
         this.color = classification.color();
         this.name = classification.name();
+        this.fit = classification.fit();
+        this.material = classification.material();
+        this.pattern = classification.pattern();
+        this.season = classification.season() == null ? null : classification.season().name();
+    }
+
+    /** User edit of the FR-07 attributes: null arguments keep the current value. */
+    public void editAttributesByUser(String fit, String material, String pattern, ClothesSeason season) {
+        if (fit != null) {
+            this.fit = fit;
+        }
+        if (material != null) {
+            this.material = material;
+        }
+        if (pattern != null) {
+            this.pattern = pattern;
+        }
+        if (season != null) {
+            this.season = season.name();
+        }
     }
 
     /** User edit: null arguments keep the current value. */

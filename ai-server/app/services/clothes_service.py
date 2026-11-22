@@ -1,10 +1,15 @@
 import base64
+from typing import Any
 
-from app.schemas.clothes import ClothesClassifyResponse
+from app.schemas.clothes import ClothesClassifyResponse, ClothesSeason
 from app.services.diagnosis_service import _parse_json
 from app.services.recommend_service import client
 
 _VALID_CATEGORIES = {"TOP", "BOTTOM", "SHOES", "OUTER", "ETC"}
+_VALID_SEASONS: set[ClothesSeason] = {"SPRING", "SUMMER", "FALL", "WINTER"}
+_MAX_ATTRIBUTE_LENGTH = 50
+# Values the model may use to say "unknown"; they become None instead of being stored as an attribute.
+_UNKNOWN_VALUES = {"null", "none", "unknown", "모름", "알 수 없음", "없음", "-"}
 
 _CLASSIFY_PROMPT = """당신은 패션 아이템 분류 전문가입니다.
 사진 속 옷 한 벌을 분석해서 다음 JSON 형식으로만 응답해주세요. 다른 텍스트 없이 JSON만 출력하세요.
@@ -12,7 +17,11 @@ _CLASSIFY_PROMPT = """당신은 패션 아이템 분류 전문가입니다.
 {
   "category": "TOP|BOTTOM|SHOES|OUTER|ETC 중 하나",
   "color": "대표 색상 한 단어 (한국어, 예: 블랙, 화이트, 네이비, 베이지, 그레이, 카키)",
-  "name": "색상+소재/핏+종류로 된 짧은 아이템명 (한국어, 예: 네이비 옥스포드 셔츠)"
+  "name": "색상+소재/핏+종류로 된 짧은 아이템명 (한국어, 예: 네이비 옥스포드 셔츠)",
+  "fit": "핏 한 단어 (한국어, 예: 슬림, 레귤러, 오버핏, 와이드) 또는 null",
+  "material": "주 소재 한 단어 (한국어, 예: 면, 울, 린넨, 데님, 가죽, 폴리에스터) 또는 null",
+  "pattern": "패턴 한 단어 (한국어, 예: 무지, 스트라이프, 체크, 도트, 플로럴) 또는 null",
+  "season": "주로 입는 계절 SPRING|SUMMER|FALL|WINTER 중 하나 또는 null"
 }
 
 분류 기준:
@@ -24,7 +33,8 @@ _CLASSIFY_PROMPT = """당신은 패션 아이템 분류 전문가입니다.
 
 규칙:
 - 사진에 여러 아이템이 있으면 가장 크게 보이는 한 벌만 분류하세요
-- 사진에 옷이 명확히 보이지 않으면 category는 ETC, name은 "알 수 없는 아이템"으로 응답하세요"""
+- 사진에 옷이 명확히 보이지 않으면 category는 ETC, name은 "알 수 없는 아이템"으로 응답하세요
+- fit, material, pattern, season은 사진으로 확실히 판단할 수 없으면 추측하지 말고 null로 응답하세요"""
 
 
 async def classify_clothes_image(image_bytes: bytes, content_type: str = "image/jpeg") -> ClothesClassifyResponse:
@@ -46,7 +56,7 @@ async def classify_clothes_image(image_bytes: bytes, content_type: str = "image/
                 ],
             }
         ],
-        max_tokens=200,
+        max_tokens=300,
         temperature=0.2,
     )
 
@@ -63,4 +73,29 @@ async def classify_clothes_image(image_bytes: bytes, content_type: str = "image/
         category=category if category in _VALID_CATEGORIES else "ETC",
         color=data.get("color") or "기타",
         name=data.get("name") or "알 수 없는 아이템",
+        fit=attribute(data.get("fit")),
+        material=attribute(data.get("material")),
+        pattern=attribute(data.get("pattern")),
+        season=season(data.get("season")),
     )
+
+
+def attribute(value: Any) -> str | None:
+    """A short free-text attribute, or None when the model does not know it."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or text.lower() in _UNKNOWN_VALUES or len(text) > _MAX_ATTRIBUTE_LENGTH:
+        return None
+    return text
+
+
+def season(value: Any) -> ClothesSeason | None:
+    """SPRING/SUMMER/FALL/WINTER, or None for anything else (including AUTUMN-like variants we do not accept)."""
+    if not isinstance(value, str):
+        return None
+    upper = value.strip().upper()
+    for candidate in _VALID_SEASONS:
+        if candidate == upper:
+            return candidate
+    return None

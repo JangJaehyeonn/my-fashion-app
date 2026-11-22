@@ -1,5 +1,6 @@
 package com.fashionapp.domain.clothes;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -18,4 +19,13 @@ public class ClothesResponse {
     // true when the category is UNCLASSIFIED (AI classification failed and the user has not fixed it yet)
     private boolean classificationFailed;
     private LocalDateTime createdAt;
+    // FR-07 attributes. Always present in JSON; null means unknown.
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private String fit;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private String material;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private String pattern;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private ClothesSeason season;
 }

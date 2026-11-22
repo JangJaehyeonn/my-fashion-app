@@ -40,6 +40,7 @@ class ClothesEditServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private AiServerClient aiServerClient;
     @Mock private ImageStorage imageStorage;
+    @Mock private ClothesEmbedder clothesEmbedder;
 
     private ClothesService clothesService;
     private UUID userId;
@@ -48,7 +49,7 @@ class ClothesEditServiceTest {
 
     @BeforeEach
     void setUp() {
-        clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage);
+        clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage, clothesEmbedder);
         userId = UUID.randomUUID();
         clothesId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(LocalDateTime.now()).id(userId).nickname("테스터")
