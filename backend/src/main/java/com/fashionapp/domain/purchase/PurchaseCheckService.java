@@ -67,48 +67,97 @@ public class PurchaseCheckService {
     public PurchaseCheckResponse check(UUID userId, MultipartFile image, String rawPrice) {
         Long price = parsePrice(rawPrice);
         byte[] photo = ImageKeys.validate(image, MAX_IMAGE_BYTES);
+        List<Clothes> closet = closetOf(userId);
+        dailyLimiter.acquire(userId);
         long t0 = System.nanoTime();
+        ClothesClassification item = clothesClassifier.classify(image)
+                .orElseThrow(() -> new CustomException(ErrorCode.PURCHASE_CHECK_UNAVAILABLE));
+        log.info("purchase.check classify={}ms", ms(t0, System.nanoTime()));
+        float[] vector = embed(item);
+        Judgement judgement = judge("check", userId, closet, item, vector);
+        UUID checkId = recordService.open(userId, photo, image.getContentType(), judgement.context().item(),
+                judgement.verdict(), judgement.plus(), price, vector);
+        return judgement.toResponse(checkId, price);
+    }
+
+    /**
+     * FR-13: re-judges an undecided check with the attributes the user corrected. Classification is skipped (the
+     * corrected attributes replace it); embedding, similarity, +N, verdict and sentences are computed again and the
+     * record and draft are updated. Decided = 409, expired = 410. It is a correction, so the daily limit is not used.
+     */
+    public PurchaseCheckResponse recheck(UUID userId, UUID checkId, PurchaseAttributesRequest request) {
+        PurchaseRecordService.Editable editable = recordService.editable(userId, checkId);
+        ClothesClassification item = request.applyTo(editable.current());
+        List<Clothes> closet = closetOf(userId);
+        float[] vector = embed(item);
+        Judgement judgement = judge("recheck", userId, closet, item, vector);
+        recordService.reanalyzed(checkId, judgement.context().item(), judgement.verdict(), judgement.plus(), vector);
+        return judgement.toResponse(checkId, editable.price());
+    }
+
+    private List<Clothes> closetOf(UUID userId) {
         List<Clothes> closet = clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId);
         if (closet.size() < MIN_CLOSET_SIZE) {
             throw new CustomException(ErrorCode.CLOSET_TOO_SMALL);
         }
-        dailyLimiter.acquire(userId);
-        ClothesClassification item = clothesClassifier.classify(image)
-                .orElseThrow(() -> new CustomException(ErrorCode.PURCHASE_CHECK_UNAVAILABLE));
-        long t1 = System.nanoTime();
+        return closet;
+    }
+
+    private float[] embed(ClothesClassification item) {
+        long t0 = System.nanoTime();
         float[] vector = clothesEmbedder.embedCandidate(item)
                 .orElseThrow(() -> new CustomException(ErrorCode.PURCHASE_CHECK_UNAVAILABLE));
-        long t2 = System.nanoTime();
+        log.info("purchase.embed embed={}ms", ms(t0, System.nanoTime()));
+        return vector;
+    }
+
+    /** Everything after the embedding: similar pieces, +N, rule verdict, expected wears and the sentences. */
+    private Judgement judge(String stage, UUID userId, List<Clothes> closet, ClothesClassification item,
+                            float[] vector) {
+        long t0 = System.nanoTime();
         List<ClothesEmbeddingStore.SimilarityHit> hits = findSimilar(userId, item.category(), vector);
-        long t3 = System.nanoTime();
+        long t1 = System.nanoTime();
 
         ComboAddition addition = comboCountService.additionFor(closet, toComboItem(item));
         ComboStats stats = comboCountService.statsFor(userId, closet);
-        long t4 = System.nanoTime();
+        long t2 = System.nanoTime();
 
         Map<UUID, Clothes> byId = closet.stream().collect(Collectors.toMap(Clothes::getId, Function.identity()));
         List<PurchaseCheckResponse.Similar> similar = toSimilar(hits, byId, wearService.statsFor(userId));
         PurchaseVerdict verdict = rules.verdict(topSimilarity(similar), addition.plus());
         Integer expectedWears = expectedWears(userId, closet, stats, item.category(), addition.plus());
-        long t5 = System.nanoTime();
+        long t3 = System.nanoTime();
 
         PurchaseContext context = new PurchaseContext(toItem(item), verdict, addition.plus(), addition.before(),
                 addition.after(), similar, distribution(closet), candidates(addition),
                 (int) closet.stream().filter(c -> categoryOf(c) == item.category()).count(), pieceLabels(closet));
         PurchaseExplainer.Explanation explanation = explainer.explain(context);
-        long t6 = System.nanoTime();
+        long t4 = System.nanoTime();
 
         // 판정이 느릴 때 어느 구간인지 가려내기 위한 구간별 소요 시간 (개인정보 없음)
-        log.info("purchase.check closet={} verdict={} plus={} classify={}ms embed={}ms similar={}ms combo={}ms "
-                        + "rules={}ms explain={}ms",
-                closet.size(), verdict, addition.plus(), ms(t0, t1), ms(t1, t2), ms(t2, t3), ms(t3, t4),
-                ms(t4, t5), ms(t5, t6));
-        UUID checkId = recordService.open(userId, photo, image.getContentType(), context.item(), verdict,
-                addition.plus(), price, vector);
-        return new PurchaseCheckResponse(checkId, context.item(), verdict, addition.plus(),
-                addition.before(), addition.after(), withNotes(similar, explanation.notes()), explanation.outfits(),
-                explanation.headline(), explanation.reasons(), explanation.gap(), expectedWears, price,
-                ExpectedWears.costPerWear(price, expectedWears));
+        log.info("purchase.{} closet={} verdict={} plus={} similar={}ms combo={}ms rules={}ms explain={}ms",
+                stage, closet.size(), verdict, addition.plus(), ms(t0, t1), ms(t1, t2), ms(t2, t3), ms(t3, t4));
+        return new Judgement(context, addition, expectedWears, explanation);
+    }
+
+    /** One rule judgement with its sentences, before it is tied to a check id. */
+    private record Judgement(PurchaseContext context, ComboAddition addition, Integer expectedWears,
+                             PurchaseExplainer.Explanation explanation) {
+
+        PurchaseVerdict verdict() {
+            return context.verdict();
+        }
+
+        int plus() {
+            return addition.plus();
+        }
+
+        PurchaseCheckResponse toResponse(UUID checkId, Long price) {
+            return new PurchaseCheckResponse(checkId, context.item(), context.verdict(), addition.plus(),
+                    addition.before(), addition.after(), withNotes(context.similar(), explanation.notes()),
+                    explanation.outfits(), explanation.headline(), explanation.reasons(), explanation.gap(),
+                    expectedWears, price, ExpectedWears.costPerWear(price, expectedWears));
+        }
     }
 
     /** Optional price in won: blank = none, otherwise a whole number 0..MAX_PRICE. */

@@ -32,6 +32,17 @@ public interface PurchaseCheckRepository extends JpaRepository<PurchaseCheck, UU
     @Query("update PurchaseCheck p set p.decision = :decision where p.id = :id and p.decision = 'UNDECIDED'")
     int claimUndecided(@Param("id") UUID id, @Param("decision") String decision);
 
+    /**
+     * FR-13: replaces the analysed attributes and the judgement of a check that is still undecided, so a decision made
+     * while re-judging is never overwritten. Returns rows changed (0 or 1).
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("update PurchaseCheck p set p.name = :name, p.category = :category, p.color = :color, "
+            + "p.verdict = :verdict, p.plus = :plus where p.id = :id and p.decision = 'UNDECIDED'")
+    int updateUndecided(@Param("id") UUID id, @Param("name") String name, @Param("category") String category,
+                        @Param("color") String color, @Param("verdict") String verdict, @Param("plus") int plus);
+
     /** Undo of {@link #claimUndecided} when the decision could not be completed. */
     @Transactional
     @Modifying(clearAutomatically = true)

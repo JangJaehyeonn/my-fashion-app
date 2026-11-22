@@ -265,6 +265,83 @@ class PurchaseCheckServiceTest {
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PURCHASE_CHECK_UNAVAILABLE));
     }
 
+    private void editable(Long price) {
+        given(recordService.editable(userId, CHECK_ID)).willReturn(new PurchaseRecordService.Editable(
+                new ClothesClassification(ClothesCategory.TOP, "블랙", "블랙 hoodie"), price));
+    }
+
+    private static PurchaseAttributesRequest categoryChange(String category) {
+        return new PurchaseAttributesRequest(category, null, null, null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("FR-13: 카테고리를 고치면 그 카테고리와 비교하고 +N·판정을 다시 계산해 같은 기록을 갱신한다")
+    void recheckComparesNewCategory() {
+        List<Clothes> closet = closet(2, 2, 1);
+        editable(39000L);
+        Clothes bottom = closet.get(2);
+        float[] vector = {2f};
+        given(clothesEmbedder.embedCandidate(any())).willReturn(Optional.of(vector));
+        given(embeddingStore.findMostSimilar(eq(userId), eq(ClothesCategory.BOTTOM), eq(vector), eq(3)))
+                .willReturn(List.of(new ClothesEmbeddingStore.SimilarityHit(bottom.getId(), 0.9)));
+
+        PurchaseCheckResponse result = service.recheck(userId, CHECK_ID, categoryChange("BOTTOM"));
+
+        assertThat(result.id()).isEqualTo(CHECK_ID);
+        assertThat(result.item().category()).isEqualTo(ClothesCategory.BOTTOM);
+        assertThat(result.item().name()).isEqualTo("블랙 hoodie");
+        assertThat(result.similar()).extracting(PurchaseCheckResponse.Similar::id).containsExactly(bottom.getId());
+        assertThat(result.verdict()).isEqualTo(PurchaseVerdict.SIMILAR);
+        assertThat(result.plus()).isEqualTo(2);
+        assertThat(result.comboCountBefore()).isEqualTo(4);
+        assertThat(result.comboCountAfter()).isEqualTo(6);
+        assertThat(result.price()).isEqualTo(39000L);
+        verify(embeddingStore, never()).findMostSimilar(eq(userId), eq(ClothesCategory.TOP), any(), anyInt());
+        verify(recordService).reanalyzed(CHECK_ID, result.item(), PurchaseVerdict.SIMILAR, 2, vector);
+    }
+
+    @Test
+    @DisplayName("FR-13: 재판정은 분류를 부르지 않고 고친 속성으로 임베딩부터 다시 하며 하루 한도를 쓰지 않는다")
+    void recheckSkipsClassification() {
+        closet(2, 2, 2);
+        editable(null);
+
+        service.recheck(userId, CHECK_ID, new PurchaseAttributesRequest("OUTER", "네이비", null, null, null, null,
+                null));
+
+        verify(clothesClassifier, never()).classify(any(org.springframework.web.multipart.MultipartFile.class));
+        verify(clothesEmbedder).embedCandidate(new ClothesClassification(ClothesCategory.OUTER, "네이비",
+                "블랙 hoodie"));
+        verify(dailyLimiter, never()).acquire(any());
+        verify(recordService, never()).open(any(), any(), any(), any(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    @DisplayName("FR-13: 결정이 끝난 건은 409이고 AI를 부르지 않는다")
+    void recheckDecidedIsConflict() {
+        closet(2, 2, 2);
+        given(recordService.editable(userId, CHECK_ID))
+                .willThrow(new CustomException(ErrorCode.PURCHASE_ALREADY_DECIDED));
+
+        assertThatThrownBy(() -> service.recheck(userId, CHECK_ID, categoryChange("BOTTOM")))
+                .isInstanceOfSatisfying(CustomException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PURCHASE_ALREADY_DECIDED));
+        verify(clothesEmbedder, never()).embedCandidate(any());
+    }
+
+    @Test
+    @DisplayName("FR-13: 임베딩이 실패하면 503이고 기록을 바꾸지 않는다")
+    void recheckEmbedFailure() {
+        closet(2, 2, 2);
+        editable(null);
+        given(clothesEmbedder.embedCandidate(any())).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.recheck(userId, CHECK_ID, categoryChange("BOTTOM")))
+                .isInstanceOfSatisfying(CustomException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PURCHASE_CHECK_UNAVAILABLE));
+        verify(recordService, never()).reanalyzed(any(), any(), any(), anyInt(), any());
+    }
+
     @Test
     @DisplayName("옷장 분포는 미분류를 빼고 카테고리별 벌 수")
     void distribution() {

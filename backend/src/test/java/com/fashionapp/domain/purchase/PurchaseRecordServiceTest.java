@@ -271,6 +271,61 @@ class PurchaseRecordServiceTest {
         assertThat(history.get(0).price()).isEqualTo(39000L);
     }
 
+    @Test
+    @DisplayName("FR-13: 결정 전 건은 기록·초안의 분석값과 가격을 돌려준다")
+    void editableReturnsAnalysedAttributes() {
+        PurchaseCheck check = stored(NOW.minus(Duration.ofMinutes(10)));
+        given(draftStore.find(check.getId()))
+                .willReturn(Optional.of(new PurchaseDraftStore.Draft("오버핏", "면", "무지", "WINTER", null)));
+
+        PurchaseRecordService.Editable editable = service.editable(userId, check.getId());
+
+        assertThat(editable.current()).isEqualTo(new ClothesClassification(ClothesCategory.TOP, "블랙",
+                "블랙 hoodie", "오버핏", "면", "무지", ClothesSeason.WINTER));
+        assertThat(editable.price()).isEqualTo(39000L);
+    }
+
+    @Test
+    @DisplayName("FR-13: BUY·SKIP이 끝난 건은 409, 30분이 지난 건은 410, 남의 건은 404")
+    void editableRejectsDecidedExpiredAndOthers() {
+        PurchaseCheck bought = stored(NOW.minus(Duration.ofMinutes(10)));
+        bought.markBought(UUID.randomUUID());
+        PurchaseCheck skipped = stored(NOW.minus(Duration.ofMinutes(10)));
+        skipped.markSkipped();
+        PurchaseCheck expired = stored(NOW.minus(Duration.ofMinutes(31)));
+
+        assertError(() -> service.editable(userId, bought.getId()), ErrorCode.PURCHASE_ALREADY_DECIDED);
+        assertError(() -> service.editable(userId, skipped.getId()), ErrorCode.PURCHASE_ALREADY_DECIDED);
+        assertError(() -> service.editable(userId, expired.getId()), ErrorCode.PURCHASE_CHECK_EXPIRED);
+        assertError(() -> service.editable(UUID.randomUUID(), bought.getId()), ErrorCode.PURCHASE_CHECK_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("FR-13: 재판정 결과로 같은 기록을 결정 전일 때만 고치고 초안의 속성·임베딩을 바꾼다")
+    void reanalyzedUpdatesRecordAndDraft() {
+        UUID checkId = UUID.randomUUID();
+        float[] vector = {0.25f};
+        PurchaseCheckResponse.Item item = new PurchaseCheckResponse.Item(ClothesCategory.BOTTOM, "블랙",
+                "블랙 hoodie", "와이드", "면", "무지", "WINTER");
+        given(repository.updateUndecided(checkId, "블랙 hoodie", "BOTTOM", "블랙", "SIMILAR", 2)).willReturn(1);
+
+        service.reanalyzed(checkId, item, PurchaseVerdict.SIMILAR, 2, vector);
+
+        verify(draftStore).save(checkId, new PurchaseDraftStore.Draft("와이드", "면", "무지", "WINTER", vector));
+    }
+
+    @Test
+    @DisplayName("FR-13: 재판정 중에 결정이 먼저 끝났으면 409이고 초안을 덮어쓰지 않는다")
+    void reanalyzedAfterDecisionIsConflict() {
+        UUID checkId = UUID.randomUUID();
+        given(repository.updateUndecided(any(), any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyInt()))
+                .willReturn(0);
+
+        assertError(() -> service.reanalyzed(checkId, ITEM, PurchaseVerdict.THINK, 4, null),
+                ErrorCode.PURCHASE_ALREADY_DECIDED);
+        verify(draftStore, never()).save(any(), any());
+    }
+
     private static void assertError(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, ErrorCode code) {
         assertThatThrownBy(call).isInstanceOfSatisfying(CustomException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(code));
