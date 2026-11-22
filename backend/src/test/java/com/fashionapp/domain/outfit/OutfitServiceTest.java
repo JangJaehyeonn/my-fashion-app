@@ -50,6 +50,11 @@ class OutfitServiceTest {
     @Mock
     private ClothesService clothesService;
 
+    @Mock
+    private com.fashionapp.domain.weather.DayWeatherService dayWeatherService;
+
+    private final WeatherOutfitPlanner planner = WeatherRulesTestSupport.defaultPlanner();
+
     private OutfitService outfitService;
 
     private UUID userId;
@@ -57,7 +62,8 @@ class OutfitServiceTest {
 
     @BeforeEach
     void setUp() {
-        outfitService = new OutfitService(userRepository, aiServerClient, clothesService, eventRecorder);
+        outfitService = new OutfitService(userRepository, aiServerClient, clothesService, eventRecorder,
+                dayWeatherService, planner);
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
@@ -339,5 +345,121 @@ class OutfitServiceTest {
                 .isEqualTo(ErrorCode.CLOSET_NONE_AVAILABLE);
         assertThat(ErrorCode.CLOSET_NONE_AVAILABLE.getStatus().is4xxClientError()).isTrue();
         verify(aiServerClient, never()).recommendOutfitsByCloset(any());
+    }
+
+    // ── FR-28 weather rules ────────────────────────────────────
+
+    private static final String KNIT_ID = "00000000-0000-0000-0000-000000000021";
+    private static final String LINEN_ID = "00000000-0000-0000-0000-000000000022";
+    private static final String WHITE_SHOES_ID = "00000000-0000-0000-0000-000000000023";
+
+    private SituationRecommendRequest closetRequestAt(double lat, double lon) throws Exception {
+        return new ObjectMapper().readValue(
+                "{\"temperature\":12.0,\"condition\":\"맑음\",\"situation\":\"DAILY\",\"lat\":%s,\"lon\":%s}"
+                        .formatted(lat, lon), SituationRecommendRequest.class);
+    }
+
+    private ClothesResponse piece(String id, ClothesCategory category, String color, String material) {
+        return clothes(id, category, color + " " + material).toBuilder().color(color).material(material).build();
+    }
+
+    private static com.fashionapp.domain.weather.DayWeather day(double out, double midday, double back, int pop) {
+        return new com.fashionapp.domain.weather.DayWeather(
+                new com.fashionapp.domain.weather.DayWeather.Point("08:00", out, pop, 2),
+                new com.fashionapp.domain.weather.DayWeather.Point("13:00", midday, pop, 2),
+                new com.fashionapp.domain.weather.DayWeather.Point("19:00", back, pop, 2),
+                Math.max(out, Math.max(midday, back)) - Math.min(out, Math.min(midday, back)));
+    }
+
+    private AiClosetRecommendRequest sentCloset() {
+        ArgumentCaptor<AiClosetRecommendRequest> captor = ArgumentCaptor.forClass(AiClosetRecommendRequest.class);
+        verify(aiServerClient).recommendOutfitsByCloset(captor.capture());
+        return captor.getValue();
+    }
+
+    private void aiPicks(String... ids) throws Exception {
+        String list = String.join("\", \"", ids);
+        given(aiServerClient.recommendOutfitsByCloset(any())).willReturn(CompletableFuture.completedFuture(closetResponse(
+                "{\"outfits\": [{\"clothesIds\": [\"" + list + "\"], \"reason\": \"AI 이유\", \"styleTag\": \"캐주얼\"}]}")));
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-28): 좌표가 없으면 예보를 부르지 않고 기존 추천 그대로 (후보·규칙 없음)")
+    void recommendByCloset_withoutCoordinates_keepsOldBehaviour() throws Exception {
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                clothes(TOP_ID, ClothesCategory.TOP, "블랙 티셔츠"), clothes(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙 슬랙스")));
+        aiPicks(TOP_ID, BOTTOM_ID);
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, situationRequest(12.0, "맑음", "DAILY"));
+
+        verify(dayWeatherService, never()).dayFor(any(), any(), any());
+        assertThat(sentCloset().getCandidates()).isNull();
+        assertThat(result.getAppliedRules()).isEmpty();
+        assertThat(result.getOutfits()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-28): 예보가 실패하면 500 없이 현재 날씨 기반 기존 추천으로 돌아간다")
+    void recommendByCloset_forecastFailure_fallsBackToCurrentWeather() throws Exception {
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                clothes(TOP_ID, ClothesCategory.TOP, "블랙 티셔츠"), clothes(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙 슬랙스"),
+                clothes(SHOES_ID, ClothesCategory.SHOES, "블랙 로퍼")));
+        given(dayWeatherService.dayFor(any(), any(), any())).willThrow(new CustomException(ErrorCode.WEATHER_UNAVAILABLE));
+        aiPicks(TOP_ID, BOTTOM_ID, SHOES_ID);
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, closetRequestAt(37.5, 127.0));
+
+        AiClosetRecommendRequest sent = sentCloset();
+        assertThat(sent.getWeather().getTemperature()).isEqualTo(12.0);
+        assertThat(sent.getCandidates()).isNull();
+        assertThat(sent.getAppliedRules()).isNull();
+        assertThat(result.getAppliedRules()).isEmpty();
+        assertThat(result.getOutfits()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-28): 일교차가 크면 아우터 없이도 되는 후보만 AI에 넘기고, 후보 밖 AI 선택은 규칙 기본 문장 코디로 바꾼다")
+    void recommendByCloset_bigRange_onlyCandidates() throws Exception {
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                piece(LINEN_ID, ClothesCategory.TOP, "베이지", "린넨"), piece(KNIT_ID, ClothesCategory.TOP, "네이비", "니트"),
+                piece(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙", null), piece(SHOES_ID, ClothesCategory.SHOES, "블랙", "가죽")));
+        given(dayWeatherService.dayFor(any(), any(), any())).willReturn(day(3, 12, 7, 0));
+        aiPicks(LINEN_ID, BOTTOM_ID, SHOES_ID);
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, closetRequestAt(37.5, 127.0));
+
+        AiClosetRecommendRequest sent = sentCloset();
+        assertThat(sent.getAppliedRules()).containsExactly("TEMP_RANGE");
+        assertThat(sent.getCandidates()).extracting(AiClosetRecommendRequest.Candidate::getClothesIds)
+                .containsExactly(List.of(KNIT_ID, BOTTOM_ID, SHOES_ID));
+        assertThat(result.getAppliedRules()).containsExactly("TEMP_RANGE");
+        assertThat(result.getOutfits()).hasSize(1);
+        assertThat(result.getOutfits().get(0).getItems()).extracting(c -> c.getId().toString())
+                .containsExactly(KNIT_ID, BOTTOM_ID, SHOES_ID);
+        assertThat(result.getOutfits().get(0).getReason()).contains("외투를 벗어도");
+    }
+
+    @Test
+    @DisplayName("옷장 추천(FR-28): 비 소식이면 흰색 신발을 AI에 보내지 않고, 후보 안의 AI 선택은 AI 문장 그대로 쓴다")
+    void recommendByCloset_rain_excludesWhiteShoes() throws Exception {
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(clothesService.getMyClothes(userId)).willReturn(List.of(
+                piece(KNIT_ID, ClothesCategory.TOP, "네이비", "니트"), piece(BOTTOM_ID, ClothesCategory.BOTTOM, "블랙", null),
+                piece(WHITE_SHOES_ID, ClothesCategory.SHOES, "화이트", null), piece(SHOES_ID, ClothesCategory.SHOES, "블랙", "가죽")));
+        given(dayWeatherService.dayFor(any(), any(), any())).willReturn(day(12, 13, 12, 70));
+        aiPicks(KNIT_ID, BOTTOM_ID, SHOES_ID);
+
+        ClosetRecommendResponse result = outfitService.recommendByCloset(userId, closetRequestAt(37.5, 127.0));
+
+        AiClosetRecommendRequest sent = sentCloset();
+        assertThat(sent.getClothes()).extracting(AiClosetRecommendRequest.ClosetItem::getId)
+                .containsExactly(KNIT_ID, BOTTOM_ID, SHOES_ID);
+        assertThat(sent.getAppliedRules()).containsExactly("RAIN");
+        assertThat(result.getAppliedRules()).containsExactly("RAIN");
+        assertThat(result.getOutfits()).hasSize(1);
+        assertThat(result.getOutfits().get(0).getReason()).isEqualTo("AI 이유");
     }
 }

@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "tempRangeThreshold": 8,
+  "rainProbabilityThreshold": 60,
+  "rainExcludedMaterials": ["스웨이드"],
+  "rainExcludedShoeColors": ["화이트"],
+  "thickness": {
+    "default": "MEDIUM",
+    "materials": {
+      "린넨": "THIN",
+      "나일론": "THIN",
+      "면": "MEDIUM",
+      "데님": "MEDIUM",
+      "가죽": "MEDIUM",
+      "스웨이드": "MEDIUM",
+      "니트": "THICK",
+      "울": "THICK",
+      "플리스": "THICK",
+      "패딩": "THICK"
+    }
+  },
+  "comfortRanges": {
+    "TOP": {"THIN": [20, 40], "MEDIUM": [8, 28], "THICK": [-15, 18]},
+    "BOTTOM": {"THIN": [18, 40], "MEDIUM": [0, 30], "THICK": [-15, 15]},
+    "OUTER": {"THIN": [12, 25], "MEDIUM": [3, 20], "THICK": [-20, 10]},
+    "SHOES": {"THIN": [15, 40], "MEDIUM": [-10, 35], "THICK": [-20, 15]}
+  }
+}

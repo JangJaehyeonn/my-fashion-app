@@ -4,6 +4,8 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,6 +31,10 @@ public class UserResponse {
     private LocalDateTime ageConfirmedAt;
     // 가상 피팅 사진 전송 동의 시각 (null = 미동의)
     private LocalDateTime vtonConsentAt;
+    // FR-28 "HH:mm" (null = not set; weather uses 08:00 / 19:00) and WALK/TRANSIT/CAR
+    private String commuteOutAt;
+    private String commuteBackAt;
+    private String travelMode;
 
     public static UserResponse from(User user) {
         return UserResponse.builder()
@@ -45,6 +51,13 @@ public class UserResponse {
                 .preferredStyles(user.getPreferredStyleNames())
                 .ageConfirmedAt(user.getAgeConfirmedAt())
                 .vtonConsentAt(user.getVtonConsentAt())
+                .commuteOutAt(format(user.getCommuteOutAt()))
+                .commuteBackAt(format(user.getCommuteBackAt()))
+                .travelMode(user.getTravelMode() != null ? user.getTravelMode().name() : null)
                 .build();
+    }
+
+    private static String format(LocalTime time) {
+        return time == null ? null : time.format(DateTimeFormatter.ofPattern("HH:mm"));
     }
 }

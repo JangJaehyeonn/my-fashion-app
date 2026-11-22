@@ -10,6 +10,9 @@ import java.util.List;
 @AllArgsConstructor
 public class ClosetRecommendResponse {
     private List<ClosetOutfit> outfits;
+    // FR-28: weather rules applied to the candidates ("TEMP_RANGE", "RAIN"); empty when none (or no forecast).
+    // The app shows "외투를 벗어도…" / "비 소식이 있어…" from these.
+    private List<String> appliedRules;
 
     @Getter
     @AllArgsConstructor

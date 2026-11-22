@@ -35,7 +35,8 @@ class OpenWeatherClientTest {
     }
 
     private OpenWeatherClient client(String key) {
-        return new OpenWeatherClient(server.url("/data/2.5/weather").toString(), key,
+        return new OpenWeatherClient(server.url("/data/2.5/weather").toString(),
+                server.url("/data/2.5/forecast").toString(), key,
                 Duration.ofSeconds(1), Duration.ofMillis(500));
     }
 
@@ -93,5 +94,37 @@ class OpenWeatherClientTest {
         server.shutdown();
         assertThatThrownBy(() -> client(KEY).fetch(0, 0))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.WEATHER_UNAVAILABLE);
+    }
+
+    @Test
+    @DisplayName("FR-28: 예보 칸을 시각순으로 매핑하고(강수 확률 pop 0~1, 풍속), 예보 주소로 좌표·키를 보낸다")
+    void mapsForecastSlotsSortedByTime() throws Exception {
+        server.enqueue(json("""
+                {"list": [
+                  {"dt": 1700010800, "main": {"temp": 12.5}, "pop": 0.7, "wind": {"speed": 3.1}},
+                  {"dt": 1700000000, "main": {"temp": 3.0}, "wind": {"speed": 1.0}}
+                ]}
+                """));
+
+        Forecast forecast = client(KEY).fetchForecast(37.57, 126.98);
+
+        assertThat(forecast.slots()).containsExactly(
+                new ForecastSlot(1700000000, 3.0, 0.0, 1.0),
+                new ForecastSlot(1700010800, 12.5, 0.7, 3.1));
+        RecordedRequest req = server.takeRequest();
+        assertThat(req.getRequestUrl().encodedPath()).isEqualTo("/data/2.5/forecast");
+        assertThat(req.getRequestUrl().queryParameter("lat")).isEqualTo("37.57");
+        assertThat(req.getRequestUrl().queryParameter("appid")).isEqualTo(KEY);
+    }
+
+    @Test
+    @DisplayName("FR-28: 예보가 500이거나 칸이 없으면 WEATHER_UNAVAILABLE")
+    void forecastFailuresMapToUnavailable() {
+        server.enqueue(new MockResponse().setResponseCode(500));
+        server.enqueue(json("{\"list\": []}"));
+        for (int i = 0; i < 2; i++) {
+            assertThatThrownBy(() -> client(KEY).fetchForecast(0, 0))
+                    .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.WEATHER_UNAVAILABLE);
+        }
     }
 }

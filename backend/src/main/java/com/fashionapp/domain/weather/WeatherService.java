@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiWeatherResponse;
+import com.fashionapp.infra.Forecast;
 import com.fashionapp.infra.OpenWeatherClient;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -35,8 +37,25 @@ public class WeatherService {
             .expireAfterWrite(Duration.ofMinutes(10))
             .maximumSize(500)
             .build();
+    private final Cache<String, Forecast> forecastCache = Caffeine.newBuilder()
+            .expireAfterWrite(Duration.ofMinutes(10))
+            .maximumSize(500)
+            .build();
 
     public AiWeatherResponse getWeather(Double lat, Double lon) {
+        double[] at = roundedCoordinates(lat, lon);
+        return cached(cacheKey(at[0], at[1]), localCache, AiWeatherResponse.class,
+                () -> openWeatherClient.fetch(at[0], at[1]));
+    }
+
+    /** FR-28: 3-hour forecast of the (rounded) coordinate, through the same local → Redis → OpenWeatherMap caches. */
+    public Forecast getForecast(Double lat, Double lon) {
+        double[] at = roundedCoordinates(lat, lon);
+        return cached(forecastCacheKey(at[0], at[1]), forecastCache, Forecast.class,
+                () -> openWeatherClient.fetchForecast(at[0], at[1]));
+    }
+
+    private static double[] roundedCoordinates(Double lat, Double lon) {
         double useLat = lat == null ? DEFAULT_LAT : lat;
         double useLon = lon == null ? DEFAULT_LON : lon;
         if (useLat < -90 || useLat > 90 || useLon < -180 || useLon > 180) {
@@ -44,25 +63,25 @@ public class WeatherService {
         }
         // 소수 둘째 자리(약 1km)로 반올림한다. 앱도 반올림해 보내지만 클라이언트를 믿지 않고 서버에서 다시 반올림해서,
         // 정밀 좌표가 캐시 키·OpenWeatherMap 요청·로그 어디에도 닿지 않게 한다. 사용자 식별 정보와 묶이지 않고 근처 요청은 같은 값을 공유
-        useLat = round2(useLat);
-        useLon = round2(useLon);
-        String key = cacheKey(useLat, useLon);
+        return new double[]{round2(useLat), round2(useLon)};
+    }
 
-        AiWeatherResponse fromLocal = localCache.getIfPresent(key);
+    private <T> T cached(String key, Cache<String, T> local, Class<T> type, Supplier<T> fetch) {
+        T fromLocal = local.getIfPresent(key);
         if (fromLocal != null) {
             return fromLocal;
         }
 
         // 2단계: Redis — 콜드 스타트·재시작 직후 외부 API를 다시 부르지 않고 이미 받아 둔 값을 재사용
-        AiWeatherResponse fromRedis = getFromRedis(key);
+        T fromRedis = getFromRedis(key, type);
         if (fromRedis != null) {
-            localCache.put(key, fromRedis);
+            local.put(key, fromRedis);
             return fromRedis;
         }
 
         // 3단계: 둘 다 미스 — OpenWeatherMap 호출 후 두 캐시를 채움
-        AiWeatherResponse fresh = openWeatherClient.fetch(useLat, useLon);
-        localCache.put(key, fresh);
+        T fresh = fetch.get();
+        local.put(key, fresh);
         putToRedis(key, fresh);
         return fresh;
     }
@@ -75,13 +94,17 @@ public class WeatherService {
         return String.format(Locale.ROOT, "weather:%.2f:%.2f", lat, lon);
     }
 
-    private AiWeatherResponse getFromRedis(String key) {
+    static String forecastCacheKey(double lat, double lon) {
+        return String.format(Locale.ROOT, "weather:forecast:%.2f:%.2f", lat, lon);
+    }
+
+    private <T> T getFromRedis(String key, Class<T> type) {
         try {
             String json = redisTemplate.opsForValue().get(key);
             if (json == null) {
                 return null;
             }
-            return objectMapper.readValue(json, AiWeatherResponse.class);
+            return objectMapper.readValue(json, type);
         } catch (JsonProcessingException e) {
             log.warn("Redis 날씨 캐시 역직렬화 실패, 새로 조회: {}", e.getMessage());
             return null;
@@ -92,7 +115,7 @@ public class WeatherService {
         }
     }
 
-    private void putToRedis(String key, AiWeatherResponse weather) {
+    private void putToRedis(String key, Object weather) {
         try {
             // Redis TTL(30분)은 로컬 캐시(10분)보다 길게 — 로컬이 비어도 외부 API 호출 없이 채울 수 있는 구간을 넓게 둠
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(weather), Duration.ofMinutes(30));

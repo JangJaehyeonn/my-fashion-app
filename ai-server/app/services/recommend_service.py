@@ -156,7 +156,7 @@ _CLOSET_PROMPT_TEMPLATE = """당신은 개인 패션 스타일리스트입니다
 
 보유 옷 목록 (코드 | 카테고리 | 색상 | 이름):
 {closet}
-
+{candidates}
 다음 JSON 형식으로만 응답해주세요. 다른 텍스트 없이 JSON만 출력하세요:
 {{
   "outfits": [
@@ -175,6 +175,35 @@ _CLOSET_PROMPT_TEMPLATE = """당신은 개인 패션 스타일리스트입니다
 - 같은 카테고리의 옷을 한 조합에 두 개 넣지 마세요
 - 조합끼리 최대한 겹치지 않게 구성하되, 옷이 적으면 일부 겹쳐도 됩니다
 - 만들 수 있는 조합이 적으면 1~2개만 추천해도 됩니다"""
+
+
+# FR-28: why the backend rules narrowed the candidates (the rules decide; the model only picks and writes)
+_RULE_REASONS = {
+    "TEMP_RANGE": "일교차가 커서, 외투를 벗어도 어울리고 상의가 낮 기온에 맞는 조합만 후보로 골랐습니다",
+    "RAIN": "비 소식이 있어 젖기 쉬운 스웨이드 소재와 흰색 신발은 후보에서 뺐습니다",
+}
+
+
+def _candidate_section(request: ClosetRecommendRequest, id_to_code: dict[str, str]) -> str:
+    """Prompt block listing the rule-made combos as codes, plus the reasons. Empty when there are no candidates."""
+    if not request.candidates:
+        return ""
+    lines = [
+        "- " + " + ".join(id_to_code[i] for i in candidate.clothes_ids)
+        for candidate in request.candidates
+        if candidate.clothes_ids and all(i in id_to_code for i in candidate.clothes_ids)
+    ]
+    if not lines:
+        return ""
+    reasons = [f"- {_RULE_REASONS[r]}" for r in request.applied_rules or [] if r in _RULE_REASONS]
+    block = "\n후보 조합 (반드시 이 중에서만 고르고, 고른 조합의 코드를 그대로 items에 쓰세요):\n" + "\n".join(lines) + "\n"
+    if reasons:
+        block += "\n후보를 고른 이유 (추천 이유에 자연스럽게 반영하세요):\n" + "\n".join(reasons) + "\n"
+    return block
+
+
+def _allowed_sets(request: ClosetRecommendRequest) -> list[frozenset[str]]:
+    return [frozenset(c.clothes_ids) for c in request.candidates or [] if c.clothes_ids]
 
 
 async def recommend_outfit_by_closet(request: ClosetRecommendRequest) -> ClosetRecommendResponse:
@@ -196,6 +225,7 @@ async def recommend_outfit_by_closet(request: ClosetRecommendRequest) -> ClosetR
         body_type=_BODY_TYPE_LABELS.get(profile.body_type, "정보 없음") if profile and profile.body_type else "정보 없음",
         preferred_style=style_text(profile),
         closet=closet_lines,
+        candidates=_candidate_section(request, {v: k for k, v in code_to_id.items()}),
     )
 
     response = await client.chat.completions.create(
@@ -206,11 +236,15 @@ async def recommend_outfit_by_closet(request: ClosetRecommendRequest) -> ClosetR
     )
 
     data = _parse_json(response.choices[0].message.content)
+    allowed = _allowed_sets(request)
     outfits = []
     for outfit in data.get("outfits", []):
         # 목록에 없는 코드(환각)는 버리고, 중복 제거
         ids = list(dict.fromkeys(code_to_id[c] for c in outfit.get("items", []) if c in code_to_id))
         if not ids:
+            continue
+        # FR-28: with rule candidates, an outfit outside them is dropped (the backend falls back to rule picks)
+        if allowed and frozenset(ids) not in allowed:
             continue
         outfits.append(
             ClosetOutfitSuggestion(

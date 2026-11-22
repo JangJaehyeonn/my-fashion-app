@@ -57,6 +57,13 @@ public class ComboEngine {
         return new ComboAddition(gained.size(), before, before + gained.size(), gained);
     }
 
+    /** FR-28: every valid combo of the closet, in a fixed order (by top, bottom, shoes, then outer id). */
+    public List<Combo> combos(List<ComboItem> closet) {
+        List<Combo> combos = new ArrayList<>();
+        forEachCombo(closet, combos::add);
+        return combos;
+    }
+
     private void forEachCombo(List<ComboItem> closet, Consumer<Combo> visitor) {
         List<ComboItem> tops = ofCategory(closet, ClothesCategory.TOP);
         List<ComboItem> bottoms = ofCategory(closet, ClothesCategory.BOTTOM);

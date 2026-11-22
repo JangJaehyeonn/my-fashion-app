@@ -46,6 +46,7 @@ public class UserService {
         } catch (IllegalArgumentException e) {
             throw new CustomException(ErrorCode.INVALID_BODY_PROFILE);
         }
+        CommuteProfile.apply(user, request);
 
         return UserResponse.from(user);
     }
