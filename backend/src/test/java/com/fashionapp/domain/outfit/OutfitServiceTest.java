@@ -39,6 +39,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class OutfitServiceTest {
 
+    @Mock private com.fashionapp.domain.event.EventRecorder eventRecorder;
+
     @Mock
     private UserRepository userRepository;
 
@@ -55,7 +57,7 @@ class OutfitServiceTest {
 
     @BeforeEach
     void setUp() {
-        outfitService = new OutfitService(userRepository, aiServerClient, clothesService);
+        outfitService = new OutfitService(userRepository, aiServerClient, clothesService, eventRecorder);
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)

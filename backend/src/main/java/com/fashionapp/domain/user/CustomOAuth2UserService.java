@@ -1,5 +1,7 @@
 package com.fashionapp.domain.user;
 
+import com.fashionapp.domain.event.EventRecorder;
+import com.fashionapp.domain.event.EventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -8,11 +10,15 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
+    private final EventRecorder eventRecorder;
 
     @Override
     @Transactional
@@ -32,14 +38,21 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return userRepository.findByProviderAndProviderId(provider, userInfo.getId())
                 .map(user -> user.update(userInfo.getName(), userInfo.getImageUrl(),
                         user.getHeight(), user.getWeight(), user.getBodyType(), user.getPreferredStyle()))
-                .orElseGet(() -> userRepository.save(
-                        User.builder()
-                                .email(userInfo.getEmail())
-                                .nickname(userInfo.getName())
-                                .profileImageUrl(userInfo.getImageUrl())
-                                .provider(provider)
-                                .providerId(userInfo.getId())
-                                .build()
-                ));
+                .orElseGet(() -> signup(userInfo, provider));
+    }
+
+    private User signup(OAuth2UserInfo userInfo, User.AuthProvider provider) {
+        User user = userRepository.save(
+                User.builder()
+                        .email(userInfo.getEmail())
+                        .nickname(userInfo.getName())
+                        .profileImageUrl(userInfo.getImageUrl())
+                        .provider(provider)
+                        .providerId(userInfo.getId())
+                        .build()
+        );
+        // FR-14: written after loadUser's transaction commits (EventRecorder)
+        eventRecorder.record(user.getId(), EventType.SIGNUP, Map.of("method", provider.name().toUpperCase(Locale.ROOT)));
+        return user;
     }
 }

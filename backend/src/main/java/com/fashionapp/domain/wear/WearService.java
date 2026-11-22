@@ -2,6 +2,8 @@ package com.fashionapp.domain.wear;
 
 import com.fashionapp.domain.clothes.Clothes;
 import com.fashionapp.domain.clothes.ClothesRepository;
+import com.fashionapp.domain.event.EventRecorder;
+import com.fashionapp.domain.event.EventType;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class WearService {
     private final WearRecordRepository wearRecordRepository;
     private final ClothesRepository clothesRepository;
     private final Clock clock;
+    private final EventRecorder eventRecorder;
 
     /** All ids must be the user's own clothes, otherwise 400 and nothing is stored. */
     @Transactional
@@ -50,6 +53,8 @@ public class WearService {
         for (UUID id : ids) {
             inserted += wearRecordRepository.insertIgnoringDuplicate(userId, id, day, now);
         }
+        // FR-14: counts only (no clothes ids or date); written after this transaction commits
+        eventRecorder.record(userId, EventType.WEAR_LOGGED, Map.of("pieces", ids.size(), "inserted", inserted));
         return new WearRecordResponse(day, inserted);
     }
 

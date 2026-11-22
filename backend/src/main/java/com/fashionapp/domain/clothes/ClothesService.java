@@ -2,6 +2,8 @@ package com.fashionapp.domain.clothes;
 
 import com.fashionapp.domain.combo.ComboCountService;
 import com.fashionapp.domain.combo.ComboStats;
+import com.fashionapp.domain.event.EventRecorder;
+import com.fashionapp.domain.event.EventType;
 import com.fashionapp.domain.user.User;
 import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.domain.wear.WearRecordRepository;
@@ -18,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -37,6 +40,7 @@ public class ClothesService {
     private final ClothesEmbedder clothesEmbedder;
     private final ComboCountService comboCountService;
     private final WearRecordRepository wearRecordRepository;
+    private final EventRecorder eventRecorder;
 
     // AI 서버 호출(수 초~수 분)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 —
     // 조회·저장은 각 리포지토리 호출이 짧은 트랜잭션으로 처리 (open-in-view도 꺼져 있어야 함, application.yml)
@@ -63,6 +67,7 @@ public class ClothesService {
         // FR-07: embedding failure must not fail registration (the embedding just stays empty)
         clothesEmbedder.refresh(saved);
         long t4 = System.nanoTime();
+        recordAdded(userId, saved, "PHOTO");
         ClothesResponse response = toResponse(saved);
         // 옷 등록이 느릴 때 어느 구간(AI 분류 / 이미지 저장 / DB·URL 변환)인지 가려내기 위한 구간별 소요 시간
         log.info("clothes.register size={}KB classified={} classify={}ms s3={}ms db={}ms embed={}ms",
@@ -84,8 +89,15 @@ public class ClothesService {
         clothes.applyClassification(classification);
         Clothes saved = clothesRepository.save(clothes);
         clothesEmbedder.storeOrRefresh(saved, embedding);
+        recordAdded(userId, saved, "PURCHASE");
         ComboStats stats = comboCountService.statsFor(userId, clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId));
         return toResponse(saved, stats.countOf(saved.getId()));
+    }
+
+    /** FR-14: only the category code and how the piece came in — never its name or photo. */
+    private void recordAdded(UUID userId, Clothes clothes, String source) {
+        String category = Objects.requireNonNullElse(clothes.getCategory(), ClothesCategory.UNCLASSIFIED.name());
+        eventRecorder.record(userId, EventType.CLOTHES_ADDED, Map.of("category", category, "source", source));
     }
 
     @Transactional(readOnly = true)

@@ -40,13 +40,14 @@ class WearServiceTest {
 
     @Mock private WearRecordRepository wearRecordRepository;
     @Mock private ClothesRepository clothesRepository;
+    @Mock private com.fashionapp.domain.event.EventRecorder eventRecorder;
 
     private WearService wearService;
     private final UUID userId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        wearService = new WearService(wearRecordRepository, clothesRepository, CLOCK);
+        wearService = new WearService(wearRecordRepository, clothesRepository, CLOCK, eventRecorder);
     }
 
     private static Clothes clothes(UUID id, String name) {

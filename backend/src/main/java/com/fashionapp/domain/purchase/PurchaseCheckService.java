@@ -12,6 +12,8 @@ import com.fashionapp.domain.combo.ComboAddition;
 import com.fashionapp.domain.combo.ComboCountService;
 import com.fashionapp.domain.combo.ComboItem;
 import com.fashionapp.domain.combo.ComboStats;
+import com.fashionapp.domain.event.EventRecorder;
+import com.fashionapp.domain.event.EventType;
 import com.fashionapp.domain.wear.WearCalendar;
 import com.fashionapp.domain.wear.WearService;
 import com.fashionapp.domain.wear.WearStat;
@@ -62,6 +64,7 @@ public class PurchaseCheckService {
     private final PurchaseDailyLimiter dailyLimiter;
     private final PurchaseRecordService recordService;
     private final Clock clock;
+    private final EventRecorder eventRecorder;
 
     // AI 호출(분류·임베딩·이유 문장)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 (ClothesService.register와 같은 이유)
     public PurchaseCheckResponse check(UUID userId, MultipartFile image, String rawPrice) {
@@ -77,6 +80,8 @@ public class PurchaseCheckService {
         Judgement judgement = judge("check", userId, closet, item, vector);
         UUID checkId = recordService.open(userId, photo, image.getContentType(), judgement.context().item(),
                 judgement.verdict(), judgement.plus(), price, vector);
+        eventRecorder.record(userId, EventType.PURCHASE_CHECKED,
+                Map.of("verdict", judgement.verdict().name(), "plus", judgement.plus(), "priced", price != null));
         return judgement.toResponse(checkId, price);
     }
 

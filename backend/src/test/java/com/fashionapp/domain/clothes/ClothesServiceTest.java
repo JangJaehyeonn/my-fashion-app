@@ -54,6 +54,7 @@ class ClothesServiceTest {
     @Mock
     private ClothesEmbedder clothesEmbedder;
     @org.mockito.Mock private com.fashionapp.domain.wear.WearRecordRepository wearRecordRepository;
+    @Mock private com.fashionapp.domain.event.EventRecorder eventRecorder;
 
     private ClothesService clothesService;
 
@@ -64,7 +65,7 @@ class ClothesServiceTest {
     @BeforeEach
     void setUp() {
         clothesService = new ClothesService(clothesRepository, userRepository, new ClothesClassifier(aiServerClient), imageStorage, clothesEmbedder,
-                com.fashionapp.domain.combo.ComboTestSupport.defaultService(), wearRecordRepository);
+                com.fashionapp.domain.combo.ComboTestSupport.defaultService(), wearRecordRepository, eventRecorder);
         userId = UUID.randomUUID();
         user = User.builder().ageConfirmedAt(java.time.LocalDateTime.now())
                 .id(userId)
@@ -107,6 +108,21 @@ class ClothesServiceTest {
         assertThat(response.getCategory()).isEqualTo(ClothesCategory.TOP);
         assertThat(response.getColor()).isEqualTo("그레이");
         assertThat(response.getImageUrl()).isEqualTo("https://presigned");
+    }
+
+    @Test
+    @DisplayName("옷 등록(FR-14): CLOTHES_ADDED에는 카테고리 코드와 등록 경로만 남기고 이름·사진은 넣지 않는다")
+    void register_recordsClothesAddedWithoutPersonalData() {
+        AiClothesClassifyResponse ai = aiResult("TOP", "그레이", "그레이 니트 스웨터");
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(aiServerClient.classifyClothes(image)).willReturn(ai);
+        given(imageStorage.store(image, "clothes", userId)).willReturn("clothes/a.jpg");
+        given(clothesRepository.save(any(Clothes.class))).willAnswer(inv -> inv.getArgument(0));
+
+        clothesService.register(userId, image);
+
+        verify(eventRecorder).record(userId, com.fashionapp.domain.event.EventType.CLOTHES_ADDED,
+                java.util.Map.of("category", "TOP", "source", "PHOTO"));
     }
 
     @Test
