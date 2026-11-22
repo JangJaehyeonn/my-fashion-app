@@ -81,7 +81,7 @@ class AiServerClientTimeoutTest {
         server.enqueue(json("{\"outfits\":[]}").setHeadersDelay(1, TimeUnit.SECONDS));
 
         AiClosetRecommendRequest request = new AiClosetRecommendRequest(
-                new AiSituationRecommendRequest.WeatherInfo(12.5, "맑음"), "DAILY", null, java.util.List.of());
+                new AiSituationRecommendRequest.WeatherInfo(12.5, "맑음"), "DAILY", null, java.util.List.of(), java.util.List.of());
 
         assertThatThrownBy(() -> client.recommendOutfitsByCloset(request).join())
                 .isInstanceOf(CompletionException.class)

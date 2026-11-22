@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @AllArgsConstructor
@@ -18,5 +19,12 @@ public class ClosetRecommendResponse {
         private List<ClothesResponse> items;
         private String reason;
         private String styleTag;
+        // FR-29: true on the combo that brings back a long-unworn piece, which is revivedClothesId (null otherwise)
+        private boolean revived;
+        private UUID revivedClothesId;
+
+        public ClosetOutfit(List<ClothesResponse> items, String reason, String styleTag) {
+            this(items, reason, styleTag, false, null);
+        }
     }
 }
