@@ -10,6 +10,11 @@ on:
     paths: ["acceptance/phase*/**"]
   issues:
     types: [closed]
+  # 이슈 닫힘 직후에는 목록 조회가 늦게 반영돼 방금 닫힌 이슈가 열린 것으로 셀 수 있다.
+  # 놓친 Phase 전환을 잡기 위해 매시간 다시 확인한다.
+  schedule:
+    - cron: "27 * * * *"
+  workflow_dispatch:
 
 permissions: {}
 
@@ -48,8 +53,9 @@ jobs:
 
   next:
     if: >-
-      github.event_name == 'issues' &&
-      contains(join(github.event.issue.labels.*.name, ','), 'phase-')
+      github.event_name != 'push' && (
+      github.event_name != 'issues' ||
+      contains(join(github.event.issue.labels.*.name, ','), 'phase-'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -59,31 +65,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
-      - name: Phase가 끝났으면 다음 Phase 시작
+      - name: 끝난 Phase가 있으면 다음 Phase 시작
         env:
           GH_TOKEN: ${{ github.token }}
-          LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+          REPO: ${{ github.repository }}
+          CLOSED_ISSUE: ${{ github.event.issue.number || '' }}
           MAX_AUTO: ${{ vars.WEARON_MAX_AUTO_PHASE || '4' }}
-          OWNER: "@JangJaehyeonn"
         run: |
           set -euo pipefail
-          phase=$(printf '%s' "$LABELS" | tr ',' '\n' | sed -nE 's/^phase-([0-9]+)$/\1/p' | head -n1)
-          [ -n "$phase" ] || exit 0
-          open=$(gh issue list --label "phase-$phase" --state open --json number --jq length)
-          if [ "$open" != "0" ]; then
-            echo "Phase $phase 남은 이슈: $open"
-            exit 0
-          fi
-          next=$((phase + 1))
-          if [ "$next" -gt "$MAX_AUTO" ]; then
-            echo "Phase $next는 자동 시작 범위(WEARON_MAX_AUTO_PHASE=$MAX_AUTO) 밖입니다. 멈춥니다."
-            exit 0
-          fi
-          existing=$(gh issue list --label "phase-$next" --state all --json number --jq length)
-          if [ "$existing" != "0" ]; then
-            echo "Phase $next 이슈가 이미 있습니다. 중복 실행을 막기 위해 멈춥니다."
-            exit 0
-          fi
-          python3 scripts/create_issues.py --phase "$next"
-          gh workflow run acceptance-tests.yml --ref "${{ github.event.repository.default_branch }}" -f phase="$next"
-          echo "Phase $next 이슈를 만들고 인수 테스트 초안 작업을 시작했습니다."
+          # 목록 API(REST)로 센다. 방금 닫힌 이슈는 아직 열린 것으로 보일 수 있어 제외한다.
+          open_count() {
+            gh api --paginate "repos/$REPO/issues?state=open&labels=phase-$1&per_page=100" \
+              --jq ".[] | select(.pull_request | not) | select(.number != ${CLOSED_ISSUE:-0}) | .number" | wc -l
+          }
+          any_count() {
+            gh api "repos/$REPO/issues?state=all&labels=phase-$1&per_page=1" --jq '[.[] | select(.pull_request | not)] | length'
+          }
+          for phase in $(seq 1 $((MAX_AUTO - 1))); do
+            [ "$(any_count "$phase")" != "0" ] || continue
+            if [ "$(open_count "$phase")" != "0" ]; then
+              echo "Phase $phase 진행 중"
+              continue
+            fi
+            next=$((phase + 1))
+            if [ "$(any_count "$next")" != "0" ]; then
+              continue
+            fi
+            echo "Phase $phase 완료 → Phase $next 시작"
+            python3 scripts/create_issues.py --phase "$next"
+            gh workflow run acceptance-tests.yml --ref "${{ github.event.repository.default_branch }}" -f phase="$next"
+            break
+          done
