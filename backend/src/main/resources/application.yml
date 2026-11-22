@@ -122,6 +122,12 @@ app:
     login-max-failures: 5
     login-lock-duration: 5m
 
+wearon:
+  backfill:
+    # FR-08: true면 기동 때 새 속성(fit·material·pattern·season)이 비어 있는 옷의 사진을 다시 분류한다 (옷마다 분류 API 1회).
+    # 기본값 false. 임베딩이 비어 있는 옷을 채우는 백필은 이 설정과 무관하게 늘 돈다.
+    reclassify: ${WEARON_BACKFILL_RECLASSIFY:false}
+
 spring.servlet.multipart:
   max-file-size: 10MB
   max-request-size: 10MB

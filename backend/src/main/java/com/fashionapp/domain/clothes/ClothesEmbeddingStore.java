@@ -4,10 +4,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,10 +21,16 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
+@Order(ClothesEmbeddingStore.RUNNER_ORDER)
 @RequiredArgsConstructor
 public class ClothesEmbeddingStore implements ApplicationRunner {
 
     public static final int DIMENSIONS = 1536;
+    /** Runs before the FR-08 backfill runners, which need {@link #isAvailable()}. */
+    public static final int RUNNER_ORDER = 0;
+
+    static final String MISSING_SQL = "SELECT id FROM clothes WHERE embedding IS NULL "
+            + "AND category IS NOT NULL AND category <> 'UNCLASSIFIED' ";
 
     private final JdbcTemplate jdbcTemplate;
     private volatile boolean available;
@@ -55,6 +63,25 @@ public class ClothesEmbeddingStore implements ApplicationRunner {
         } catch (DataAccessException e) {
             log.warn("clothes embedding save failed for {}: {}", clothesId, e.getMostSpecificCause().getMessage());
             return false;
+        }
+    }
+
+    /**
+     * FR-08: ids of classified clothes without an embedding, in id order, after {@code afterId} (null = from the
+     * start). Keyset paging so clothes that keep failing are not read again in the same run. Empty on DB failure.
+     */
+    public List<UUID> findIdsWithoutEmbedding(UUID afterId, int limit) {
+        if (!available) {
+            return List.of();
+        }
+        try {
+            return afterId == null
+                    ? jdbcTemplate.queryForList(MISSING_SQL + "ORDER BY id LIMIT ?", UUID.class, limit)
+                    : jdbcTemplate.queryForList(MISSING_SQL + "AND id > ? ORDER BY id LIMIT ?", UUID.class,
+                            afterId, limit);
+        } catch (DataAccessException e) {
+            log.warn("clothes without embedding lookup failed: {}", e.getMostSpecificCause().getMessage());
+            return List.of();
         }
     }
 
