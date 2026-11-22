@@ -60,8 +60,20 @@ public class LocalDiskStorage implements ImageStorage {
         return write(bytes, contentType, category, ownerId);
     }
 
+    @Override
+    public String storeBytesAt(String key, byte[] bytes, String contentType) {
+        ImageKeys.validateBytes(bytes, contentType, maxBytes);
+        if (!ImageKeys.isValidKey(key)) {
+            throw new IllegalArgumentException("not a storage key: " + key);
+        }
+        return writeAt(key, bytes);
+    }
+
     private String write(byte[] bytes, String contentType, String category, UUID ownerId) {
-        String key = ImageKeys.newKey(category, ownerId, contentType);
+        return writeAt(ImageKeys.newKey(category, ownerId, contentType), bytes);
+    }
+
+    private String writeAt(String key, byte[] bytes) {
         Path target = resolve(key);
         try {
             Files.createDirectories(target.getParent());

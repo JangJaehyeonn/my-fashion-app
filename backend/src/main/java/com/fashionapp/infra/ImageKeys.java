@@ -28,8 +28,10 @@ public final class ImageKeys {
 
     private static final String UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
     private static final Pattern KEY = Pattern.compile(
-            "^(clothes|diagnosis|vton)/(" + UUID_RE + ")/(" + UUID_RE + ")\\.(jpg|png|webp|heic)$");
-    private static final Pattern PREFIX = Pattern.compile("^(clothes|diagnosis|vton)/(" + UUID_RE + ")/$");
+            "^(clothes|diagnosis|vton|tmp)/(" + UUID_RE + ")/(" + UUID_RE + ")\\.(jpg|png|webp|heic)$");
+    private static final Pattern PREFIX = Pattern.compile("^(clothes|diagnosis|vton|tmp)/(" + UUID_RE + ")/$");
+
+    public static final String TEMP_CATEGORY = "tmp";
 
     private ImageKeys() {}
 
@@ -39,6 +41,23 @@ public final class ImageKeys {
             throw new IllegalArgumentException("invalid image category: " + category);
         }
         return key;
+    }
+
+    /**
+     * FR-12: key of a purchase-check photo kept for 30 minutes, {@code tmp/{ownerId}/{checkId}.ext}. The check id is
+     * the file name so the photo can be found (and deleted) from the check record alone.
+     */
+    public static String tempKey(UUID ownerId, UUID checkId, String contentType) {
+        String key = TEMP_CATEGORY + "/" + ownerId + "/" + checkId + "." + EXT_BY_MIME.get(contentType);
+        if (!isValidKey(key)) {
+            throw new IllegalArgumentException("unsupported content type: " + contentType);
+        }
+        return key;
+    }
+
+    /** FR-12: prefix holding every temporary purchase-check photo of one user. */
+    public static String tempPrefix(UUID ownerId) {
+        return TEMP_CATEGORY + "/" + ownerId + "/";
     }
 
     public static boolean isValidKey(String key) {

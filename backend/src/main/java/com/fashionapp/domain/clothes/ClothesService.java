@@ -71,6 +71,23 @@ public class ClothesService {
         return response;
     }
 
+    /**
+     * FR-12 BUY: registers a purchase-checked piece with the photo already moved to {@code imageKey} and the
+     * analysed attributes and embedding as they are (no classification call). The combo count cache is refreshed
+     * right away and the piece's combo count is returned.
+     */
+    public ClothesResponse registerPurchased(UUID userId, String imageKey, ClothesClassification classification,
+                                             float[] embedding) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        Clothes clothes = Clothes.builder().user(user).imageUrl(imageKey).build();
+        clothes.applyClassification(classification);
+        Clothes saved = clothesRepository.save(clothes);
+        clothesEmbedder.storeOrRefresh(saved, embedding);
+        ComboStats stats = comboCountService.statsFor(userId, clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId));
+        return toResponse(saved, stats.countOf(saved.getId()));
+    }
+
     @Transactional(readOnly = true)
     public List<ClothesResponse> getMyClothes(UUID userId) {
         List<Clothes> closet = clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId);

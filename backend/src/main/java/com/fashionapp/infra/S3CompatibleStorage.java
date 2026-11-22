@@ -99,8 +99,20 @@ public class S3CompatibleStorage implements ImageStorage {
         return put(bytes, contentType, category, ownerId);
     }
 
+    @Override
+    public String storeBytesAt(String key, byte[] bytes, String contentType) {
+        ImageKeys.validateBytes(bytes, contentType, maxBytes);
+        if (!ImageKeys.isValidKey(key)) {
+            throw new IllegalArgumentException("not a storage key: " + key);
+        }
+        return putAt(key, bytes, contentType);
+    }
+
     private String put(byte[] bytes, String contentType, String category, UUID ownerId) {
-        String key = ImageKeys.newKey(category, ownerId, contentType);
+        return putAt(ImageKeys.newKey(category, ownerId, contentType), bytes, contentType);
+    }
+
+    private String putAt(String key, byte[] bytes, String contentType) {
         try {
             s3Client.putObject(PutObjectRequest.builder()
                             .bucket(bucket).key(key).contentType(contentType).contentLength((long) bytes.length).build(),

@@ -37,7 +37,8 @@ import java.util.stream.Stream;
 
 /**
  * FR-11 purchase check: classify → embed → top 3 similar pieces of the same category → +N with the combo engine →
- * rule verdict → AI picks and sentences (validated, rule fallback). Nothing is stored: the closet is unchanged.
+ * rule verdict → AI picks and sentences (validated, rule fallback). The closet is unchanged; FR-12 keeps the photo
+ * for 30 minutes and records the check (PurchaseRecordService), at most 30 checks a day (PurchaseDailyLimiter).
  */
 @Slf4j
 @Service
@@ -58,17 +59,20 @@ public class PurchaseCheckService {
     private final WearService wearService;
     private final PurchaseExplainer explainer;
     private final PurchaseCheckRules rules;
+    private final PurchaseDailyLimiter dailyLimiter;
+    private final PurchaseRecordService recordService;
     private final Clock clock;
 
     // AI 호출(분류·임베딩·이유 문장)을 기다리는 동안 DB 커넥션을 붙잡지 않도록 트랜잭션을 걸지 않음 (ClothesService.register와 같은 이유)
     public PurchaseCheckResponse check(UUID userId, MultipartFile image, String rawPrice) {
         Long price = parsePrice(rawPrice);
-        ImageKeys.validate(image, MAX_IMAGE_BYTES);
+        byte[] photo = ImageKeys.validate(image, MAX_IMAGE_BYTES);
         long t0 = System.nanoTime();
         List<Clothes> closet = clothesRepository.findByUser_IdOrderByCreatedAtDesc(userId);
         if (closet.size() < MIN_CLOSET_SIZE) {
             throw new CustomException(ErrorCode.CLOSET_TOO_SMALL);
         }
+        dailyLimiter.acquire(userId);
         ClothesClassification item = clothesClassifier.classify(image)
                 .orElseThrow(() -> new CustomException(ErrorCode.PURCHASE_CHECK_UNAVAILABLE));
         long t1 = System.nanoTime();
@@ -99,7 +103,9 @@ public class PurchaseCheckService {
                         + "rules={}ms explain={}ms",
                 closet.size(), verdict, addition.plus(), ms(t0, t1), ms(t1, t2), ms(t2, t3), ms(t3, t4),
                 ms(t4, t5), ms(t5, t6));
-        return new PurchaseCheckResponse(UUID.randomUUID(), context.item(), verdict, addition.plus(),
+        UUID checkId = recordService.open(userId, photo, image.getContentType(), context.item(), verdict,
+                addition.plus(), price, vector);
+        return new PurchaseCheckResponse(checkId, context.item(), verdict, addition.plus(),
                 addition.before(), addition.after(), withNotes(similar, explanation.notes()), explanation.outfits(),
                 explanation.headline(), explanation.reasons(), explanation.gap(), expectedWears, price,
                 ExpectedWears.costPerWear(price, expectedWears));

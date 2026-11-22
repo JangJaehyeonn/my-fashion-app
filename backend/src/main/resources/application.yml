@@ -132,6 +132,10 @@ wearon:
     similar-threshold: ${WEARON_PURCHASE_SIMILAR_THRESHOLD:0.85}
     # 비슷한 옷이 없을 때 +N이 이 값 이상이면 BUY, 아니면 THINK
     buy-min-plus: ${WEARON_PURCHASE_BUY_MIN_PLUS:5}
+    # FR-12 사용자당 하루(한국 날짜) 판정 요청 한도. 넘으면 429
+    daily-limit: ${WEARON_PURCHASE_DAILY_LIMIT:30}
+    # FR-12 30분 지난 임시 사진을 지우는 스케줄러 간격
+    cleanup-delay: 60s
 
 spring.servlet.multipart:
   max-file-size: 10MB

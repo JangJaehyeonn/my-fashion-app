@@ -54,6 +54,12 @@ public enum ErrorCode {
     CLOSET_TOO_SMALL(HttpStatus.BAD_REQUEST, "옷장에 5벌 이상 있어야 비교할 수 있어요."),
     INVALID_PURCHASE_PRICE(HttpStatus.BAD_REQUEST, "가격은 0원 이상 숫자로 입력해 주세요."),
     PURCHASE_CHECK_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 옷을 분석할 수 없어요. 잠시 후 다시 시도해 주세요."),
+    // FR-12 살까 말까 결정·기록
+    PURCHASE_CHECK_NOT_FOUND(HttpStatus.NOT_FOUND, "판정 기록을 찾을 수 없어요."),
+    PURCHASE_CHECK_EXPIRED(HttpStatus.GONE, "판정한 지 30분이 지나 사진이 지워졌어요. 다시 찍어 판정해 주세요."),
+    PURCHASE_ALREADY_DECIDED(HttpStatus.CONFLICT, "이미 결정한 판정이에요."),
+    INVALID_PURCHASE_DECISION(HttpStatus.BAD_REQUEST, "결정은 BUY 또는 SKIP 중에서 골라 주세요."),
+    PURCHASE_CHECK_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "살까 말까는 하루 30번까지 쓸 수 있어요. 내일 다시 시도해 주세요."),
     CLOSET_EMPTY(HttpStatus.BAD_REQUEST, "옷장에 등록된 옷이 없습니다."),
     CLOSET_ALL_UNCLASSIFIED(HttpStatus.BAD_REQUEST, "분류된 옷이 없어 코디를 추천할 수 없어요. 미분류 옷의 종류를 먼저 정해 주세요.");
 

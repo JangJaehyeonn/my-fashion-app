@@ -4,6 +4,7 @@ import com.fashionapp.domain.clothes.Clothes;
 import com.fashionapp.domain.clothes.ClothesRepository;
 import com.fashionapp.domain.diagnosis.StyleDiagnosis;
 import com.fashionapp.domain.diagnosis.StyleDiagnosisRepository;
+import com.fashionapp.domain.purchase.PurchaseCheckRepository;
 import com.fashionapp.global.jwt.JwtTokenProvider;
 import com.fashionapp.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
@@ -41,6 +42,8 @@ class AccountDeletionIntegrationTest extends IntegrationTest {
     @Autowired ClothesRepository clothesRepository;
     @Autowired StyleDiagnosisRepository styleDiagnosisRepository;
     @Autowired RedisTemplate<String, String> redisTemplate;
+    @Autowired PurchaseCheckRepository purchaseCheckRepository;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private UUID userId;
     private String accessToken;
@@ -54,6 +57,10 @@ class AccountDeletionIntegrationTest extends IntegrationTest {
         clothesRepository.save(Clothes.builder().user(user).imageUrl(CLOTHES_URL_1).category("TOP").build());
         clothesRepository.save(Clothes.builder().user(user).imageUrl(CLOTHES_URL_2).category("BOTTOM").build());
         styleDiagnosisRepository.save(StyleDiagnosis.builder().user(user).imageUrl(DIAGNOSIS_URL).score(80).build());
+        // FR-12: one undecided purchase check with a temporary photo
+        jdbcTemplate.update("INSERT INTO purchase_checks (id, user_id, name, category, color, verdict, plus, decision, "
+                + "temp_photo_key, created_at) VALUES (?, ?, '블랙 hoodie', 'TOP', '블랙', 'BUY', 4, 'UNDECIDED', ?, now())",
+                UUID.randomUUID(), userId, "tmp/" + userId + "/" + UUID.randomUUID() + ".jpg");
 
         accessToken = jwtTokenProvider.createAccessToken(userId);
         refreshToken = jwtTokenProvider.createRefreshToken(userId);
@@ -68,6 +75,7 @@ class AccountDeletionIntegrationTest extends IntegrationTest {
     void tearDown() {
         for (UUID id : new UUID[]{userId, otherUser.getId()}) {
             clothesRepository.deleteAllByUserId(id);
+            purchaseCheckRepository.deleteAllByUserId(id);
             styleDiagnosisRepository.deleteAllByUserId(id);
             if (userRepository.existsById(id)) userRepository.deleteById(id);
             redisTemplate.delete("refresh:" + id);
@@ -89,6 +97,10 @@ class AccountDeletionIntegrationTest extends IntegrationTest {
         verify(imageStorage).delete(CLOTHES_URL_2);
         verify(imageStorage).delete(DIAGNOSIS_URL);
         verify(imageStorage).deleteByPrefix("vton/" + userId + "/");
+        // FR-12: purchase check records and every temporary photo of the user
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM purchase_checks WHERE user_id = ?",
+                Long.class, userId)).isZero();
+        verify(imageStorage).deleteByPrefix("tmp/" + userId + "/");
 
         // 다른 사용자 데이터는 유지
         assertThat(userRepository.existsById(otherUser.getId())).isTrue();
