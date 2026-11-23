@@ -124,7 +124,7 @@ class HomeViewModelTest {
     @Test
     fun `refreshing before the first weather load does nothing`() = runTest(dispatcher) {
         location.permission = false
-        location.promptShown = false
+        location.isPromptShown = false
         val vm = loaded()
         advanceUntilIdle()
 
@@ -238,12 +238,9 @@ class HomeViewModelTest {
 
 private class FakeDeviceLocation : DeviceLocation {
     var permission = true
-    var promptShown = true
+    override var isPromptShown: Boolean = true
 
     override fun hasPermission(): Boolean = permission
-    override var isPromptShown: Boolean
-        get() = promptShown
-        set(value) { promptShown = value }
 
     override suspend fun currentCoordinates(): Coordinates? = if (permission) Coordinates(37.55, 127.0) else null
 }
