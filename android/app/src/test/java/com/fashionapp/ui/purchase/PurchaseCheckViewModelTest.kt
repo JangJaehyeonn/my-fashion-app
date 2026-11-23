@@ -1,6 +1,9 @@
 package com.fashionapp.ui.purchase
 
 import androidx.lifecycle.SavedStateHandle
+import com.fashionapp.data.repository.ClosetChanges
+import com.fashionapp.data.repository.ClothesRepository
+import com.fashionapp.data.repository.FittingGarmentHandoff
 import com.fashionapp.data.repository.PurchaseCheckRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -42,7 +45,10 @@ class PurchaseCheckViewModelTest {
     private fun viewModel(source: PurchaseSource) = PurchaseCheckViewModel(
         SavedStateHandle(mapOf(PurchaseCheckViewModel.ARG_SOURCE to source.name)),
         PurchaseCheckRepository(api, compressor),
-        products
+        products,
+        ClothesRepository(FakeClothesApi()),
+        ClosetChanges(),
+        FittingGarmentHandoff()
     )
 
     private fun TestScope.confirmed(source: PurchaseSource): PurchaseCheckViewModel {

@@ -2,7 +2,10 @@ package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.PurchaseCheckApi
 import com.fashionapp.data.image.UploadImageCompressor
+import com.fashionapp.data.model.PurchaseAttributesRequest
 import com.fashionapp.data.model.PurchaseCheckResult
+import com.fashionapp.data.model.PurchaseDecisionRequest
+import com.fashionapp.data.model.PurchaseDecisionResult
 import com.fashionapp.data.model.PurchaseRecord
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -38,9 +41,22 @@ class PurchaseCheckRepository @Inject constructor(
         purchaseCheckApi.history().data ?: error("판정 기록 조회 실패")
     }
 
+    /** FR-12: BUY ([buy] = true) or SKIP the check. */
+    suspend fun decide(checkId: String, buy: Boolean): Result<PurchaseDecisionResult> = runCatching {
+        val request = PurchaseDecisionRequest(if (buy) DECISION_BUY else DECISION_SKIP)
+        purchaseCheckApi.decide(checkId, request).data ?: error("살까 말까 결정 실패")
+    }
+
+    /** FR-13: re-judges the check with corrected attributes. */
+    suspend fun recheck(checkId: String, request: PurchaseAttributesRequest): Result<PurchaseCheckResult> = runCatching {
+        purchaseCheckApi.updateAttributes(checkId, request).data ?: error("살까 말까 재판정 실패")
+    }
+
     companion object {
         const val IMAGE_PART = "image"
         const val IMAGE_FILE_NAME = "purchase.jpg"
+        const val DECISION_BUY = "BUY"
+        const val DECISION_SKIP = "SKIP"
         val JPEG = "image/jpeg".toMediaType()
         private val TEXT = "text/plain".toMediaType()
     }

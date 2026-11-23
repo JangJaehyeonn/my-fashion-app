@@ -7,8 +7,11 @@ import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
 import com.fashionapp.data.model.ClothesUpdateRequest
+import com.fashionapp.data.model.PurchaseAttributesRequest
 import com.fashionapp.data.model.PurchaseCheckResult
 import com.fashionapp.data.model.PurchaseDecision
+import com.fashionapp.data.model.PurchaseDecisionRequest
+import com.fashionapp.data.model.PurchaseDecisionResult
 import com.fashionapp.data.model.PurchaseRecord
 import com.fashionapp.data.model.PurchaseVerdict
 import com.fashionapp.data.repository.ClothesRepository
@@ -236,4 +239,10 @@ private class FakePurchaseCheckApi : PurchaseCheckApi {
         if (fail) throw RuntimeException("network")
         return ApiResponse(true, records, null)
     }
+
+    override suspend fun decide(id: String, request: PurchaseDecisionRequest): ApiResponse<PurchaseDecisionResult> =
+        error("unused")
+
+    override suspend fun updateAttributes(id: String, request: PurchaseAttributesRequest): ApiResponse<PurchaseCheckResult> =
+        error("unused")
 }

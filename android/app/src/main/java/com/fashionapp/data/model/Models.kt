@@ -273,3 +273,34 @@ data class PurchaseOutfit(
     val clothesIds: List<String>,
     val label: String?
 )
+
+// FR-12: POST /api/purchase-checks/{id}/decision body. decision is "BUY" or "SKIP".
+data class PurchaseDecisionRequest(
+    val decision: String
+)
+
+// FR-12 decision response: the updated record, and for BUY the clothes created from the photo (null for SKIP)
+data class PurchaseDecisionResult(
+    val check: PurchaseRecord?,
+    val clothes: Clothes?
+)
+
+// FR-13: PATCH /api/purchase-checks/{id}/attributes. Null fields are omitted by Gson and keep the analysed value.
+data class PurchaseAttributesRequest(
+    val category: String? = null,
+    val color: String? = null,
+    val name: String? = null,
+    val fit: String? = null,
+    val material: String? = null,
+    val pattern: String? = null,
+    val season: String? = null
+)
+
+// FR-07 season of a piece (server enum names)
+enum class ClothesSeason(val label: String) {
+    SPRING("봄"), SUMMER("여름"), FALL("가을"), WINTER("겨울");
+
+    companion object {
+        fun parse(raw: String?): ClothesSeason? = entries.find { it.name.equals(raw?.trim(), ignoreCase = true) }
+    }
+}

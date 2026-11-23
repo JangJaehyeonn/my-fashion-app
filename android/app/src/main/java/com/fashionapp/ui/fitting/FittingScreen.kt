@@ -116,7 +116,10 @@ fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
 
     val showConsentDialog by viewModel.showConsentDialog.collectAsState()
     val isSavingConsent by viewModel.isSavingConsent.collectAsState()
-    LaunchedEffect(Unit) { viewModel.refreshConsent() }
+    LaunchedEffect(Unit) {
+        viewModel.refreshConsent()
+        viewModel.takeHandedOffGarment()
+    }
 
     if (showConsentDialog) {
         VtonConsentDialog(
@@ -243,6 +246,7 @@ fun FittingScreen(viewModel: FittingViewModel = hiltViewModel()) {
                 val garmentModel: Any? = when (val g = garment) {
                     is GarmentSource.Remote -> g.imageUrl
                     is GarmentSource.Local -> g.uri
+                    is GarmentSource.Photo -> g.jpeg
                     null -> null
                 }
                 PhotoSlot(

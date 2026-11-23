@@ -67,7 +67,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import com.fashionapp.data.model.PurchaseCheckResult
 import com.fashionapp.data.repository.CompressedPhoto
 import com.fashionapp.ui.common.createCameraImageUri
 import com.fashionapp.ui.theme.WearonColors
@@ -78,11 +77,12 @@ private val FaintGray = Color(0xFF8A8378)
 
 /**
  * FR-17 purchase check flow: pick (camera / gallery / product URL) → confirm (optional price) → analyzing.
- * The result stage shows the key numbers until the full result screen (FR-18) replaces it.
+ * FR-18: result (PurchaseResultScreen.kt) → done after 살래요.
  */
 @Composable
 fun PurchaseCheckScreen(
     onClose: () -> Unit,
+    onOpenFitting: () -> Unit,
     viewModel: PurchaseCheckViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -90,6 +90,13 @@ fun PurchaseCheckScreen(
     val launchPicker = rememberPhotoPicker(state.source, viewModel)
 
     LaunchedEffect(state.closed) { if (state.closed) onClose() }
+
+    LaunchedEffect(state.openFitting) {
+        if (state.openFitting) {
+            viewModel.onFittingOpened()
+            onOpenFitting()
+        }
+    }
 
     LaunchedEffect(state.stage) {
         if (state.stage == PurchaseStage.PICKING && !viewModel.pickerAutoLaunched) {
@@ -119,7 +126,8 @@ fun PurchaseCheckScreen(
                 PurchaseStage.URL_INPUT -> ProductUrlStep(state, viewModel)
                 PurchaseStage.CONFIRM -> ConfirmStep(state, viewModel::setPrice, viewModel::compare)
                 PurchaseStage.ANALYZING -> AnalyzingStep(state.photo, state.analysisStep)
-                PurchaseStage.RESULT -> state.result?.let { ResultSummary(state.photo, it, onClose) }
+                PurchaseStage.RESULT -> ResultStep(state, viewModel)
+                PurchaseStage.DONE -> DoneStep(state, onClose)
             }
         }
     }
@@ -330,39 +338,6 @@ private fun AnalysisStepRow(label: String, done: Boolean, active: Boolean) {
             fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
             color = if (done || active) WearonColors.Ink else FaintGray
         )
-    }
-}
-
-/** Key numbers of the response. FR-18 replaces this with the full result screen. */
-@Composable
-private fun ResultSummary(photo: CompressedPhoto?, result: PurchaseCheckResult, onClose: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PhotoCard(photo, Modifier.size(width = 96.dp, height = 120.dp))
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(
-                    result.item?.name ?: result.item?.category?.label ?: "옷",
-                    fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink
-                )
-                result.verdict?.let { Text(it.label, fontSize = 13.sp, color = SubGray) }
-            }
-        }
-        Column(
-            Modifier.fillMaxWidth().border(1.dp, WearonColors.Ink, WearonShapes.Card).padding(16.dp)
-        ) {
-            Text("+${result.plus} 코디", fontSize = 32.sp, fontWeight = FontWeight.Black, color = WearonColors.Ink)
-            Text(
-                "지금 ${result.comboCountBefore}개 → ${result.comboCountAfter}개",
-                fontSize = 14.sp, color = SubGray
-            )
-        }
-        result.headline?.let { Text(it, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink) }
-        result.reasons.orEmpty().forEach { Text("· $it", fontSize = 14.sp, color = WearonColors.Ink) }
-        PrimaryButton(label = "쇼핑으로 돌아가기", enabled = true, onClick = onClose)
     }
 }
 
