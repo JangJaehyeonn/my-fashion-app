@@ -7,7 +7,9 @@ import com.fashionapp.data.model.ClothesCategory
 data class LookCard(
     val items: List<Clothes>,
     val reason: String,
-    val styleTag: String
+    val styleTag: String,
+    // FR-29: the long-unworn piece this look brings back (null = not a revived look)
+    val revivedClothesId: String? = null
 )
 
 // 카드에 표시되는 순서 (아우터 → 상의 → 하의 → 신발 → 기타)
@@ -18,5 +20,6 @@ private val DISPLAY_ORDER = listOf(
 fun ClosetOutfit.toLookCard() = LookCard(
     items = items.sortedBy { DISPLAY_ORDER.indexOf(it.category) },
     reason = reason,
-    styleTag = styleTag
+    styleTag = styleTag,
+    revivedClothesId = revivedClothesId?.takeIf { revived && items.any { item -> item.id == it } }
 )

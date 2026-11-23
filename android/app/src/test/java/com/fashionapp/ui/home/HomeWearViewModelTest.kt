@@ -1,14 +1,20 @@
 package com.fashionapp.ui.home
 
+import com.fashionapp.data.api.ClothesApi
 import com.fashionapp.data.api.WearApi
 import com.fashionapp.data.model.ApiResponse
 import com.fashionapp.data.model.Clothes
+import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.ClothesCategory
+import com.fashionapp.data.model.ClothesStatusRequest
+import com.fashionapp.data.model.ClothesStatusResult
+import com.fashionapp.data.model.ClothesUpdateRequest
 import com.fashionapp.data.model.MostWorn
 import com.fashionapp.data.model.WearRecordRequest
 import com.fashionapp.data.model.WearRecordResult
 import com.fashionapp.data.model.WearSummary
 import com.fashionapp.data.repository.ClosetChanges
+import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.WearRepository
 import com.fashionapp.ui.navigation.MutableClock
 import kotlinx.coroutines.CompletableDeferred
@@ -24,6 +30,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import okhttp3.MultipartBody
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -33,7 +40,8 @@ class HomeWearViewModelTest {
     private val api = FakeHomeWearApi()
     private val closetChanges = ClosetChanges()
     private val clock = MutableClock(Instant.parse("2026-11-23T03:00:00Z"))
-    private val vm by lazy { HomeWearViewModel(WearRepository(api), closetChanges, clock) }
+    private val clothesApi = FakeLaundryClothesApi()
+    private val vm by lazy { HomeWearViewModel(WearRepository(api), closetChanges, ClothesRepository(clothesApi), clock) }
 
     private val look = LookCard(
         items = listOf(piece("top"), piece("pants"), piece("shoes")),
@@ -154,11 +162,92 @@ class HomeWearViewModelTest {
         advanceUntilIdle()
         assertEquals(WeekWearCard("이번 주 착용 기록 0회", null), vm.weekCard.value)
 
-        val failing = HomeWearViewModel(WearRepository(FakeHomeWearApi().apply { failSummary = true }), closetChanges, clock)
+        val failing = HomeWearViewModel(
+            WearRepository(FakeHomeWearApi().apply { failSummary = true }), closetChanges, ClothesRepository(clothesApi), clock
+        )
         failing.loadSummary()
         advanceUntilIdle()
         assertNull(failing.weekCard.value)
     }
+
+    // ---- FR-30: '입은 옷 세탁에 넣기' after '오늘 이거 입었어요' ----
+
+    @Test
+    fun `the laundry button shows only after the look is recorded as worn`() = runTest(dispatcher) {
+        assertEquals(LaundryButtonState.HIDDEN, vm.laundryState(look))
+        vm.putInLaundry(look)
+        advanceUntilIdle()
+        assertEquals(emptyList<ClothesStatusRequest>(), clothesApi.requests)
+
+        vm.recordWorn(look)
+        advanceUntilIdle()
+
+        assertEquals(LaundryButtonState.IDLE, vm.laundryState(look))
+        assertEquals("입은 옷 세탁에 넣기", vm.laundryState(look).label)
+    }
+
+    @Test
+    fun `putting a worn look in the laundry sends its pieces as LAUNDRY and reloads the closet`() = runTest(dispatcher) {
+        vm.recordWorn(look)
+        advanceUntilIdle()
+        val closetVersion = closetChanges.version.value
+
+        vm.putInLaundry(look)
+        assertEquals(LaundryButtonState.SAVING, vm.laundryState(look))
+        advanceUntilIdle()
+
+        assertEquals(listOf(ClothesStatusRequest(listOf("top", "pants", "shoes"), "LAUNDRY")), clothesApi.requests)
+        assertEquals(LaundryButtonState.DONE, vm.laundryState(look))
+        assertEquals("세탁 바구니에 넣었어요", vm.laundryState(look).label)
+        // The closet tab reloads and shows the "세탁 중" badge from the server status
+        assertEquals(closetVersion + 1, closetChanges.version.value)
+
+        // Done cannot be sent again
+        vm.putInLaundry(look)
+        advanceUntilIdle()
+        assertEquals(1, clothesApi.requests.size)
+    }
+
+    @Test
+    fun `a failed laundry request shows a message and the button can be pressed again`() = runTest(dispatcher) {
+        vm.recordWorn(look)
+        advanceUntilIdle()
+        clothesApi.fail = true
+        val closetVersion = closetChanges.version.value
+
+        vm.putInLaundry(look)
+        advanceUntilIdle()
+
+        assertEquals(HomeWearViewModel.MSG_LAUNDRY_FAILED, vm.message.value)
+        assertEquals(LaundryButtonState.IDLE, vm.laundryState(look))
+        assertEquals(closetVersion, closetChanges.version.value)
+    }
+
+    @Test
+    fun `a worn look whose pieces the server already has in the laundry shows done`() {
+        val today = "2026-11-23"
+        val washed = look.copy(items = look.items.map { it.copy(lastWornAt = today, status = "LAUNDRY") })
+
+        assertEquals(LaundryButtonState.DONE, vm.laundryState(washed))
+    }
+}
+
+private class FakeLaundryClothesApi : ClothesApi {
+    var fail = false
+    val requests = mutableListOf<ClothesStatusRequest>()
+
+    override suspend fun updateStatus(request: ClothesStatusRequest): ApiResponse<ClothesStatusResult> {
+        requests += request
+        if (fail) throw RuntimeException("network")
+        return ApiResponse(true, ClothesStatusResult(request.clothesIds, request.status, "2026-11-26T12:00:00"), null)
+    }
+
+    override suspend fun register(image: MultipartBody.Part): ApiResponse<Clothes> = error("unused")
+    override suspend fun getMyClothes(): ApiResponse<List<Clothes>> = error("unused")
+    override suspend fun getSummary(): ApiResponse<ClosetSummary> = error("unused")
+    override suspend fun update(id: String, request: ClothesUpdateRequest): ApiResponse<Clothes> = error("unused")
+    override suspend fun reclassify(id: String): ApiResponse<Clothes> = error("unused")
+    override suspend fun delete(id: String): ApiResponse<Unit> = error("unused")
 }
 
 private class FakeHomeWearApi : WearApi {

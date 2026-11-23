@@ -219,6 +219,10 @@ class ClothesDetailViewModelTest {
 }
 
 private class FakeClothesApi : ClothesApi {
+    override suspend fun updateStatus(
+        request: com.fashionapp.data.model.ClothesStatusRequest
+    ): ApiResponse<com.fashionapp.data.model.ClothesStatusResult> = error("unused")
+
     var clothes: List<Clothes> = emptyList()
     var failList = false
     var updateResult: (String, ClothesUpdateRequest) -> Clothes = { _, _ -> error("not set") }

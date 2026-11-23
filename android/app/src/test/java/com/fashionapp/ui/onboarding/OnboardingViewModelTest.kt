@@ -253,6 +253,10 @@ internal class FakeOnboardingStore : OnboardingStore {
 }
 
 internal class OnboardingFakeClothesApi : ClothesApi {
+    override suspend fun updateStatus(
+        request: com.fashionapp.data.model.ClothesStatusRequest
+    ): ApiResponse<com.fashionapp.data.model.ClothesStatusResult> = error("unused")
+
     var count = 0
     var failList = false
     var failRegister = false

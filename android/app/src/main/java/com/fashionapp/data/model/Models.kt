@@ -74,7 +74,11 @@ data class UserProfile(
     // 만 14세 이상 확인 시각. null이면 미확인 → 확인 화면(소셜 첫 가입·기존 사용자)
     val ageConfirmedAt: String? = null,
     // 가상 피팅 사진 전송(Hugging Face) 동의 시각. null이면 미동의
-    val vtonConsentAt: String? = null
+    val vtonConsentAt: String? = null,
+    // FR-28 "HH:mm" (null = not set; the server uses 08:00 / 19:00) and WALK/TRANSIT/CAR
+    val commuteOutAt: String? = null,
+    val commuteBackAt: String? = null,
+    val travelMode: String? = null
 ) {
     /** 선택한 선호 스타일 (서버가 아직 preferredStyles를 안 주면 단일 값으로 폴백) */
     val styleList: List<PreferredStyle>
@@ -88,8 +92,21 @@ data class UpdateProfileRequest(
     val weight: Int?,
     val bodyType: String?,
     val preferredStyle: String? = null,
-    val preferredStyles: List<String>? = null
+    val preferredStyles: List<String>? = null,
+    // FR-28: null (omitted) keeps the stored value, "" clears it
+    val commuteOutAt: String? = null,
+    val commuteBackAt: String? = null,
+    val travelMode: String? = null
 )
+
+// FR-28 how the user commutes (stored only; not used by rules yet)
+enum class TravelMode(val label: String) {
+    WALK("도보"), TRANSIT("대중교통"), CAR("자가용");
+
+    companion object {
+        fun parse(raw: String?): TravelMode? = entries.find { it.name == raw }
+    }
+}
 
 enum class BodyType(val label: String) {
     SLIM("슬림"), NORMAL("보통"), MUSCULAR("근육질"), CHUBBY("통통")
@@ -117,7 +134,26 @@ data class Weather(
 data class SituationRecommendRequest(
     val temperature: Double,
     val condition: String,
-    val situation: String
+    val situation: String,
+    // FR-28: where the user is, so the server applies the day forecast rules. null = no forecast rules
+    val lat: Double? = null,
+    val lon: Double? = null
+)
+
+// FR-28 GET /api/weather/day: going out, midday and coming back. tempRange = highest - lowest of the three.
+data class DayWeather(
+    val out: DayWeatherPoint,
+    val day: DayWeatherPoint,
+    val back: DayWeatherPoint,
+    val tempRange: Double
+)
+
+// time is "HH:mm" (Korean time), precipitationProbability is 0..100
+data class DayWeatherPoint(
+    val time: String,
+    val temperature: Double,
+    val precipitationProbability: Int,
+    val windSpeed: Double
 )
 
 
@@ -181,7 +217,9 @@ data class Clothes(
     val wearCount: Int? = null,
     val lastWornAt: String? = null,
     // FR-27: AVAILABLE or LAUNDRY
-    val status: String? = null
+    val status: String? = null,
+    // FR-27: can be worn now (available, not in cooldown, classified). null = old server
+    val available: Boolean? = null
 ) {
     /** FR-27: the piece is in the laundry basket. */
     val isInLaundry: Boolean
@@ -199,15 +237,33 @@ data class ClothesUpdateRequest(
     val name: String?
 )
 
+// FR-27 PATCH /api/clothes/status. status is "AVAILABLE" or "LAUNDRY".
+data class ClothesStatusRequest(
+    val clothesIds: List<String>,
+    val status: String
+)
+
+// FR-27 status change result. statusUntil is when the laundry ends (null for AVAILABLE).
+data class ClothesStatusResult(
+    val clothesIds: List<String>?,
+    val status: String?,
+    val statusUntil: String?
+)
+
 // Closet-based recommend (내 옷장 옷들로 코디 조합)
 data class ClosetOutfit(
     val items: List<Clothes>,
     val reason: String,
-    val styleTag: String
+    val styleTag: String,
+    // FR-29: the combo that brings back a long-unworn piece (revivedClothesId)
+    val revived: Boolean = false,
+    val revivedClothesId: String? = null
 )
 
 data class ClosetRecommendResponse(
-    val outfits: List<ClosetOutfit>
+    val outfits: List<ClosetOutfit>,
+    // FR-28: weather rules the server applied ("TEMP_RANGE", "RAIN"). null = old server
+    val appliedRules: List<String>? = null
 )
 
 // FR-09: GET /api/clothes/summary

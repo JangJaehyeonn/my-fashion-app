@@ -64,6 +64,7 @@ fun MyPageScreen(
     onLogout: () -> Unit,
     onEditBodyProfile: () -> Unit = {},
     onChangePassword: () -> Unit = {},
+    onEditCommute: () -> Unit = {},
     viewModel: MyPageViewModel = hiltViewModel(),
     summaryViewModel: MySummaryViewModel = hiltViewModel(),
     imageSettingsViewModel: ImageSettingsViewModel = hiltViewModel()
@@ -223,6 +224,9 @@ fun MyPageScreen(
                     .border(1.dp, WearonColors.Line, WearonShapes.Card)
             ) {
                 MenuRow(label = "체형·취향 수정", onClick = onEditBodyProfile)
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                // FR-30: commute times move the home weather timeline (FR-28)
+                MenuRow(label = CommuteSettingsViewModel.MENU_LABEL, onClick = onEditCommute)
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 // FR-21: 옷 등록·살까 말까 업로드 전 배경 제거 (기기 안 처리)
                 SwitchRow(
