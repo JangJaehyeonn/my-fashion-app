@@ -48,7 +48,7 @@ class PurchaseTempPhotoCleanerTest {
 
     private PurchaseCheck check() {
         UUID id = UUID.randomUUID();
-        return new PurchaseCheck(id, userId, ITEM, PurchaseVerdict.BUY, 5, null, "tmp/" + userId + "/" + id + ".jpg",
+        return new PurchaseCheck(id, userId, ITEM, PurchaseVerdict.BUY, 5, null, null, "tmp/" + userId + "/" + id + ".jpg",
                 NOW.minusSeconds(3600));
     }
 

@@ -7,6 +7,7 @@ import com.fashionapp.data.model.PurchaseCheckResult
 import com.fashionapp.data.model.PurchaseDecisionRequest
 import com.fashionapp.data.model.PurchaseDecisionResult
 import com.fashionapp.data.model.PurchaseRecord
+import com.fashionapp.data.model.PurchaseSummary
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -39,6 +40,11 @@ class PurchaseCheckRepository @Inject constructor(
 
     suspend fun history(): Result<List<PurchaseRecord>> = runCatching {
         purchaseCheckApi.history().data ?: error("판정 기록 조회 실패")
+    }
+
+    /** FR-20: this month's check count and added combos. */
+    suspend fun summary(): Result<PurchaseSummary> = runCatching {
+        purchaseCheckApi.summary().data ?: error("살까 말까 요약 조회 실패")
     }
 
     /** FR-12: BUY ([buy] = true) or SKIP the check. */

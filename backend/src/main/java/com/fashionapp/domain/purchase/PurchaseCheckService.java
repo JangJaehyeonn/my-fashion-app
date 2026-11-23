@@ -79,7 +79,7 @@ public class PurchaseCheckService {
         float[] vector = embed(item);
         Judgement judgement = judge("check", userId, closet, item, vector);
         UUID checkId = recordService.open(userId, photo, image.getContentType(), judgement.context().item(),
-                judgement.verdict(), judgement.plus(), price, vector);
+                judgement.verdict(), judgement.plus(), price, judgement.costPerWear(price), vector);
         eventRecorder.record(userId, EventType.PURCHASE_CHECKED,
                 Map.of("verdict", judgement.verdict().name(), "plus", judgement.plus(), "priced", price != null));
         return judgement.toResponse(checkId, price);
@@ -96,7 +96,8 @@ public class PurchaseCheckService {
         List<Clothes> closet = closetOf(userId);
         float[] vector = embed(item);
         Judgement judgement = judge("recheck", userId, closet, item, vector);
-        recordService.reanalyzed(checkId, judgement.context().item(), judgement.verdict(), judgement.plus(), vector);
+        recordService.reanalyzed(checkId, judgement.context().item(), judgement.verdict(), judgement.plus(),
+                judgement.costPerWear(editable.price()), vector);
         return judgement.toResponse(checkId, editable.price());
     }
 
@@ -157,11 +158,15 @@ public class PurchaseCheckService {
             return addition.plus();
         }
 
+        Long costPerWear(Long price) {
+            return ExpectedWears.costPerWear(price, expectedWears);
+        }
+
         PurchaseCheckResponse toResponse(UUID checkId, Long price) {
             return new PurchaseCheckResponse(checkId, context.item(), context.verdict(), addition.plus(),
                     addition.before(), addition.after(), withNotes(context.similar(), explanation.notes()),
                     explanation.outfits(), explanation.headline(), explanation.reasons(), explanation.gap(),
-                    expectedWears, price, ExpectedWears.costPerWear(price, expectedWears));
+                    expectedWears, price, costPerWear(price));
         }
     }
 

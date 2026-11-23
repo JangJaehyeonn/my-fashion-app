@@ -14,6 +14,7 @@ import com.fashionapp.data.model.PurchaseDecisionRequest
 import com.fashionapp.data.model.PurchaseDecisionResult
 import com.fashionapp.data.model.PurchaseItem
 import com.fashionapp.data.model.PurchaseRecord
+import com.fashionapp.data.model.PurchaseSummary
 import com.fashionapp.data.model.PurchaseVerdict
 import com.fashionapp.data.repository.DownloadedImage
 import com.fashionapp.data.repository.ProductImageSource
@@ -69,6 +70,8 @@ class FakePurchaseCheckApi : PurchaseCheckApi {
     }
 
     override suspend fun history(): ApiResponse<List<PurchaseRecord>> = ApiResponse(true, emptyList(), null)
+
+    override suspend fun summary(): ApiResponse<PurchaseSummary> = error("unused")
 
     // ---- FR-18 decision and re-judge ----
     var decideFail: Throwable? = null

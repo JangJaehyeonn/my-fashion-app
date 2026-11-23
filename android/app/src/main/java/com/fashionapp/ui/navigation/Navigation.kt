@@ -82,7 +82,11 @@ fun AppNavigation(mainViewModel: MainViewModel) {
 
     // 메인 탭에 들어오면 만 14세 이상 확인 여부를 본다 (소셜 첫 가입·기존 사용자). 확인됐으면 아무 일도 없음
     LaunchedEffect(showBottomBar) {
-        if (showBottomBar) mainViewModel.ensureAgeConfirmed()
+        if (showBottomBar) {
+            mainViewModel.ensureAgeConfirmed()
+            // FR-20: APP_OPENED once a day (a failed or not-yet-allowed send is retried next time)
+            mainViewModel.reportAppOpened()
+        }
     }
 
     startDestination?.let { start ->

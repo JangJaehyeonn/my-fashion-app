@@ -39,9 +39,19 @@ public interface PurchaseCheckRepository extends JpaRepository<PurchaseCheck, UU
     @Transactional
     @Modifying(clearAutomatically = true)
     @Query("update PurchaseCheck p set p.name = :name, p.category = :category, p.color = :color, "
-            + "p.verdict = :verdict, p.plus = :plus where p.id = :id and p.decision = 'UNDECIDED'")
+            + "p.verdict = :verdict, p.plus = :plus, p.expectedCostPerWear = :expectedCostPerWear "
+            + "where p.id = :id and p.decision = 'UNDECIDED'")
     int updateUndecided(@Param("id") UUID id, @Param("name") String name, @Param("category") String category,
-                        @Param("color") String color, @Param("verdict") String verdict, @Param("plus") int plus);
+                        @Param("color") String color, @Param("verdict") String verdict, @Param("plus") int plus,
+                        @Param("expectedCostPerWear") Long expectedCostPerWear);
+
+    /** FR-20: checks made since {@code from}. */
+    long countByUserIdAndCreatedAtGreaterThanEqual(UUID userId, Instant from);
+
+    /** FR-20: combos added by pieces bought from checks made since {@code from} (0 without any). */
+    @Query("select coalesce(sum(p.plus), 0) from PurchaseCheck p where p.userId = :userId "
+            + "and p.decision = 'BOUGHT' and p.createdAt >= :from")
+    long sumBoughtPlusSince(@Param("userId") UUID userId, @Param("from") Instant from);
 
     /** Undo of {@link #claimUndecided} when the decision could not be completed. */
     @Transactional

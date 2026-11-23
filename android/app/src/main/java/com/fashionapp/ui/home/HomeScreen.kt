@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import coil.compose.AsyncImage
@@ -69,8 +72,14 @@ private val HOME_SITUATIONS = listOf(
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
+    wearViewModel: HomeWearViewModel = hiltViewModel(),
     onGoToCloset: () -> Unit = {}
 ) {
+    val weekCard by wearViewModel.weekCard.collectAsState()
+    val wearMessage by wearViewModel.message.collectAsState()
+    // Read so the buttons recompose when a record starts or finishes
+    val recordedLooks by wearViewModel.recorded.collectAsState()
+    val savingLooks by wearViewModel.saving.collectAsState()
     val weather by viewModel.weather.collectAsState()
     val isWeatherLoading by viewModel.isWeatherLoading.collectAsState()
     val selectedSituation by viewModel.selectedSituation.collectAsState()
@@ -113,6 +122,16 @@ fun HomeScreen(
             },
             containerColor = WearonColors.White
         )
+    }
+
+    // FR-20: this week's wear card follows the server every time the home tab shows
+    LaunchedEffect(Unit) { wearViewModel.loadSummary() }
+
+    LaunchedEffect(wearMessage) {
+        wearMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            wearViewModel.clearMessage()
+        }
     }
 
     LaunchedEffect(errorMessage) {
@@ -194,7 +213,21 @@ fun HomeScreen(
                 ClosetEmptyCard(onGoToCloset = onGoToCloset, modifier = Modifier.padding(horizontal = 20.dp))
             } else if (looks.isNotEmpty()) {
                 Spacer(Modifier.height(32.dp))
-                LookPager(looks = looks, situation = selectedSituation)
+                // recordedLooks/savingLooks are read here so a change recomposes the buttons
+                val wearStateOf: (LookCard) -> WearButtonState = remember(recordedLooks, savingLooks) {
+                    { look -> wearViewModel.buttonState(look) }
+                }
+                LookPager(
+                    looks = looks,
+                    situation = selectedSituation,
+                    wearStateOf = wearStateOf,
+                    onWorn = wearViewModel::recordWorn
+                )
+            }
+
+            weekCard?.let {
+                Spacer(Modifier.height(28.dp))
+                WeekWearCardView(card = it, modifier = Modifier.padding(horizontal = 20.dp))
             }
         }
     }
@@ -294,7 +327,12 @@ private fun SituationChips(selected: Situation, onSelect: (Situation) -> Unit) {
 }
 
 @Composable
-private fun LookPager(looks: List<LookCard>, situation: Situation) {
+private fun LookPager(
+    looks: List<LookCard>,
+    situation: Situation,
+    wearStateOf: (LookCard) -> WearButtonState,
+    onWorn: (LookCard) -> Unit
+) {
     val pagerState = rememberPagerState(pageCount = { looks.size })
     // 추천이 새로 오면 첫 장부터 다시 보여줌
     LaunchedEffect(looks) { pagerState.scrollToPage(0) }
@@ -316,7 +354,11 @@ private fun LookPager(looks: List<LookCard>, situation: Situation) {
             pageSpacing = 12.dp,
             verticalAlignment = Alignment.Top
         ) { page ->
-            LookCardView(index = page, look = looks[page])
+            Column {
+                LookCardView(index = page, look = looks[page])
+                Spacer(Modifier.height(10.dp))
+                WornTodayButton(state = wearStateOf(looks[page]), onClick = { onWorn(looks[page]) })
+            }
         }
 
         Spacer(Modifier.height(14.dp))
@@ -400,6 +442,61 @@ private fun LookCardView(index: Int, look: LookCard) {
             maxLines = 4,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+private fun WornTodayButton(state: WearButtonState, onClick: () -> Unit) {
+    val done = state == WearButtonState.DONE
+    OutlinedButton(
+        onClick = onClick,
+        enabled = state == WearButtonState.IDLE,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = WearonShapes.Card,
+        border = BorderStroke(1.dp, if (done) WearonColors.Beige else WearonColors.Ink),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = WearonColors.White,
+            contentColor = WearonColors.Ink,
+            disabledContainerColor = if (done) WearonColors.Beige else WearonColors.White,
+            disabledContentColor = WearonColors.Ink
+        )
+    ) {
+        when (state) {
+            WearButtonState.SAVING ->
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = WearonColors.Ink)
+            WearButtonState.DONE -> {
+                Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("착용 기록에 남겼어요", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            WearButtonState.IDLE -> Text("오늘 이거 입었어요", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun WeekWearCardView(card: WeekWearCard, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(WearonShapes.Card)
+            .border(1.dp, WearonColors.Line, WearonShapes.Card)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(card.weekText, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+        Spacer(Modifier.width(12.dp))
+        card.mostWornText?.let {
+            Text(
+                it,
+                fontSize = 12.sp,
+                color = WearonColors.SubText,
+                textAlign = TextAlign.End,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
