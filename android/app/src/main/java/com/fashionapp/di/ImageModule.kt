@@ -1,6 +1,10 @@
 package com.fashionapp.di
 
+import com.fashionapp.data.image.BackgroundRemovalPrefs
+import com.fashionapp.data.image.BackgroundRemovalSettings
 import com.fashionapp.data.image.JpegUploadImageCompressor
+import com.fashionapp.data.image.MlKitSubjectSegmenter
+import com.fashionapp.data.image.SubjectSegmenter
 import com.fashionapp.data.image.UploadImageCompressor
 import com.fashionapp.data.repository.ProductImageSource
 import com.fashionapp.data.repository.ProductPageRepository
@@ -16,6 +20,12 @@ abstract class ImageModule {
 
     @Binds
     abstract fun bindUploadImageCompressor(impl: JpegUploadImageCompressor): UploadImageCompressor
+
+    @Binds
+    abstract fun bindSubjectSegmenter(impl: MlKitSubjectSegmenter): SubjectSegmenter
+
+    @Binds
+    abstract fun bindBackgroundRemovalSettings(impl: BackgroundRemovalPrefs): BackgroundRemovalSettings
 
     @Binds
     abstract fun bindProductImageSource(impl: ProductPageRepository): ProductImageSource

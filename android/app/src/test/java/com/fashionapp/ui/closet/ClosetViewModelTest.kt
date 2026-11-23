@@ -14,6 +14,7 @@ import com.fashionapp.data.repository.ClosetChanges
 import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.ProductPageRepository
 import com.fashionapp.data.repository.WearRepository
+import com.fashionapp.ui.purchase.FakeCompressor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
@@ -62,7 +63,8 @@ class ClosetViewModelTest {
     private fun TestScope.loaded(): ClosetViewModel {
         clothesApi.clothes = listOf(knit, shirt, jeans, boots, unknown)
         val vm = ClosetViewModel(
-            ClothesRepository(clothesApi), ProductPageRepository(), closetChanges, WearRepository(wearApi)
+            ClothesRepository(clothesApi), ProductPageRepository(), closetChanges, WearRepository(wearApi),
+            FakeCompressor()
         )
         // WhileSubscribed state flows only compute while collected
         vm.filteredClothes.launchIn(backgroundScope)

@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -60,8 +65,10 @@ fun MyPageScreen(
     onEditBodyProfile: () -> Unit = {},
     onChangePassword: () -> Unit = {},
     viewModel: MyPageViewModel = hiltViewModel(),
-    summaryViewModel: MySummaryViewModel = hiltViewModel()
+    summaryViewModel: MySummaryViewModel = hiltViewModel(),
+    imageSettingsViewModel: ImageSettingsViewModel = hiltViewModel()
 ) {
+    val backgroundRemoval by imageSettingsViewModel.backgroundRemoval.collectAsState()
     val monthSummary by summaryViewModel.summary.collectAsState()
     val boughtRows by summaryViewModel.bought.collectAsState()
     val profile by viewModel.profile.collectAsState()
@@ -216,6 +223,14 @@ fun MyPageScreen(
                     .border(1.dp, WearonColors.Line, WearonShapes.Card)
             ) {
                 MenuRow(label = "체형·취향 수정", onClick = onEditBodyProfile)
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
+                // FR-21: 옷 등록·살까 말까 업로드 전 배경 제거 (기기 안 처리)
+                SwitchRow(
+                    label = ImageSettingsViewModel.LABEL,
+                    description = ImageSettingsViewModel.description(backgroundRemoval),
+                    checked = backgroundRemoval,
+                    onCheckedChange = imageSettingsViewModel::setBackgroundRemoval
+                )
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(WearonColors.Line))
                 // 비밀번호가 있는 아이디 가입 사용자만 (Google·Kakao 로그인은 비밀번호가 없음)
                 if (profile?.provider == "local") {
@@ -399,6 +414,36 @@ private fun StatCell(label: String, value: String?, modifier: Modifier = Modifie
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (value != null) WearonColors.Ink else WearonColors.SubText
+        )
+    }
+}
+
+@Composable
+private fun SwitchRow(label: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 14.sp, color = WearonColors.Ink)
+            Text(description, fontSize = 12.sp, color = WearonColors.SubText)
+        }
+        Spacer(Modifier.width(12.dp))
+        // The whole row toggles (role = Switch), so the switch itself only shows the state
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = WearonColors.White,
+                checkedTrackColor = WearonColors.Ink,
+                uncheckedThumbColor = WearonColors.White,
+                uncheckedTrackColor = WearonColors.Line,
+                uncheckedBorderColor = WearonColors.Line
+            )
         )
     }
 }
