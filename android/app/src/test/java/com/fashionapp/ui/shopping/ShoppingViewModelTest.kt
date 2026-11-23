@@ -7,6 +7,7 @@ import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
 import com.fashionapp.data.model.ClothesUpdateRequest
+import com.fashionapp.data.model.PurchaseCheckResult
 import com.fashionapp.data.model.PurchaseDecision
 import com.fashionapp.data.model.PurchaseRecord
 import com.fashionapp.data.model.PurchaseVerdict
@@ -21,6 +22,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,7 +48,7 @@ class ShoppingViewModelTest {
     private fun TestScope.loadedViewModel(): ShoppingViewModel {
         val vm = ShoppingViewModel(
             ClothesRepository(clothesApi),
-            PurchaseCheckRepository(purchaseApi),
+            PurchaseCheckRepository(purchaseApi) { error("unused") },
             ZoneId.of("Asia/Seoul")
         )
         vm.load()
@@ -226,6 +228,9 @@ private class FakeClothesApi : ClothesApi {
 private class FakePurchaseCheckApi : PurchaseCheckApi {
     var records: List<PurchaseRecord> = emptyList()
     var fail = false
+
+    override suspend fun check(image: MultipartBody.Part, price: RequestBody?): ApiResponse<PurchaseCheckResult> =
+        error("unused")
 
     override suspend fun history(): ApiResponse<List<PurchaseRecord>> {
         if (fail) throw RuntimeException("network")

@@ -106,8 +106,20 @@ class LongRunningTimeoutInterceptor : Interceptor {
             path.endsWith("/reclassify") -> chain
                 .withReadTimeout(40, TimeUnit.SECONDS)
                 .proceed(chain.request())
+            // FR-17 purchase check (classify + embed + explain). Matches nginx proxy_read_timeout 30s
+            isPurchaseCheck(chain.request().method, path) -> chain
+                .withReadTimeout(PURCHASE_CHECK_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .proceed(chain.request())
             else -> chain.proceed(chain.request())
         }
+    }
+
+    companion object {
+        const val PURCHASE_CHECK_READ_TIMEOUT_SECONDS = 30
+
+        /** Only the new check (POST /api/purchase-checks) waits for AI; history and decisions keep 10s. */
+        fun isPurchaseCheck(method: String, path: String): Boolean =
+            method == "POST" && path.trimEnd('/').endsWith("/purchase-checks")
     }
 }
 
