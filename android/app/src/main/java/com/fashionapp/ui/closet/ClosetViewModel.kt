@@ -13,6 +13,7 @@ import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.DownloadedImage
 import com.fashionapp.data.repository.ProductPage
 import com.fashionapp.data.repository.ProductPageRepository
+import com.fashionapp.data.repository.WearRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,7 +35,8 @@ import javax.inject.Inject
 class ClosetViewModel @Inject constructor(
     private val clothesRepository: ClothesRepository,
     private val productPageRepository: ProductPageRepository,
-    private val closetChanges: ClosetChanges
+    private val closetChanges: ClosetChanges,
+    private val wearRepository: WearRepository
 ) : ViewModel() {
 
     private val _clothes = MutableStateFlow<List<Clothes>>(emptyList())
@@ -43,19 +45,31 @@ class ClosetViewModel @Inject constructor(
     private val _selectedCategory = MutableStateFlow<ClothesCategory?>(null)
     val selectedCategory = _selectedCategory.asStateFlow()
 
+    // FR-19: default order is most combos first
+    private val _sort = MutableStateFlow(ClosetSort.MOST_COMBOS)
+    val sort = _sort.asStateFlow()
+
+    /** FR-19: pieces bought through "살래요" in this session get the NEW badge. */
+    val boughtIds: StateFlow<Set<String>> = closetChanges.boughtIds
+
     // 파생 상태는 plain getter가 아니라 combine().stateIn()으로 노출해야 Compose가 변경을 감지함
     val filteredClothes: StateFlow<List<Clothes>> =
-        combine(_clothes, _selectedCategory) { clothes, category ->
-            if (category == null) clothes else clothes.filter { it.category == category }
+        combine(_clothes, _selectedCategory, _sort) { clothes, category, sort ->
+            ClosetList.sort(ClosetList.filter(clothes, category), sort)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val countByCategory: StateFlow<Map<ClothesCategory?, Int>> =
-        _clothes.map { clothes ->
-            buildMap {
-                put(null, clothes.size)
-                ClothesCategory.entries.forEach { c -> put(c, clothes.count { it.category == c }) }
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+        _clothes.map { ClosetList.countByCategory(it) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    // Server totals; null until loaded (or when the request fails, the cell shows "-")
+    private val _comboCount = MutableStateFlow<Int?>(null)
+    private val _monthWearCount = MutableStateFlow<Int?>(null)
+
+    val summary: StateFlow<ClosetSummaryRow> =
+        combine(_clothes, _comboCount, _monthWearCount) { clothes, combos, month ->
+            ClosetSummaryRow(combos, month, clothes.count(ClosetList::isUnworn))
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ClosetSummaryRow())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
@@ -80,10 +94,31 @@ class ClosetViewModel @Inject constructor(
                 .onFailure { _message.value = "옷장을 불러오지 못했어요." }
             _isLoading.value = false
         }
+        loadSummary()
+    }
+
+    // Combo and wear totals come from the server; a failure leaves the previous value
+    private fun loadSummary() {
+        viewModelScope.launch {
+            clothesRepository.getSummary().onSuccess { _comboCount.value = it.comboCount }
+        }
+        viewModelScope.launch {
+            wearRepository.getSummary().onSuccess { _monthWearCount.value = it.monthCount }
+        }
     }
 
     fun selectCategory(category: ClothesCategory?) {
         _selectedCategory.value = category
+    }
+
+    fun selectSort(sort: ClosetSort) {
+        _sort.value = sort
+    }
+
+    /** Summary row "잘 안 입는 옷": least worn first across all categories. */
+    fun showUnworn() {
+        _selectedCategory.value = null
+        _sort.value = ClosetSort.LEAST_WORN
     }
 
     fun register(context: Context, uri: Uri) = registerAll(context, listOf(uri))
@@ -109,6 +144,8 @@ class ClosetViewModel @Inject constructor(
             }
             _registerProgress.value = null
             _message.value = resultMessage(added, failed)
+            // New pieces change every card's combo count; reload so the cards show server values (FR-19)
+            if (added.isNotEmpty()) loadClothes()
         }
     }
 
@@ -204,7 +241,11 @@ class ClosetViewModel @Inject constructor(
     fun delete(clothes: Clothes) {
         viewModelScope.launch {
             clothesRepository.delete(clothes.id)
-                .onSuccess { _clothes.value = _clothes.value.filterNot { it.id == clothes.id } }
+                .onSuccess {
+                    _clothes.value = _clothes.value.filterNot { it.id == clothes.id }
+                    // Removing a piece changes the other cards' combo counts
+                    loadClothes()
+                }
                 .onFailure { _message.value = "삭제에 실패했어요." }
         }
     }

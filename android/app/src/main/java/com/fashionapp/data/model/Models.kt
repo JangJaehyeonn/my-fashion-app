@@ -175,8 +175,18 @@ data class Clothes(
     val color: String?,
     val name: String?,
     val createdAt: String?,
-    val classificationFailed: Boolean = false
+    val classificationFailed: Boolean = false,
+    // FR-09/FR-10: filled by the server in the clothes list only; null elsewhere (unknown)
+    val comboCount: Int? = null,
+    val wearCount: Int? = null,
+    val lastWornAt: String? = null,
+    // FR-27: AVAILABLE or LAUNDRY
+    val status: String? = null
 ) {
+    /** FR-27: the piece is in the laundry basket. */
+    val isInLaundry: Boolean
+        get() = status == "LAUNDRY"
+
     /** True when AI classification failed and the user has not fixed the category yet (FR-01). */
     val isUnclassified: Boolean
         get() = classificationFailed || category == ClothesCategory.UNCLASSIFIED
@@ -203,6 +213,12 @@ data class ClosetRecommendResponse(
 // FR-09: GET /api/clothes/summary
 data class ClosetSummary(
     val comboCount: Int
+)
+
+// FR-10: GET /api/wears/summary (mostWorn is not used by the closet tab)
+data class WearSummary(
+    val weekCount: Int,
+    val monthCount: Int
 )
 
 // FR-11 verdict, decided by backend rules
