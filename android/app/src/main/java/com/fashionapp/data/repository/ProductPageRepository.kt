@@ -21,6 +21,12 @@ data class DownloadedImage(
     val mimeType: String
 )
 
+/** Product page lookup used by the purchase check URL path (FR-17); faked in unit tests. */
+interface ProductImageSource {
+    suspend fun fetchProductPage(rawUrl: String): Result<ProductPage>
+    suspend fun downloadImage(imageUrl: String): Result<DownloadedImage>
+}
+
 /**
  * 쇼핑몰 상품 페이지에서 대표 이미지 후보를 뽑는다.
  * 서버가 아니라 앱에서 직접 요청하는 이유: 사용자가 입력한 임의 URL을 EC2가 대신 요청하면
@@ -28,7 +34,7 @@ data class DownloadedImage(
  * ⚠️ ApiClient의 OkHttpClient를 쓰면 외부 사이트에 JWT가 붙어 나가므로 인증 없는 전용 클라이언트를 쓴다.
  */
 @Singleton
-class ProductPageRepository @Inject constructor() {
+class ProductPageRepository @Inject constructor() : ProductImageSource {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -41,7 +47,7 @@ class ProductPageRepository @Inject constructor() {
         .followSslRedirects(false)
         .build()
 
-    suspend fun fetchProductPage(rawUrl: String): Result<ProductPage> = withContext(Dispatchers.IO) {
+    override suspend fun fetchProductPage(rawUrl: String): Result<ProductPage> = withContext(Dispatchers.IO) {
         runCatching {
             val url = resolveShareLink(normalizeUrl(rawUrl) ?: error("올바른 상품 페이지 주소가 아니에요."))
             // 리다이렉트(예: 단축 URL, 모바일 페이지) 후 최종 주소 기준으로 상대 경로를 풀어야 함
@@ -58,7 +64,7 @@ class ProductPageRepository @Inject constructor() {
         }
     }
 
-    suspend fun downloadImage(imageUrl: String): Result<DownloadedImage> = withContext(Dispatchers.IO) {
+    override suspend fun downloadImage(imageUrl: String): Result<DownloadedImage> = withContext(Dispatchers.IO) {
         runCatching {
             val url = imageUrl.toHttpUrlOrNull() ?: error("이미지 주소가 올바르지 않아요.")
             execute(url).use { response ->

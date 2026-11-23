@@ -229,3 +229,47 @@ data class PurchaseRecord(
     val imageUrl: String?,
     val createdAt: String?
 )
+
+// FR-11: POST /api/purchase-checks response. Numbers and the verdict come from backend rules.
+data class PurchaseCheckResult(
+    val id: String,
+    val item: PurchaseItem?,
+    val verdict: PurchaseVerdict?,
+    val plus: Int,
+    val comboCountBefore: Int,
+    val comboCountAfter: Int,
+    val similar: List<SimilarClothes>?,
+    val outfits: List<PurchaseOutfit>?,
+    val headline: String?,
+    val reasons: List<String>?,
+    val gap: String?,
+    val expectedWears: Int?,
+    val price: Long?,
+    val costPerWear: Long?
+)
+
+// The analysed piece (null attribute = unknown)
+data class PurchaseItem(
+    val category: ClothesCategory?,
+    val color: String?,
+    val name: String?,
+    val fit: String?,
+    val material: String?,
+    val pattern: String?,
+    val season: String?
+)
+
+data class SimilarClothes(
+    val id: String,
+    val name: String?,
+    val similarity: Double,
+    val wearCount: Int,
+    val lastWornAt: String?,
+    val note: String?
+)
+
+// Representative combo: closet clothes ids only, the new piece is implied
+data class PurchaseOutfit(
+    val clothesIds: List<String>,
+    val label: String?
+)

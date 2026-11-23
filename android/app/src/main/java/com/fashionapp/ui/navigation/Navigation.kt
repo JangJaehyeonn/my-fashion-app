@@ -30,6 +30,9 @@ import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.ChangePasswordScreen
 import com.fashionapp.ui.mypage.MyPageScreen
+import com.fashionapp.ui.purchase.PurchaseCheckScreen
+import com.fashionapp.ui.purchase.PurchaseCheckViewModel
+import com.fashionapp.ui.purchase.PurchaseSource
 import com.fashionapp.ui.shopping.ShoppingScreen
 import com.fashionapp.ui.signup.AgeGateScreen
 import com.fashionapp.ui.signup.SignupScreen
@@ -50,11 +53,15 @@ object Route {
     const val VTON = "vton/{garmentDesc}"
     // Argument name must match ClothesDetailViewModel.ARG_CLOTHES_ID
     const val CLOTHES_DETAIL = "clothes/{clothesId}"
+    // Argument name must match PurchaseCheckViewModel.ARG_SOURCE
+    const val PURCHASE_CHECK = "purchase_check/{source}"
 
     // Set on the closet back stack entry when the detail screen saved or reclassified a clothes
     const val RESULT_CLOTHES_CHANGED = "clothes_changed"
 
     fun clothesDetail(id: String) = "clothes/${Uri.encode(id)}"
+
+    fun purchaseCheck(source: PurchaseSource) = "purchase_check/${source.name}"
 
     fun vton(garmentDesc: String) = "vton/${Uri.encode(garmentDesc)}"
 }
@@ -173,8 +180,10 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.FITTING) { FittingScreen() }
                 composable(Route.DIAGNOSIS) { DiagnosisScreen() }
                 composable(Route.SHOPPING) {
-                    // Capture, gallery and product URL are wired to the purchase check flow in FR-17
                     ShoppingScreen(
+                        onCapture = { navController.navigate(Route.purchaseCheck(PurchaseSource.CAMERA)) },
+                        onGallery = { navController.navigate(Route.purchaseCheck(PurchaseSource.GALLERY)) },
+                        onProductUrl = { navController.navigate(Route.purchaseCheck(PurchaseSource.URL)) },
                         onGoToCloset = {
                             // 하단 탭 전환과 동일한 방식으로 이동 (BottomNavBar 참고)
                             navController.navigate(Route.CLOSET) {
@@ -184,6 +193,19 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                             }
                         },
                         onOpenFitting = { navController.navigate(Route.FITTING) { launchSingleTop = true } }
+                    )
+                }
+                composable(
+                    route = Route.PURCHASE_CHECK,
+                    arguments = listOf(navArgument(PurchaseCheckViewModel.ARG_SOURCE) { type = NavType.StringType })
+                ) {
+                    PurchaseCheckScreen(
+                        onClose = {
+                            // Ignore a second close while the pop animation runs, so the shopping tab is not popped too
+                            if (navController.currentBackStackEntry?.destination?.route == Route.PURCHASE_CHECK) {
+                                navController.popBackStack()
+                            }
+                        }
                     )
                 }
                 composable(
