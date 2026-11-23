@@ -42,6 +42,11 @@
 
         </activity>
 
+        <!-- FR-21: 배경 제거 모델(ML Kit 피사체 분리)을 설치 때 미리 받아 둔다. 아직 없으면 원본 사진을 올린다 -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="subject_segment" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

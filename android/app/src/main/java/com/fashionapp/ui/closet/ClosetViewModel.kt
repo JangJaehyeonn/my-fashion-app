@@ -5,7 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.api.ProgressRequestBody
-import com.fashionapp.data.image.ImageCompressor
+import com.fashionapp.data.image.UploadImageCompressor
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
 import com.fashionapp.data.repository.ClosetChanges
@@ -36,7 +36,8 @@ class ClosetViewModel @Inject constructor(
     private val clothesRepository: ClothesRepository,
     private val productPageRepository: ProductPageRepository,
     private val closetChanges: ClosetChanges,
-    private val wearRepository: WearRepository
+    private val wearRepository: WearRepository,
+    private val compressor: UploadImageCompressor
 ) : ViewModel() {
 
     private val _clothes = MutableStateFlow<List<Clothes>>(emptyList())
@@ -186,18 +187,19 @@ class ClosetViewModel @Inject constructor(
         setStage(RegisterStage.DOWNLOADING)
         val downloaded = productPageRepository.downloadImage(imageUrl).getOrThrow()
         setStage(RegisterStage.COMPRESSING)
-        val (bytes, mimeType) = withContext(Dispatchers.Default) { prepareDownloaded(downloaded) }
+        val (bytes, mimeType) = prepareDownloaded(downloaded)
         return uploadBytes(bytes, mimeType)
     }
 
-    private fun prepareDownloaded(image: DownloadedImage): Pair<ByteArray, String> =
-        runCatching { ImageCompressor.compress(image.bytes) to "image/jpeg" }
+    private suspend fun prepareDownloaded(image: DownloadedImage): Pair<ByteArray, String> =
+        runCatching { compressor.compress(image.bytes) to "image/jpeg" }
             .getOrElse { image.bytes to image.mimeType }
 
     private suspend fun uploadOne(context: Context, uri: Uri): Clothes {
         setStage(RegisterStage.COMPRESSING)
-        // 카메라 원본(수 MB)을 그대로 올리면 모바일 회선에서 업로드가 가장 오래 걸리므로 긴 변 1024px JPEG로 줄여서 올림
-        val (bytes, mimeType) = withContext(Dispatchers.Default) { prepareImage(context, uri) }
+        // 카메라 원본(수 MB)을 그대로 올리면 모바일 회선에서 업로드가 가장 오래 걸리므로 긴 변 1024px JPEG로 줄여서 올림.
+        // FR-21: 압축 전에 기기 안에서 배경을 지운다(설정에서 끌 수 있고, 실패하면 원본 사진 그대로)
+        val (bytes, mimeType) = prepareImage(context, uri)
         return uploadBytes(bytes, mimeType)
     }
 
@@ -213,13 +215,15 @@ class ClosetViewModel @Inject constructor(
     }
 
     // 압축에 실패하면(예: 구형 기기의 HEIC) 예전처럼 원본을 그대로 보냄. 실제 MIME 타입을 보내야 서버 허용 목록을 통과함 — "image/*" 금지
-    private fun prepareImage(context: Context, uri: Uri): Pair<ByteArray, String> =
-        runCatching { ImageCompressor.compress { context.contentResolver.openInputStream(uri) } to "image/jpeg" }
+    private suspend fun prepareImage(context: Context, uri: Uri): Pair<ByteArray, String> =
+        runCatching { compressor.compress { context.contentResolver.openInputStream(uri) } to "image/jpeg" }
             .getOrElse {
-                val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-                val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: error("파일을 열 수 없습니다")
-                raw to mime
+                withContext(Dispatchers.IO) {
+                    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("파일을 열 수 없습니다")
+                    raw to mime
+                }
             }
 
     // 진행률 콜백은 OkHttp 스레드에서 오므로 StateFlow.update로 안전하게 갱신하고, 값이 같으면 갱신하지 않음

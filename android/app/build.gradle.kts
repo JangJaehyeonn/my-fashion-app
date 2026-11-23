@@ -122,6 +122,8 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.browser)
     implementation(libs.coroutines.android)
+    // FR-21: on-device background removal (ADR 0020)
+    implementation(libs.mlkit.subject.segmentation)
 
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)

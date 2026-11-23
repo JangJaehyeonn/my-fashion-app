@@ -23,7 +23,10 @@ object ImageCompressor {
     const val JPEG_QUALITY = 80
 
     /** [open]은 호출될 때마다 새 스트림을 돌려줘야 한다 (크기 확인 · 디코딩 · EXIF 읽기에 각각 한 번씩 연다). */
-    fun compress(open: () -> InputStream?): ByteArray {
+    fun compress(open: () -> InputStream?): ByteArray = encode(decode(open))
+
+    /** Decodes, applies EXIF rotation, scales to [MAX_EDGE] and flattens transparency. [open]은 매번 새 스트림. */
+    fun decode(open: () -> InputStream?): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         (open() ?: error("파일을 열 수 없어요")).use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error("이미지를 읽을 수 없어요")
@@ -49,13 +52,22 @@ object ImageCompressor {
         val transformed = if (matrix.isIdentity) decoded
         else Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
         // JPEG는 투명도가 없어서 PNG의 투명 영역이 검게 나오지 않도록 흰 배경에 합성
-        val flattened = if (transformed.hasAlpha()) flattenOnWhite(transformed) else transformed
-
-        return ByteArrayOutputStream().use { out ->
-            flattened.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
-            out.toByteArray()
-        }
+        return if (transformed.hasAlpha()) flattenOnWhite(transformed) else transformed
     }
+
+    fun encode(bitmap: Bitmap): ByteArray = ByteArrayOutputStream().use { out ->
+        bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+        out.toByteArray()
+    }
+
+    fun toArgbImage(bitmap: Bitmap): ArgbImage {
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        return ArgbImage(bitmap.width, bitmap.height, pixels)
+    }
+
+    fun toBitmap(image: ArgbImage): Bitmap =
+        Bitmap.createBitmap(image.pixels, image.width, image.height, Bitmap.Config.ARGB_8888)
 
     /** 이미 메모리에 있는 이미지(쇼핑몰에서 내려받은 옷 이미지 등)용 */
     fun compress(bytes: ByteArray): ByteArray = compress { ByteArrayInputStream(bytes) }
