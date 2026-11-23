@@ -52,6 +52,10 @@ public class PurchaseCheck {
 
     private Integer plus;
 
+    /** FR-20: cost per wear estimated at check time (null when unknown); kept so the my tab can compare it later. */
+    @Column(name = "expected_cost_per_wear")
+    private Long expectedCostPerWear;
+
     @Column(length = 10)
     private String decision;
 
@@ -65,13 +69,14 @@ public class PurchaseCheck {
     private Instant createdAt;
 
     PurchaseCheck(UUID id, UUID userId, PurchaseCheckResponse.Item item, PurchaseVerdict verdict, int plus,
-                  Long price, String tempPhotoKey, Instant createdAt) {
+                  Long price, Long expectedCostPerWear, String tempPhotoKey, Instant createdAt) {
         this.id = id;
         this.userId = userId;
         this.name = item.name();
         this.category = item.category().name();
         this.color = item.color();
         this.price = price;
+        this.expectedCostPerWear = expectedCostPerWear;
         this.verdict = verdict.name();
         this.plus = plus;
         this.decision = PurchaseDecision.UNDECIDED.name();

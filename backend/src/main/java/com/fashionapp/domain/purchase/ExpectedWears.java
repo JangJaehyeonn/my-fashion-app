@@ -43,4 +43,12 @@ public final class ExpectedWears {
         }
         return Math.round((double) price / expectedWears);
     }
+
+    /** FR-20: price ÷ wears so far in won (rounded); null without a price or before the first wear. */
+    public static Long actualCostPerWear(Long price, Long wears) {
+        if (price == null || wears == null || wears < 1) {
+            return null;
+        }
+        return Math.round((double) price / wears);
+    }
 }

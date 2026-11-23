@@ -7,6 +7,8 @@ import com.fashionapp.domain.clothes.ClothesRepository;
 import com.fashionapp.domain.clothes.ClothesResponse;
 import com.fashionapp.domain.clothes.ClothesSeason;
 import com.fashionapp.domain.clothes.ClothesService;
+import com.fashionapp.domain.wear.WearService;
+import com.fashionapp.domain.wear.WearStat;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.ImageStorage;
@@ -56,6 +58,7 @@ class PurchaseRecordServiceTest {
     @Mock private ClothesService clothesService;
     @Mock private ClothesRepository clothesRepository;
     @Mock private com.fashionapp.domain.event.EventRecorder eventRecorder;
+    @Mock private WearService wearService;
 
     private final UUID userId = UUID.randomUUID();
     private PurchaseRecordService service;
@@ -63,7 +66,7 @@ class PurchaseRecordServiceTest {
     @BeforeEach
     void setUp() {
         service = new PurchaseRecordService(repository, draftStore, imageStorage, clothesService, clothesRepository,
-                CLOCK, eventRecorder);
+                CLOCK, eventRecorder, wearService);
         given(imageStorage.storeBytesAt(anyString(), any(), anyString())).willAnswer(inv -> inv.getArgument(0));
         given(imageStorage.resolveUrl(anyString())).willAnswer(inv -> "http://img/" + inv.getArgument(0));
         given(repository.claimUndecided(any(), anyString())).willReturn(1);
@@ -72,7 +75,7 @@ class PurchaseRecordServiceTest {
 
     private PurchaseCheck stored(Instant createdAt) {
         UUID id = UUID.randomUUID();
-        PurchaseCheck check = new PurchaseCheck(id, userId, ITEM, PurchaseVerdict.THINK, 4, 39000L,
+        PurchaseCheck check = new PurchaseCheck(id, userId, ITEM, PurchaseVerdict.THINK, 4, 39000L, 1950L,
                 "tmp/" + userId + "/" + id + ".jpg", createdAt);
         given(repository.findByIdAndUserId(id, userId)).willReturn(Optional.of(check));
         given(imageStorage.readBytes(check.getTempPhotoKey())).willReturn(Optional.of(JPEG));
@@ -83,7 +86,7 @@ class PurchaseRecordServiceTest {
     @DisplayName("판정하면 사진을 tmp/{userId}/{checkId}.jpg에 두고 UNDECIDED 기록과 속성·임베딩 초안을 남긴다")
     void openStoresTempPhotoAndRecord() {
         float[] vector = {1f, 2f};
-        UUID checkId = service.open(userId, JPEG, "image/jpeg", ITEM, PurchaseVerdict.BUY, 5, null, vector);
+        UUID checkId = service.open(userId, JPEG, "image/jpeg", ITEM, PurchaseVerdict.BUY, 5, null, null, vector);
 
         ArgumentCaptor<PurchaseCheck> saved = ArgumentCaptor.forClass(PurchaseCheck.class);
         verify(repository).save(saved.capture());
@@ -103,7 +106,7 @@ class PurchaseRecordServiceTest {
     @DisplayName("기록 저장이 실패하면 임시 사진을 지운다")
     void openDeletesPhotoWhenRecordFails() {
         given(repository.save(any())).willThrow(new IllegalStateException("db down"));
-        assertThatThrownBy(() -> service.open(userId, JPEG, "image/jpeg", ITEM, PurchaseVerdict.BUY, 5, null, null))
+        assertThatThrownBy(() -> service.open(userId, JPEG, "image/jpeg", ITEM, PurchaseVerdict.BUY, 5, null, null, null))
                 .isInstanceOf(IllegalStateException.class);
         verify(imageStorage).delete(org.mockito.ArgumentMatchers.startsWith("tmp/" + userId + "/"));
     }
@@ -288,6 +291,53 @@ class PurchaseRecordServiceTest {
     }
 
     @Test
+    @DisplayName("FR-20: 산 옷은 판정 때 예상 1회 가격과 지금까지 착용 횟수·지금 1회 가격을 준다")
+    void historyHasCostPerWearOfBoughtPieces() {
+        PurchaseCheck worn = stored(NOW);
+        UUID wornId = UUID.randomUUID();
+        worn.markBought(wornId);
+        PurchaseCheck unworn = stored(NOW.minusSeconds(1));
+        UUID unwornId = UUID.randomUUID();
+        unworn.markBought(unwornId);
+        PurchaseCheck undecided = stored(NOW.minusSeconds(2));
+        given(repository.findByUserIdOrderByCreatedAtDescIdDesc(eq(userId), any()))
+                .willReturn(List.of(worn, unworn, undecided));
+        given(clothesRepository.findByUser_IdAndIdIn(eq(userId), any())).willReturn(List.of(
+                Clothes.builder().id(wornId).imageUrl("clothes/a.jpg").category("TOP").build(),
+                Clothes.builder().id(unwornId).imageUrl("clothes/b.jpg").category("TOP").build()));
+        given(wearService.statsFor(userId)).willReturn(Map.of(wornId,
+                new WearStat(wornId, 7, java.time.LocalDate.of(2026, 11, 21))));
+
+        List<PurchaseRecordResponse> history = service.history(userId);
+
+        assertThat(history).extracting(PurchaseRecordResponse::expectedCostPerWear)
+                .containsExactly(1950L, 1950L, 1950L);
+        assertThat(history).extracting(PurchaseRecordResponse::wearCount).containsExactly(7L, 0L, null);
+        // 39000 / 7 = 5571.4 -> 5571; never worn or not bought -> null
+        assertThat(history).extracting(PurchaseRecordResponse::currentCostPerWear)
+                .containsExactly(5571L, null, null);
+    }
+
+    @Test
+    @DisplayName("FR-20: 이번 달 요약은 한국 날짜로 이번 달 1일 0시부터의 판정 수와 산 옷의 +N 합이다")
+    void summaryCountsThisMonth() {
+        Instant monthStart = Instant.parse("2026-10-31T15:00:00Z"); // 2026-11-01 00:00 KST
+        given(repository.countByUserIdAndCreatedAtGreaterThanEqual(userId, monthStart)).willReturn(6L);
+        given(repository.sumBoughtPlusSince(userId, monthStart)).willReturn(9L);
+
+        assertThat(service.summary(userId)).isEqualTo(new PurchaseSummaryResponse(6, 9));
+    }
+
+    @Test
+    @DisplayName("FR-20: 실제 1회 가격은 가격 ÷ 착용 횟수(반올림)이고 가격이 없거나 0회면 null이다")
+    void actualCostPerWear() {
+        assertThat(ExpectedWears.actualCostPerWear(10000L, 3L)).isEqualTo(3333L);
+        assertThat(ExpectedWears.actualCostPerWear(10000L, 0L)).isNull();
+        assertThat(ExpectedWears.actualCostPerWear(null, 3L)).isNull();
+        assertThat(ExpectedWears.actualCostPerWear(10000L, null)).isNull();
+    }
+
+    @Test
     @DisplayName("FR-13: 결정 전 건은 기록·초안의 분석값과 가격을 돌려준다")
     void editableReturnsAnalysedAttributes() {
         PurchaseCheck check = stored(NOW.minus(Duration.ofMinutes(10)));
@@ -323,9 +373,9 @@ class PurchaseRecordServiceTest {
         float[] vector = {0.25f};
         PurchaseCheckResponse.Item item = new PurchaseCheckResponse.Item(ClothesCategory.BOTTOM, "블랙",
                 "블랙 hoodie", "와이드", "면", "무지", "WINTER");
-        given(repository.updateUndecided(checkId, "블랙 hoodie", "BOTTOM", "블랙", "SIMILAR", 2)).willReturn(1);
+        given(repository.updateUndecided(checkId, "블랙 hoodie", "BOTTOM", "블랙", "SIMILAR", 2, 1500L)).willReturn(1);
 
-        service.reanalyzed(checkId, item, PurchaseVerdict.SIMILAR, 2, vector);
+        service.reanalyzed(checkId, item, PurchaseVerdict.SIMILAR, 2, 1500L, vector);
 
         verify(draftStore).save(checkId, new PurchaseDraftStore.Draft("와이드", "면", "무지", "WINTER", vector));
     }
@@ -334,10 +384,11 @@ class PurchaseRecordServiceTest {
     @DisplayName("FR-13: 재판정 중에 결정이 먼저 끝났으면 409이고 초안을 덮어쓰지 않는다")
     void reanalyzedAfterDecisionIsConflict() {
         UUID checkId = UUID.randomUUID();
-        given(repository.updateUndecided(any(), any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyInt()))
+        given(repository.updateUndecided(any(), any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyInt(),
+                any()))
                 .willReturn(0);
 
-        assertError(() -> service.reanalyzed(checkId, ITEM, PurchaseVerdict.THINK, 4, null),
+        assertError(() -> service.reanalyzed(checkId, ITEM, PurchaseVerdict.THINK, 4, null, null),
                 ErrorCode.PURCHASE_ALREADY_DECIDED);
         verify(draftStore, never()).save(any(), any());
     }

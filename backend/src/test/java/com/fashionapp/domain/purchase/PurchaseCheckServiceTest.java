@@ -77,7 +77,7 @@ class PurchaseCheckServiceTest {
         service = new PurchaseCheckService(clothesRepository, clothesClassifier, clothesEmbedder, embeddingStore,
                 comboCountService, wearService, new PurchaseExplainer(aiServerClient),
                 new PurchaseCheckRules(0.85, 5), dailyLimiter, recordService, CLOCK, eventRecorder);
-        given(recordService.open(eq(userId), any(), any(), any(), any(), anyInt(), any(), any()))
+        given(recordService.open(eq(userId), any(), any(), any(), any(), anyInt(), any(), any(), any()))
                 .willReturn(CHECK_ID);
         given(clothesClassifier.classify(any(org.springframework.web.multipart.MultipartFile.class)))
                 .willReturn(Optional.of(new ClothesClassification(ClothesCategory.TOP, "블랙", "블랙 hoodie")));
@@ -121,7 +121,7 @@ class PurchaseCheckServiceTest {
                 .isInstanceOfSatisfying(CustomException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PURCHASE_CHECK_LIMIT));
         verify(clothesClassifier, never()).classify(any(org.springframework.web.multipart.MultipartFile.class));
-        verify(recordService, never()).open(any(), any(), any(), any(), any(), anyInt(), any(), any());
+        verify(recordService, never()).open(any(), any(), any(), any(), any(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -136,7 +136,7 @@ class PurchaseCheckServiceTest {
         assertThat(response.id()).isEqualTo(CHECK_ID);
         verify(dailyLimiter).acquire(userId);
         verify(recordService).open(eq(userId), eq(JPEG), eq("image/jpeg"), eq(response.item()),
-                eq(response.verdict()), eq(response.plus()), eq(39000L), eq(vector));
+                eq(response.verdict()), eq(response.plus()), eq(39000L), eq(response.costPerWear()), eq(vector));
     }
 
     @Test
@@ -309,7 +309,8 @@ class PurchaseCheckServiceTest {
         assertThat(result.comboCountAfter()).isEqualTo(6);
         assertThat(result.price()).isEqualTo(39000L);
         verify(embeddingStore, never()).findMostSimilar(eq(userId), eq(ClothesCategory.TOP), any(), anyInt());
-        verify(recordService).reanalyzed(CHECK_ID, result.item(), PurchaseVerdict.SIMILAR, 2, vector);
+        verify(recordService).reanalyzed(CHECK_ID, result.item(), PurchaseVerdict.SIMILAR, 2, result.costPerWear(),
+                vector);
     }
 
     @Test
@@ -325,7 +326,7 @@ class PurchaseCheckServiceTest {
         verify(clothesEmbedder).embedCandidate(new ClothesClassification(ClothesCategory.OUTER, "네이비",
                 "블랙 hoodie"));
         verify(dailyLimiter, never()).acquire(any());
-        verify(recordService, never()).open(any(), any(), any(), any(), any(), anyInt(), any(), any());
+        verify(recordService, never()).open(any(), any(), any(), any(), any(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -351,7 +352,7 @@ class PurchaseCheckServiceTest {
         assertThatThrownBy(() -> service.recheck(userId, CHECK_ID, categoryChange("BOTTOM")))
                 .isInstanceOfSatisfying(CustomException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PURCHASE_CHECK_UNAVAILABLE));
-        verify(recordService, never()).reanalyzed(any(), any(), any(), anyInt(), any());
+        verify(recordService, never()).reanalyzed(any(), any(), any(), anyInt(), any(), any());
     }
 
     @Test

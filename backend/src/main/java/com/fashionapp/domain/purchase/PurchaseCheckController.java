@@ -48,6 +48,14 @@ public class PurchaseCheckController {
         return ResponseEntity.ok(ApiResponse.success(purchaseRecordService.history(userPrincipal.getId())));
     }
 
+    /** FR-20: this month's check count and the combos added by bought pieces. */
+    @GetMapping("/summary")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<PurchaseSummaryResponse>> summary(
+            @CurrentUser UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(ApiResponse.success(purchaseRecordService.summary(userPrincipal.getId())));
+    }
+
     /** FR-12: one check of the current user (someone else's is 404). */
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")

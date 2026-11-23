@@ -9,6 +9,9 @@ import com.fashionapp.domain.clothes.ClothesSeason;
 import com.fashionapp.domain.clothes.ClothesService;
 import com.fashionapp.domain.event.EventRecorder;
 import com.fashionapp.domain.event.EventType;
+import com.fashionapp.domain.wear.WearCalendar;
+import com.fashionapp.domain.wear.WearService;
+import com.fashionapp.domain.wear.WearStat;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.ImageKeys;
@@ -19,9 +22,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -47,14 +52,17 @@ public class PurchaseRecordService {
     private final ClothesRepository clothesRepository;
     private final Clock clock;
     private final EventRecorder eventRecorder;
+    private final WearService wearService;
 
     /** Stores the photo under tmp/ and records an UNDECIDED check. Returns the check id. */
     public UUID open(UUID userId, byte[] photo, String contentType, PurchaseCheckResponse.Item item,
-                     PurchaseVerdict verdict, int plus, Long price, float[] embedding) {
+                     PurchaseVerdict verdict, int plus, Long price, Long expectedCostPerWear,
+                     float[] embedding) {
         UUID checkId = UUID.randomUUID();
         String tempKey = imageStorage.storeBytesAt(ImageKeys.tempKey(userId, checkId, contentType), photo, contentType);
         try {
-            repository.save(new PurchaseCheck(checkId, userId, item, verdict, plus, price, tempKey, clock.instant()));
+            repository.save(new PurchaseCheck(checkId, userId, item, verdict, plus, price, expectedCostPerWear, tempKey,
+                    clock.instant()));
         } catch (RuntimeException e) {
             deletePhoto(tempKey);
             throw e;
@@ -72,6 +80,16 @@ public class PurchaseRecordService {
     public List<PurchaseRecordResponse> history(UUID userId) {
         return toResponses(userId,
                 repository.findByUserIdOrderByCreatedAtDescIdDesc(userId, PageRequest.of(0, HISTORY_LIMIT)));
+    }
+
+    /**
+     * FR-20: this month's checks (Korean calendar, same as wear summaries) and the combos added by pieces bought from
+     * them.
+     */
+    public PurchaseSummaryResponse summary(UUID userId) {
+        Instant from = WearCalendar.monthStart(WearCalendar.today(clock)).atStartOfDay(WearCalendar.ZONE).toInstant();
+        return new PurchaseSummaryResponse(repository.countByUserIdAndCreatedAtGreaterThanEqual(userId, from),
+                repository.sumBoughtPlusSince(userId, from));
     }
 
     /** FR-13: an undecided check whose photo is still there, with its analysed attributes and price. */
@@ -95,9 +113,9 @@ public class PurchaseRecordService {
      * decision was made while re-judging.
      */
     public void reanalyzed(UUID checkId, PurchaseCheckResponse.Item item, PurchaseVerdict verdict, int plus,
-                           float[] embedding) {
+                           Long expectedCostPerWear, float[] embedding) {
         if (repository.updateUndecided(checkId, item.name(), item.category().name(), item.color(), verdict.name(),
-                plus) == 0) {
+                plus, expectedCostPerWear) == 0) {
             throw new CustomException(ErrorCode.PURCHASE_ALREADY_DECIDED);
         }
         draftStore.save(checkId, draftOf(item, embedding));
@@ -186,20 +204,25 @@ public class PurchaseRecordService {
         Map<UUID, Clothes> clothes = clothesIds.isEmpty() ? Map.of()
                 : clothesRepository.findByUser_IdAndIdIn(userId, clothesIds).stream()
                         .collect(Collectors.toMap(Clothes::getId, Function.identity()));
+        Map<UUID, WearStat> wears = clothes.isEmpty() ? Map.of() : wearService.statsFor(userId);
         return checks.stream()
                 .map(check -> toResponse(check,
-                        check.getClothesId() == null ? null : clothes.get(check.getClothesId())))
+                        check.getClothesId() == null ? null : clothes.get(check.getClothesId()), wears))
                 .toList();
     }
 
-    private PurchaseRecordResponse toResponse(PurchaseCheck check, Clothes clothes) {
+    private PurchaseRecordResponse toResponse(PurchaseCheck check, Clothes clothes, Map<UUID, WearStat> wears) {
         PurchaseDecision decision = check.decisionValue();
         // Only BUY keeps a photo (as the clothes photo); if that piece was deleted later there is none
         String imageUrl = decision == PurchaseDecision.BOUGHT && clothes != null
                 ? imageStorage.resolveUrl(clothes.getImageUrl()) : null;
+        // FR-20: wears of the bought piece so far; null when nothing was bought or the piece was deleted
+        Long wearCount = decision == PurchaseDecision.BOUGHT && clothes != null
+                ? Optional.ofNullable(wears.get(clothes.getId())).map(WearStat::count).orElse(0L) : null;
         return new PurchaseRecordResponse(check.getId(), check.getName(), ClothesCategory.from(check.getCategory()),
                 check.getColor(), check.getPrice(), PurchaseVerdict.valueOf(check.getVerdict()), check.getPlus(),
-                decision, check.getClothesId(), imageUrl, check.getCreatedAt());
+                decision, check.getClothesId(), imageUrl, check.getCreatedAt(), check.getExpectedCostPerWear(),
+                wearCount, ExpectedWears.actualCostPerWear(check.getPrice(), wearCount));
     }
 
     /** True when the photo is gone (deleted now or never there). */
