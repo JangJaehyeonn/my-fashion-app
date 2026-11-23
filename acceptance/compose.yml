@@ -55,4 +55,8 @@ services:
       S3_BUCKET: acceptance
       STORAGE_TYPE: local
       STORAGE_LOCAL_ROOT: /tmp/wearon-storage
+      # 날씨는 가짜 OpenWeatherMap(fake-ai의 /owm/*)으로 대신한다 (FR-28, 테스트 전용 값)
+      WEATHER_API_KEY: acceptance
+      WEATHER_BASE_URL: http://fake-ai:8000/owm/data/2.5/weather
+      WEATHER_FORECAST_URL: http://fake-ai:8000/owm/data/2.5/forecast
       JAVA_TOOL_OPTIONS: -Xmx512m
