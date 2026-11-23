@@ -7,38 +7,29 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -70,20 +61,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
 import com.fashionapp.data.model.Clothes
-import com.fashionapp.data.model.ClothesCategory
 import com.fashionapp.ui.common.createCameraImageUri
 import com.fashionapp.ui.theme.WearonColors
 import com.fashionapp.ui.theme.WearonShapes
 
 // 갤러리에서 한 번에 고를 수 있는 최대 장수
 private const val MAX_PICK = 10
-
-// 탭 노출 순서 (null = 전체)
-private val CATEGORY_TABS: List<ClothesCategory?> = listOf(
-    null, ClothesCategory.TOP, ClothesCategory.BOTTOM, ClothesCategory.OUTER, ClothesCategory.SHOES, ClothesCategory.ETC
-)
 
 @Composable
 fun ClosetScreen(
@@ -94,6 +78,9 @@ fun ClosetScreen(
     val clothes by viewModel.filteredClothes.collectAsState()
     val counts by viewModel.countByCategory.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val sort by viewModel.sort.collectAsState()
+    val summary by viewModel.summary.collectAsState()
+    val boughtIds by viewModel.boughtIds.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val registerProgress by viewModel.registerProgress.collectAsState()
     val isRegistering = registerProgress != null
@@ -154,9 +141,7 @@ fun ClosetScreen(
                     .padding(start = 20.dp, end = 12.dp, top = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("옷장", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
-                Spacer(Modifier.width(6.dp))
-                Text("${counts[null] ?: 0}", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = WearonColors.SubText)
+                Text("옷장 ${counts[null] ?: 0}", fontSize = 22.sp, fontWeight = FontWeight.Black, color = WearonColors.Ink)
                 Spacer(Modifier.weight(1f))
                 Box {
                     Row(
@@ -164,27 +149,26 @@ fun ClosetScreen(
                             .clip(WearonShapes.Image)
                             .background(if (isRegistering) WearonColors.Line else WearonColors.Ink)
                             .clickable(enabled = !isRegistering) { showAddMenu = true }
-                            .padding(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                            .heightIn(min = 44.dp)
+                            .padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("옷 등록", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Text("＋ 옷 등록", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     }
                     DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text("📷  사진 촬영") },
+                            text = { Text("사진 촬영") },
                             onClick = { showAddMenu = false; requestCamera() }
                         )
                         DropdownMenuItem(
-                            text = { Text("🖼️  갤러리에서 선택 (최대 ${MAX_PICK}장)") },
+                            text = { Text("갤러리에서 선택 (최대 ${MAX_PICK}장)") },
                             onClick = {
                                 showAddMenu = false
                                 galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("🔗  상품 주소로 등록") },
+                            text = { Text("상품 주소로 등록") },
                             onClick = {
                                 showAddMenu = false
                                 viewModel.openUrlDialog()
@@ -194,12 +178,15 @@ fun ClosetScreen(
                 }
             }
 
+            Spacer(Modifier.height(14.dp))
+            SummaryRow(summary = summary, onUnwornClick = viewModel::showUnworn)
             Spacer(Modifier.height(12.dp))
-            CategoryTabs(
+            CategoryChips(
                 selected = selectedCategory,
                 counts = counts,
                 onSelect = viewModel::selectCategory
             )
+            SortRow(count = clothes.size, selected = sort, onSelect = viewModel::selectSort)
 
             registerProgress?.let { progress ->
                 val stageLabel = when (progress.stage) {
@@ -249,13 +236,18 @@ fun ClosetScreen(
                 else -> LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     // 좌우 여백과 간격을 줄여 사진을 최대한 크게 (쇼핑몰 상품 그리드 느낌)
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(clothes, key = { it.id }) { item ->
-                        ClothesCard(item, onClick = { onOpenClothes(item) }, onDelete = { deleteTarget = item })
+                        ClothesCard(
+                            item,
+                            badge = ClosetList.badge(item, boughtIds),
+                            onClick = { onOpenClothes(item) },
+                            onDelete = { deleteTarget = item }
+                        )
                     }
                 }
             }
@@ -291,131 +283,7 @@ fun ClosetScreen(
     }
 }
 
-// 쇼핑몰 카테고리 탭처럼 텍스트 + 하단 밑줄 인디케이터
-@Composable
-private fun CategoryTabs(
-    selected: ClothesCategory?,
-    counts: Map<ClothesCategory?, Int>,
-    onSelect: (ClothesCategory?) -> Unit
-) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(WearonColors.Line)
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp)
-        ) {
-            CATEGORY_TABS.forEach { category ->
-                val isSelected = category == selected
-                Column(
-                    modifier = Modifier
-                        .width(IntrinsicSize.Max)
-                        .clickable { onSelect(category) }
-                        .padding(horizontal = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            category?.label ?: "전체",
-                            fontSize = 14.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) WearonColors.Ink else WearonColors.SubText
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            "${counts[category] ?: 0}",
-                            fontSize = 12.sp,
-                            color = if (isSelected) WearonColors.Ink else WearonColors.SubText.copy(alpha = 0.7f)
-                        )
-                    }
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(2.dp)
-                            .background(if (isSelected) WearonColors.Ink else Color.Transparent)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ClothesCard(clothes: Clothes, onClick: () -> Unit, onDelete: () -> Unit) {
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(4f / 5f)
-                .clip(WearonShapes.Image)
-                .background(WearonColors.Beige)
-                .then(if (clothes.isUnclassified) Modifier.dashedBorder(WearonColors.Accent) else Modifier)
-        ) {
-            AsyncImage(
-                model = clothes.imageUrl,
-                contentDescription = clothes.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.8f))
-                    .clickable(onClick = onDelete),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Close, contentDescription = "삭제", tint = WearonColors.Ink, modifier = Modifier.size(14.dp))
-            }
-            // ui-spec: unclassified clothes get a brown badge at the top left and a dashed border (FR-02)
-            if (clothes.isUnclassified) {
-                UnclassifiedBadge(Modifier.align(Alignment.TopStart).padding(6.dp))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(modifier = Modifier.padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(clothes.category.label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WearonColors.Ink)
-            clothes.color?.let { color ->
-                Spacer(Modifier.width(8.dp))
-                colorSwatch(color)?.let { swatch ->
-                    Box(
-                        Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(swatch)
-                            .border(1.dp, WearonColors.Line, CircleShape)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                }
-                Text(color, fontSize = 12.sp, color = WearonColors.SubText)
-            }
-        }
-        clothes.name?.let {
-            Text(
-                it,
-                fontSize = 13.sp,
-                color = WearonColors.Ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
-            )
-        }
-    }
-}
-
-private fun Modifier.dashedBorder(color: Color): Modifier = drawWithContent {
+internal fun Modifier.dashedBorder(color: Color): Modifier = drawWithContent {
     drawContent()
     val stroke = 1.5.dp.toPx()
     val inset = stroke / 2
@@ -435,8 +303,6 @@ private fun EmptyCloset(isFiltered: Boolean) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("👕", fontSize = 40.sp)
-        Spacer(Modifier.height(12.dp))
         Text(
             if (isFiltered) "이 카테고리에 등록된 옷이 없어요" else "아직 등록된 옷이 없어요",
             fontSize = 15.sp,
@@ -455,7 +321,7 @@ private fun EmptyCloset(isFiltered: Boolean) {
 }
 
 // AI가 주는 한국어 대표 색상명 → 스와치 색 (목록에 없으면 스와치 없이 텍스트만 표시)
-private fun colorSwatch(name: String): Color? = when (name) {
+internal fun colorSwatch(name: String): Color? = when (name) {
     "블랙" -> Color(0xFF1A1A1A)
     "화이트" -> Color(0xFFFFFFFF)
     "아이보리", "크림" -> Color(0xFFF6F0E3)

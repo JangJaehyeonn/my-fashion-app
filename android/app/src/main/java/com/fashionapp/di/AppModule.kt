@@ -8,6 +8,7 @@ import com.fashionapp.data.api.OutfitApi
 import com.fashionapp.data.api.PurchaseCheckApi
 import com.fashionapp.data.api.ShoppingApi
 import com.fashionapp.data.api.VtonApi
+import com.fashionapp.data.api.WearApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -51,6 +52,11 @@ object AppModule {
     @Singleton
     fun providePurchaseCheckApi(apiClient: ApiClient): PurchaseCheckApi =
         apiClient.retrofit.create(PurchaseCheckApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideWearApi(apiClient: ApiClient): WearApi =
+        apiClient.retrofit.create(WearApi::class.java)
 
     @Provides
     @Singleton

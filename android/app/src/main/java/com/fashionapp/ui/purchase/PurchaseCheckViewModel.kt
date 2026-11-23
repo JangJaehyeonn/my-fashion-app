@@ -282,7 +282,7 @@ class PurchaseCheckViewModel @Inject constructor(
             purchaseCheckRepository.decide(result.id, buy)
                 .onSuccess { decided ->
                     if (buy) {
-                        closetChanges.notifyChanged()
+                        closetChanges.notifyBought(decided.clothes?.id)
                         _state.update { it.copy(isDeciding = false, stage = PurchaseStage.DONE, registered = decided.clothes) }
                     } else {
                         _state.update { it.copy(isDeciding = false, closed = true) }
