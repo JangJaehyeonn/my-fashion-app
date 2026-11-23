@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -27,14 +27,22 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.fashionapp.ui.navigation.Route
 import com.fashionapp.ui.theme.WearonColors
 
-data class BottomNavItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+// subRoutes: screens opened from the tab that keep the tab selected (e.g. fitting from the shopping home)
+data class BottomNavItem(
+    val route: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val subRoutes: List<String> = emptyList()
+) {
+    fun matches(route: String?) = route == this.route || route in subRoutes
+}
 
 @Composable
 fun BottomNavBar(navController: NavController) {
     val items = listOf(
         BottomNavItem(Route.HOME, "홈", Icons.Default.Home),
         BottomNavItem(Route.CLOSET, "옷장", Icons.Default.Checkroom),
-        BottomNavItem(Route.FITTING, "피팅", Icons.Default.Style),
+        BottomNavItem(Route.SHOPPING, "쇼핑", Icons.Default.ShoppingBag, subRoutes = listOf(Route.FITTING)),
         BottomNavItem(Route.MYPAGE, "마이", Icons.Default.Person),
     )
 
@@ -48,9 +56,12 @@ fun BottomNavBar(navController: NavController) {
     NavigationBar(containerColor = WearonColors.White, tonalElevation = 0.dp) {
         items.forEach { item ->
             NavigationBarItem(
-                selected = currentRoute == item.route,
+                selected = item.matches(currentRoute),
                 onClick = {
-                    if (currentRoute != item.route) {
+                    if (item.matches(currentRoute)) {
+                        // Tapping the selected tab from one of its sub screens goes back to the tab root
+                        if (currentRoute != item.route) navController.popBackStack(item.route, inclusive = false)
+                    } else {
                         navController.navigate(item.route) {
                             popUpTo(Route.HOME) { saveState = true }
                             launchSingleTop = true

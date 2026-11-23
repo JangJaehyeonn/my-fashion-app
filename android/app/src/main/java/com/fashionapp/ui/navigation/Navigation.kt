@@ -71,7 +71,7 @@ fun AppNavigation(mainViewModel: MainViewModel) {
     }
 
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-    val showBottomBar = currentRoute in listOf(Route.HOME, Route.CLOSET, Route.FITTING, Route.MYPAGE)
+    val showBottomBar = currentRoute in listOf(Route.HOME, Route.CLOSET, Route.SHOPPING, Route.FITTING, Route.MYPAGE)
 
     // 메인 탭에 들어오면 만 14세 이상 확인 여부를 본다 (소셜 첫 가입·기존 사용자). 확인됐으면 아무 일도 없음
     LaunchedEffect(showBottomBar) {
@@ -173,8 +173,17 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                 composable(Route.FITTING) { FittingScreen() }
                 composable(Route.DIAGNOSIS) { DiagnosisScreen() }
                 composable(Route.SHOPPING) {
+                    // Capture, gallery and product URL are wired to the purchase check flow in FR-17
                     ShoppingScreen(
-                        onVtonClick = { garmentDesc -> navController.navigate(Route.vton(garmentDesc)) }
+                        onGoToCloset = {
+                            // 하단 탭 전환과 동일한 방식으로 이동 (BottomNavBar 참고)
+                            navController.navigate(Route.CLOSET) {
+                                popUpTo(Route.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onOpenFitting = { navController.navigate(Route.FITTING) { launchSingleTop = true } }
                     )
                 }
                 composable(
