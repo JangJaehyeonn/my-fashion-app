@@ -7,6 +7,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -79,6 +80,17 @@ public class User {
     @Column(name = "last_revived_on")
     private LocalDate lastRevivedOn;
 
+    // FR-28: usual going-out / coming-back times (Korean time) and how the user travels. null = not set
+    @Column(name = "commute_out_at")
+    private LocalTime commuteOutAt;
+
+    @Column(name = "commute_back_at")
+    private LocalTime commuteBackAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "travel_mode", length = 20)
+    private TravelMode travelMode;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -129,6 +141,17 @@ public class User {
 
     public void changePasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    /** FR-28: replaces the commute profile as a whole (null clears a value). */
+    public void updateCommute(LocalTime outAt, LocalTime backAt, TravelMode mode) {
+        this.commuteOutAt = outAt;
+        this.commuteBackAt = backAt;
+        this.travelMode = mode;
+    }
+
+    public enum TravelMode {
+        WALK, TRANSIT, CAR
     }
 
     public enum BodyType {

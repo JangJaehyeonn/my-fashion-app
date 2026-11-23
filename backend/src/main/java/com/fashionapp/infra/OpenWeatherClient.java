@@ -13,10 +13,13 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 
 /**
- * OpenWeatherMap Current Weather API를 백엔드에서 직접 호출한다 (AI 서버를 거치지 않음 — AI 서버가 없어도 날씨는 동작).
+ * OpenWeatherMap Current Weather API와 5일/3시간 예보 API(FR-28)를 백엔드에서 직접 호출한다 (AI 서버를 거치지 않음 — AI 서버가 없어도 날씨는 동작).
  *
  * <p>API 키는 쿼리 파라미터(appid)로 전달해야 해서, 요청 URL이 들어 있는 {@link RestClientException} 메시지를
  * 로그에 그대로 남기면 키가 노출된다. 그래서 실패 시에는 상태 코드나 예외 종류만 기록한다.
@@ -40,23 +43,55 @@ public class OpenWeatherClient {
 
     private final RestClient restClient;
     private final String baseUrl;
+    private final String forecastUrl;
     private final String apiKey;
 
     public OpenWeatherClient(@Value("${weather.base-url}") String baseUrl,
+                             @Value("${weather.forecast-url}") String forecastUrl,
                              @Value("${weather.api-key:}") String apiKey,
                              @Value("${weather.connect-timeout:3s}") Duration connectTimeout,
                              @Value("${weather.read-timeout:10s}") Duration readTimeout) {
         this.baseUrl = baseUrl;
+        this.forecastUrl = forecastUrl;
         this.apiKey = apiKey;
         this.restClient = RestClientConfig.build(connectTimeout, readTimeout);
     }
 
     public AiWeatherResponse fetch(double lat, double lon) {
+        JsonNode data = get(baseUrl, lat, lon);
+        String main = data.path("weather").path(0).path("main").asText();
+        return new AiWeatherResponse(
+                data.path("main").path("temp").asDouble(),
+                CONDITION_MAP.getOrDefault(main, main),
+                data.path("main").path("humidity").asInt(),
+                data.path("wind").path("speed").asDouble());
+    }
+
+    /** FR-28: 5 day / 3 hour forecast slots, sorted by time. Throws WEATHER_UNAVAILABLE on any failure. */
+    public Forecast fetchForecast(double lat, double lon) {
+        JsonNode list = get(forecastUrl, lat, lon).path("list");
+        if (!list.isArray() || list.isEmpty()) {
+            log.error("weather: OpenWeatherMap forecast has no slots");
+            throw new CustomException(ErrorCode.WEATHER_UNAVAILABLE);
+        }
+        List<ForecastSlot> slots = new ArrayList<>();
+        for (JsonNode slot : list) {
+            slots.add(new ForecastSlot(
+                    slot.path("dt").asLong(),
+                    slot.path("main").path("temp").asDouble(),
+                    slot.path("pop").asDouble(0),
+                    slot.path("wind").path("speed").asDouble(0)));
+        }
+        slots.sort(Comparator.comparingLong(ForecastSlot::epochSecond));
+        return new Forecast(slots);
+    }
+
+    private JsonNode get(String url, double lat, double lon) {
         if (apiKey == null || apiKey.isBlank()) {
             log.error("weather: WEATHER_API_KEY 가 설정되지 않았습니다 (backend/.env)");
             throw new CustomException(ErrorCode.WEATHER_UNAVAILABLE);
         }
-        var uri = UriComponentsBuilder.fromUriString(baseUrl)
+        var uri = UriComponentsBuilder.fromUriString(url)
                 .queryParam("lat", lat)
                 .queryParam("lon", lon)
                 .queryParam("appid", apiKey)
@@ -65,17 +100,15 @@ public class OpenWeatherClient {
                 .build().toUri();
         try {
             JsonNode data = restClient.get().uri(uri).retrieve().body(JsonNode.class);
-            String main = data.path("weather").path(0).path("main").asText();
-            return new AiWeatherResponse(
-                    data.path("main").path("temp").asDouble(),
-                    CONDITION_MAP.getOrDefault(main, main),
-                    data.path("main").path("humidity").asInt(),
-                    data.path("wind").path("speed").asDouble());
+            if (data == null) {
+                throw new CustomException(ErrorCode.WEATHER_UNAVAILABLE);
+            }
+            return data;
         } catch (RestClientResponseException e) {
             // 401 = 키가 잘못됐거나 아직 활성화 전(발급 후 최대 몇 시간), 429 = 호출 한도 초과
             log.error("weather: OpenWeatherMap responded {}", e.getStatusCode().value());
             throw new CustomException(ErrorCode.WEATHER_UNAVAILABLE);
-        } catch (RestClientException | NullPointerException e) {
+        } catch (RestClientException e) {
             log.error("weather: OpenWeatherMap call failed ({})", e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.WEATHER_UNAVAILABLE);
         }
