@@ -149,4 +149,33 @@ class WeatherServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_COORDINATES);
         verify(openWeatherClient, never()).fetch(anyDouble(), anyDouble());
     }
+
+    @Test
+    @DisplayName("FR-28: 예보도 반올림 좌표별 로컬 → Redis → OpenWeatherMap 순서이고, 현재 날씨와 키가 다르다")
+    void forecastUsesSameCacheStructure() throws Exception {
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("weather:forecast:35.18:129.08")).willReturn(null);
+        com.fashionapp.infra.Forecast forecast = new com.fashionapp.infra.Forecast(
+                java.util.List.of(new com.fashionapp.infra.ForecastSlot(1700000000, 3.0, 0.7, 2.0)));
+        given(openWeatherClient.fetchForecast(35.18, 129.08)).willReturn(forecast);
+
+        assertThat(weatherService.getForecast(35.179554, 129.075641)).isEqualTo(forecast);
+        assertThat(weatherService.getForecast(35.18, 129.08)).isSameAs(forecast);
+
+        verify(openWeatherClient, times(1)).fetchForecast(35.18, 129.08);
+        verify(valueOperations).set(eq("weather:forecast:35.18:129.08"), anyString(), eq(Duration.ofMinutes(30)));
+        verify(openWeatherClient, never()).fetch(anyDouble(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("FR-28: Redis에 저장된 예보를 그대로 되살린다")
+    void forecastFromRedis() throws Exception {
+        com.fashionapp.infra.Forecast forecast = new com.fashionapp.infra.Forecast(
+                java.util.List.of(new com.fashionapp.infra.ForecastSlot(1700000000, 3.0, 0.7, 2.0)));
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("weather:forecast:37.57:126.98")).willReturn(new ObjectMapper().writeValueAsString(forecast));
+
+        assertThat(weatherService.getForecast(null, null)).isEqualTo(forecast);
+        verify(openWeatherClient, never()).fetchForecast(anyDouble(), anyDouble());
+    }
 }

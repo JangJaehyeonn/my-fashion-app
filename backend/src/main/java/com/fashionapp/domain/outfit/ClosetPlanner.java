@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -58,7 +59,17 @@ public class ClosetPlanner {
 
     /** @param available pieces I can wear now (FR-27); lastRevivedOn the user's last revival day, null if never */
     public ClosetPlan plan(List<ClothesResponse> available, LocalDate lastRevivedOn) {
-        List<Combo> combos = engine.combos(available.stream().map(ComboItem::of).toList());
+        return plan(available, lastRevivedOn, combo -> true);
+    }
+
+    /**
+     * Same as {@link #plan(List, LocalDate)} but only combos accepted by {@code allowed} (FR-28 weather rules) are
+     * candidates, so the revived combo also obeys them.
+     */
+    public ClosetPlan plan(List<ClothesResponse> available, LocalDate lastRevivedOn, Predicate<Combo> allowed) {
+        List<Combo> combos = engine.combos(available.stream().map(ComboItem::of).toList()).stream()
+                .filter(allowed)
+                .toList();
         LocalDate today = today();
         Revival revival = revivalDue(lastRevivedOn, today) ? pickRevival(available, combos, today).orElse(null) : null;
         Stream<Combo> ordered = revival == null ? combos.stream()

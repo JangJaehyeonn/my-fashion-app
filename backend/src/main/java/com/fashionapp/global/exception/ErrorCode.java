@@ -15,6 +15,7 @@ public enum ErrorCode {
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
     INVALID_AUTH_CODE(HttpStatus.UNAUTHORIZED, "로그인 코드가 만료되었거나 이미 사용되었습니다. 다시 로그인해 주세요."),
     INVALID_BODY_PROFILE(HttpStatus.BAD_REQUEST, "유효하지 않은 체형/스타일 값입니다."),
+    INVALID_COMMUTE_PROFILE(HttpStatus.BAD_REQUEST, "출퇴근 시각(00:00~23:59)이나 이동 수단 값이 올바르지 않아요."),
 
     // 아이디·비밀번호 가입/로그인 — 문구는 앱 입력 칸 아래 안내로 그대로 노출됨
     INVALID_LOGIN_ID(HttpStatus.BAD_REQUEST, "아이디는 영문 소문자와 숫자로 4~20자여야 해요."),

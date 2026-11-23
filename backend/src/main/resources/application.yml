@@ -96,7 +96,10 @@ storage:
 # 날씨: OpenWeatherMap을 백엔드가 직접 호출 (AI 서버 불필요). 키는 WEATHER_API_KEY
 weather:
   api-key: ${WEATHER_API_KEY:}
-  base-url: https://api.openweathermap.org/data/2.5/weather
+  # 주소는 비밀값이 아니라 기본값을 둔다. 인수 테스트 하네스는 가짜 서버 주소로 바꾼다
+  base-url: ${WEATHER_BASE_URL:https://api.openweathermap.org/data/2.5/weather}
+  # FR-28: 5일/3시간 예보 (나갈 때·낮·돌아올 때 기온)
+  forecast-url: ${WEATHER_FORECAST_URL:https://api.openweathermap.org/data/2.5/forecast}
 
 app:
   # 클라이언트가 이미지를 가져갈 때 쓰는 이 서버의 공개 주소 (local 저장소의 이미지 URL에 사용)

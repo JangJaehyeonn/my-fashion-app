@@ -57,6 +57,14 @@ class ClosetItem(BaseModel):
     name: Optional[str] = None
 
 
+class ClosetCandidate(BaseModel):
+    """One valid combo chosen by the backend rules (FR-09 engine, FR-28 weather rules, FR-29 revival)."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    clothes_ids: List[str]
+
+
 class ClosetRecommendRequest(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -64,6 +72,9 @@ class ClosetRecommendRequest(BaseModel):
     situation: str
     body_profile: Optional[BodyProfile] = None
     clothes: List[ClosetItem]
+    # FR-28: when present, outfits must be picked from these combos only; applied_rules says why ("TEMP_RANGE", "RAIN")
+    candidates: Optional[List[ClosetCandidate]] = None
+    applied_rules: Optional[List[str]] = None
 
 
 class ClosetOutfitSuggestion(BaseModel):
