@@ -8,6 +8,7 @@ import com.fashionapp.data.model.Agreements
 import com.fashionapp.data.model.MSG_AGREE_REQUIRED
 import com.fashionapp.data.repository.AppOpenReporter
 import com.fashionapp.data.repository.AuthRepository
+import com.fashionapp.data.repository.OnboardingGate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,12 +22,14 @@ sealed class NavEvent {
     object ToMain : NavEvent()
     object ToLogin : NavEvent()
     object ToAgeGate : NavEvent()
+    object ToOnboarding : NavEvent()
 }
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val appOpenReporter: AppOpenReporter
+    private val appOpenReporter: AppOpenReporter,
+    private val onboardingGate: OnboardingGate
 ) : ViewModel() {
 
     // Channel: 화면(NavHost)이 준비되기 전에 보낸 이동 이벤트도 버리지 않고 준비된 뒤 전달
@@ -93,11 +96,34 @@ class MainViewModel @Inject constructor(
 
     /** 메인 화면에 들어올 때마다 호출 — 확인이 끝났으면 다시 묻지 않는다 */
     fun ensureAgeConfirmed() {
-        if (ageChecked) return
+        if (ageChecked) {
+            checkOnboarding()
+            return
+        }
         viewModelScope.launch {
             authRepository.getMyProfile().onSuccess { profile ->
-                if (profile.ageConfirmedAt != null) ageChecked = true else _navEvent.send(NavEvent.ToAgeGate)
+                if (profile.ageConfirmedAt != null) {
+                    ageChecked = true
+                    checkOnboarding()
+                } else {
+                    _navEvent.send(NavEvent.ToAgeGate)
+                }
             }
+        }
+    }
+
+    // FR-22: decided once per login session, after the age gate, so the onboarding does not pop up on every tab switch
+    private var onboardingChecked = false
+
+    /** FR-22: opens the onboarding when the closet has fewer than 5 pieces and it was not put off today. */
+    fun checkOnboarding() {
+        if (onboardingChecked) return
+        viewModelScope.launch {
+            // A failed closet load leaves the decision for the next time the main screen shows
+            val show = onboardingGate.shouldShow() ?: return@launch
+            if (onboardingChecked) return@launch
+            onboardingChecked = true
+            if (show) _navEvent.send(NavEvent.ToOnboarding)
         }
     }
 
@@ -145,6 +171,7 @@ class MainViewModel @Inject constructor(
     /** 로그아웃·탈퇴 후 다른 계정으로 로그인할 수 있으므로 다시 확인하게 */
     fun resetAgeCheck() {
         ageChecked = false
+        onboardingChecked = false
         _ageGateAgreements.value = Agreements()
     }
 
