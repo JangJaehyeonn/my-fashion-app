@@ -1,6 +1,6 @@
 """AI 리뷰(ai-review 잡) 결과를 커밋 상태로 옮긴다.
 
-리뷰 잡은 PR에 요약 코멘트를 남기고, 그 첫 줄에 숨은 마커를 쓴다.
+리뷰 잡은 PR에 요약 코멘트를 남기고, 한 줄 전체로 숨은 마커를 쓴다 (보통 첫 줄).
   <!-- ai-review:PASS:<head sha> -->  또는  <!-- ai-review:FAIL:<head sha> -->
 이 스크립트는 그 PR의 코멘트에서 **같은 head SHA**의 마지막 마커를 찾아 커밋 상태 `ai-review`를 정한다.
 
@@ -27,16 +27,25 @@ MARKER = re.compile(r"<!--\s*ai-review:(PASS|FAIL):([0-9a-f]{7,40})\s*-->")
 
 
 def verdict_of(bodies: list[str], sha: str) -> str | None:
-    """코멘트 본문 목록(오래된 순)에서 이 SHA의 마지막 판정을 돌려준다. 첫 줄의 마커만 인정한다."""
+    """코멘트 본문 목록(오래된 순)에서 이 SHA의 마지막 판정을 돌려준다.
+
+    코멘트마다 **한 줄 전체가 마커인 첫 줄**만 본다. 모델이 마커 앞에 문장을 붙여도 판정은 살리고,
+    문장 속에 인용된 마커는 무시한다.
+    """
     found: str | None = None
     for body in bodies:
-        first = (body or "").lstrip().splitlines()[:1]
-        if not first:
-            continue
-        match = MARKER.fullmatch(first[0].strip())
+        match = first_marker(body or "")
         if match and sha.startswith(match.group(2)) and len(match.group(2)) >= 7:
             found = match.group(1)
     return found
+
+
+def first_marker(body: str) -> re.Match[str] | None:
+    for line in body.splitlines():
+        match = MARKER.fullmatch(line.strip())
+        if match:
+            return match
+    return None
 
 
 def state_of(verdict: str | None) -> tuple[str, str]:
