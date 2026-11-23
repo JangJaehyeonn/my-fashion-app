@@ -7,6 +7,8 @@ import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
 import com.fashionapp.data.model.ClothesUpdateRequest
+import com.fashionapp.data.model.WearRecordRequest
+import com.fashionapp.data.model.WearRecordResult
 import com.fashionapp.data.model.WearSummary
 import com.fashionapp.data.repository.ClosetChanges
 import com.fashionapp.data.repository.ClothesRepository
@@ -213,4 +215,6 @@ private class FakeWearApi : WearApi {
         if (fail) throw RuntimeException("network")
         return ApiResponse(true, WearSummary(weekCount = 2, monthCount = 7), null)
     }
+
+    override suspend fun record(request: WearRecordRequest): ApiResponse<WearRecordResult> = error("unused")
 }

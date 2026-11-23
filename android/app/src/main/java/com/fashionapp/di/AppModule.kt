@@ -4,6 +4,7 @@ import com.fashionapp.data.api.ApiClient
 import com.fashionapp.data.api.AuthApi
 import com.fashionapp.data.api.ClothesApi
 import com.fashionapp.data.api.DiagnosisApi
+import com.fashionapp.data.api.EventApi
 import com.fashionapp.data.api.OutfitApi
 import com.fashionapp.data.api.PurchaseCheckApi
 import com.fashionapp.data.api.ShoppingApi
@@ -57,6 +58,15 @@ object AppModule {
     @Singleton
     fun provideWearApi(apiClient: ApiClient): WearApi =
         apiClient.retrofit.create(WearApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideEventApi(apiClient: ApiClient): EventApi =
+        apiClient.retrofit.create(EventApi::class.java)
+
+    // Injected so "today" (wear buttons, once-a-day APP_OPENED) is testable with a fixed clock
+    @Provides
+    fun provideClock(): java.time.Clock = java.time.Clock.systemDefaultZone()
 
     @Provides
     @Singleton

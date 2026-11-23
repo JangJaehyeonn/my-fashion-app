@@ -59,8 +59,11 @@ fun MyPageScreen(
     onLogout: () -> Unit,
     onEditBodyProfile: () -> Unit = {},
     onChangePassword: () -> Unit = {},
-    viewModel: MyPageViewModel = hiltViewModel()
+    viewModel: MyPageViewModel = hiltViewModel(),
+    summaryViewModel: MySummaryViewModel = hiltViewModel()
 ) {
+    val monthSummary by summaryViewModel.summary.collectAsState()
+    val boughtRows by summaryViewModel.bought.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isDeleting by viewModel.isDeleting.collectAsState()
@@ -71,7 +74,11 @@ fun MyPageScreen(
     var showRevokeDialog by remember { mutableStateOf(false) }
 
     // 체형·취향 설정에서 저장 후 돌아오면 다시 컴포지션되므로 여기서 갱신
-    LaunchedEffect(Unit) { viewModel.loadProfile() }
+    LaunchedEffect(Unit) {
+        viewModel.loadProfile()
+        // FR-20: this month's summary and bought pieces follow the server each time the tab shows
+        summaryViewModel.load()
+    }
 
     if (showRevokeDialog) {
         AlertDialog(
@@ -188,6 +195,12 @@ fun MyPageScreen(
                     email = profile?.email ?: profile?.loginId?.let { "@$it" }.orEmpty(),
                     profileImageUrl = profile?.profileImageUrl
                 )
+                Spacer(Modifier.height(20.dp))
+                MonthSummaryRow(monthSummary)
+                if (boughtRows.isNotEmpty()) {
+                    Spacer(Modifier.height(20.dp))
+                    BoughtList(boughtRows)
+                }
                 Spacer(Modifier.height(24.dp))
                 BodyProfileCard(profile = profile, onEdit = onEditBodyProfile)
             }
@@ -267,6 +280,62 @@ private fun ProfileHeader(nickname: String, email: String, profileImageUrl: Stri
             Text(nickname, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
             if (email.isNotBlank()) {
                 Text(email, fontSize = 13.sp, color = WearonColors.SubText)
+            }
+        }
+    }
+}
+
+// FR-20: 이번 달 착용 기록 / 살까 말까 / 늘어난 코디 (베이지 3칸)
+@Composable
+private fun MonthSummaryRow(summary: MonthSummaryUi) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(WearonShapes.Card)
+            .background(WearonColors.Beige)
+            .padding(vertical = 14.dp)
+    ) {
+        SummaryCell("이번 달 착용 기록", summary.wearText, Modifier.weight(1f))
+        SummaryCell("살까 말까", summary.checkText, Modifier.weight(1f))
+        SummaryCell("늘어난 코디", summary.plusText, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SummaryCell(label: String, value: String?, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value ?: "—", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+        Spacer(Modifier.height(2.dp))
+        Text(label, fontSize = 11.sp, color = WearonColors.SubText)
+    }
+}
+
+// FR-20: 살까 말까로 산 옷 — 사진 48dp · 이름 · 예상 1회 → 지금 1회 (착용 0회면 갈색 "아직 안 입었어요")
+@Composable
+private fun BoughtList(rows: List<BoughtRow>) {
+    Column {
+        Text("살까 말까로 산 옷", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WearonColors.Ink)
+        Spacer(Modifier.height(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            rows.forEach { row ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = row.imageUrl,
+                        contentDescription = row.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(48.dp).clip(WearonShapes.Card).background(WearonColors.Beige)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(row.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = WearonColors.Ink, maxLines = 1)
+                        Text(
+                            row.costText,
+                            fontSize = 12.sp,
+                            fontWeight = if (row.unworn) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (row.unworn) WearonColors.Accent else WearonColors.SubText
+                        )
+                    }
+                }
             }
         }
     }

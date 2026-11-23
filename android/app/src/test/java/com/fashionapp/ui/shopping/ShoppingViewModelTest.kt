@@ -13,6 +13,7 @@ import com.fashionapp.data.model.PurchaseDecision
 import com.fashionapp.data.model.PurchaseDecisionRequest
 import com.fashionapp.data.model.PurchaseDecisionResult
 import com.fashionapp.data.model.PurchaseRecord
+import com.fashionapp.data.model.PurchaseSummary
 import com.fashionapp.data.model.PurchaseVerdict
 import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.PurchaseCheckRepository
@@ -242,6 +243,8 @@ private class FakePurchaseCheckApi : PurchaseCheckApi {
 
     override suspend fun decide(id: String, request: PurchaseDecisionRequest): ApiResponse<PurchaseDecisionResult> =
         error("unused")
+
+    override suspend fun summary(): ApiResponse<PurchaseSummary> = error("unused")
 
     override suspend fun updateAttributes(id: String, request: PurchaseAttributesRequest): ApiResponse<PurchaseCheckResult> =
         error("unused")

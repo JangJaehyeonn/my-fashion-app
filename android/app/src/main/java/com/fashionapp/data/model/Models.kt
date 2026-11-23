@@ -215,10 +215,30 @@ data class ClosetSummary(
     val comboCount: Int
 )
 
-// FR-10: GET /api/wears/summary (mostWorn is not used by the closet tab)
+// FR-10: GET /api/wears/summary. mostWorn is null when nothing is recorded (the closet tab does not use it).
 data class WearSummary(
     val weekCount: Int,
-    val monthCount: Int
+    val monthCount: Int,
+    val mostWorn: MostWorn? = null
+)
+
+// FR-20: the piece worn on the most days overall and how many days
+data class MostWorn(
+    val id: String,
+    val name: String?,
+    val count: Int
+)
+
+// FR-10: POST /api/wears. date is "YYYY-MM-DD"; null means today on the server.
+data class WearRecordRequest(
+    val clothesIds: List<String>,
+    val date: String? = null
+)
+
+// FR-10 POST /api/wears result: new records only (a piece already recorded that day is not counted)
+data class WearRecordResult(
+    val date: String?,
+    val recorded: Int
 )
 
 // FR-11 verdict, decided by backend rules
@@ -243,7 +263,18 @@ data class PurchaseRecord(
     val decision: PurchaseDecision?,
     val clothesId: String?,
     val imageUrl: String?,
-    val createdAt: String?
+    val createdAt: String?,
+    // FR-20: cost per wear estimated at check time, wears of the bought piece so far and price ÷ wears now.
+    // All null when unknown (not bought, no price, or before the first wear).
+    val expectedCostPerWear: Long? = null,
+    val wearCount: Int? = null,
+    val currentCostPerWear: Long? = null
+)
+
+// FR-20: GET /api/purchase-checks/summary. Checks this month and combos added by pieces bought from them.
+data class PurchaseSummary(
+    val monthCount: Int,
+    val monthPlus: Int
 )
 
 // FR-11: POST /api/purchase-checks response. Numbers and the verdict come from backend rules.

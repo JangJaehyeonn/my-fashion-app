@@ -6,6 +6,7 @@ import com.fashionapp.data.model.PurchaseCheckResult
 import com.fashionapp.data.model.PurchaseDecisionRequest
 import com.fashionapp.data.model.PurchaseDecisionResult
 import com.fashionapp.data.model.PurchaseRecord
+import com.fashionapp.data.model.PurchaseSummary
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Body
@@ -29,6 +30,10 @@ interface PurchaseCheckApi {
     // FR-12: latest 20 purchase checks, newest first
     @GET("purchase-checks")
     suspend fun history(): ApiResponse<List<PurchaseRecord>>
+
+    // FR-20: checks this month and the combos added by pieces bought from them
+    @GET("purchase-checks/summary")
+    suspend fun summary(): ApiResponse<PurchaseSummary>
 
     // FR-12: BUY registers the photo in the closet, SKIP discards it. Expired = 410, decided = 409.
     @POST("purchase-checks/{id}/decision")

@@ -144,6 +144,7 @@ class WearServiceTest {
         assertThat(res.monthCount()).isEqualTo(4);
         assertThat(res.mostWorn().id()).isEqualTo(a);
         assertThat(res.mostWorn().name()).isEqualTo("네이비 니트");
+        assertThat(res.mostWorn().count()).isEqualTo(3);
     }
 
     @Test

@@ -4,7 +4,10 @@ import com.fashionapp.data.model.AgeConfirmationRequest
 import com.fashionapp.data.model.AgreementItem
 import com.fashionapp.data.model.Agreements
 import com.fashionapp.data.model.MSG_AGREE_REQUIRED
+import com.fashionapp.data.repository.AppOpenReporter
 import com.fashionapp.data.repository.AuthRepository
+import com.fashionapp.ui.navigation.FakeAppOpenStore
+import com.fashionapp.ui.navigation.FakeEventApi
 import com.fashionapp.ui.navigation.MainViewModel
 import com.fashionapp.ui.navigation.NavEvent
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +32,10 @@ class AgeGateViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val api = FakeAuthApi()
-    private val vm by lazy { MainViewModel(AuthRepository(api, FakeTokenStore())) }
+    private val vm by lazy { MainViewModel(
+        AuthRepository(api, FakeTokenStore()),
+        AppOpenReporter(FakeEventApi(), FakeAppOpenStore(), java.time.Clock.systemUTC())
+    ) }
 
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)

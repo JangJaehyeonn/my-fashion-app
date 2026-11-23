@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.model.AgreementItem
 import com.fashionapp.data.model.Agreements
 import com.fashionapp.data.model.MSG_AGREE_REQUIRED
+import com.fashionapp.data.repository.AppOpenReporter
 import com.fashionapp.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -24,7 +25,8 @@ sealed class NavEvent {
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val appOpenReporter: AppOpenReporter
 ) : ViewModel() {
 
     // Channel: 화면(NavHost)이 준비되기 전에 보낸 이동 이벤트도 버리지 않고 준비된 뒤 전달
@@ -97,6 +99,11 @@ class MainViewModel @Inject constructor(
                 if (profile.ageConfirmedAt != null) ageChecked = true else _navEvent.send(NavEvent.ToAgeGate)
             }
         }
+    }
+
+    /** FR-20: called whenever the main screen shows; APP_OPENED reaches the server at most once a day. */
+    fun reportAppOpened() {
+        viewModelScope.launch { appOpenReporter.reportIfNeeded() }
     }
 
     fun confirmAge() {

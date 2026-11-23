@@ -89,12 +89,12 @@ public class WearService {
     private Optional<WearSummaryResponse.MostWorn> mostWorn(UUID userId) {
         return wearRecordRepository.findStatsByUserId(userId).stream()
                 .min(MOST_WORN)
-                .flatMap(stat -> clothesRepository.findByIdAndUser_Id(stat.clothesId(), userId))
-                .map(WearService::toMostWorn);
+                .flatMap(stat -> clothesRepository.findByIdAndUser_Id(stat.clothesId(), userId)
+                        .map(clothes -> toMostWorn(clothes, stat.count())));
     }
 
-    private static WearSummaryResponse.MostWorn toMostWorn(Clothes clothes) {
-        return new WearSummaryResponse.MostWorn(clothes.getId(), clothes.getName());
+    private static WearSummaryResponse.MostWorn toMostWorn(Clothes clothes, long count) {
+        return new WearSummaryResponse.MostWorn(clothes.getId(), clothes.getName(), count);
     }
 
     private static Set<UUID> parseIds(List<String> raw) {
