@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.model.VtonResult
 import com.fashionapp.data.repository.AuthRepository
+import com.fashionapp.data.repository.FittingGarmentHandoff
 import com.fashionapp.data.repository.ProductPage
 import com.fashionapp.data.repository.ProductPageRepository
 import com.fashionapp.data.repository.VtonRepository
@@ -24,14 +25,25 @@ import javax.inject.Inject
 sealed interface GarmentSource {
     data class Remote(val imageUrl: String) : GarmentSource
     data class Local(val uri: Uri) : GarmentSource
+    // FR-18 "입어보기": the compressed purchase check photo (JPEG)
+    class Photo(val jpeg: ByteArray) : GarmentSource
 }
 
 @HiltViewModel
 class FittingViewModel @Inject constructor(
     private val productPageRepository: ProductPageRepository,
     private val vtonRepository: VtonRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val garmentHandoff: FittingGarmentHandoff
 ) : ViewModel() {
+
+    /** FR-18: puts a photo handed over from the purchase check result into the garment slot. */
+    fun takeHandedOffGarment() {
+        val handed = garmentHandoff.take() ?: return
+        _garment.value = GarmentSource.Photo(handed.jpeg)
+        _garmentDesc.value = handed.description
+        _result.value = null
+    }
 
     // 가상 피팅 사진 전송 동의 여부 (null = 아직 확인 전). 서버가 최종 판단(미동의면 403)하고, 앱은 첫 사용 때 동의 화면을 띄움
     private val _hasConsent = MutableStateFlow<Boolean?>(null)
@@ -144,6 +156,11 @@ class FittingViewModel @Inject constructor(
                 val personPart = withContext(Dispatchers.IO) { uriToPart(context, personUri, "personImage") }
                 val garmentPart = when (garment) {
                     is GarmentSource.Local -> withContext(Dispatchers.IO) { uriToPart(context, garment.uri, "garmentImage") }
+                    is GarmentSource.Photo -> MultipartBody.Part.createFormData(
+                        "garmentImage",
+                        "garmentImage.jpg",
+                        garment.jpeg.toRequestBody("image/jpeg".toMediaType())
+                    )
                     is GarmentSource.Remote -> {
                         val image = productPageRepository.downloadImage(garment.imageUrl).getOrThrow()
                         MultipartBody.Part.createFormData(

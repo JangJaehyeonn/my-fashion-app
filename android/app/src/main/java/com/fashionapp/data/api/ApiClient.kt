@@ -118,8 +118,12 @@ class LongRunningTimeoutInterceptor : Interceptor {
         const val PURCHASE_CHECK_READ_TIMEOUT_SECONDS = 30
 
         /** Only the new check (POST /api/purchase-checks) waits for AI; history and decisions keep 10s. */
-        fun isPurchaseCheck(method: String, path: String): Boolean =
-            method == "POST" && path.trimEnd('/').endsWith("/purchase-checks")
+        // FR-11 check (POST /purchase-checks) and FR-13 re-judge (PATCH /purchase-checks/{id}/attributes)
+        fun isPurchaseCheck(method: String, path: String): Boolean {
+            val trimmed = path.trimEnd('/')
+            return (method == "POST" && trimmed.endsWith("/purchase-checks")) ||
+                (method == "PATCH" && trimmed.contains("/purchase-checks/") && trimmed.endsWith("/attributes"))
+        }
     }
 }
 

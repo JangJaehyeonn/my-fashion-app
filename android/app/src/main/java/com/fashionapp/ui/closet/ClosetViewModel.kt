@@ -8,6 +8,7 @@ import com.fashionapp.data.api.ProgressRequestBody
 import com.fashionapp.data.image.ImageCompressor
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
+import com.fashionapp.data.repository.ClosetChanges
 import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.DownloadedImage
 import com.fashionapp.data.repository.ProductPage
@@ -32,7 +33,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ClosetViewModel @Inject constructor(
     private val clothesRepository: ClothesRepository,
-    private val productPageRepository: ProductPageRepository
+    private val productPageRepository: ProductPageRepository,
+    private val closetChanges: ClosetChanges
 ) : ViewModel() {
 
     private val _clothes = MutableStateFlow<List<Clothes>>(emptyList())
@@ -66,7 +68,8 @@ class ClosetViewModel @Inject constructor(
     val message = _message.asStateFlow()
 
     init {
-        loadClothes()
+        // The first value loads the closet; later values mean clothes were added elsewhere (FR-18 "살래요")
+        viewModelScope.launch { closetChanges.version.collect { loadClothes() } }
     }
 
     fun loadClothes() {

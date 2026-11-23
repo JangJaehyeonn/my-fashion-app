@@ -205,7 +205,9 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                             if (navController.currentBackStackEntry?.destination?.route == Route.PURCHASE_CHECK) {
                                 navController.popBackStack()
                             }
-                        }
+                        },
+                        // FR-18 입어보기: the result stays below, so back returns to it
+                        onOpenFitting = { navController.navigate(Route.FITTING) { launchSingleTop = true } }
                     )
                 }
                 composable(
