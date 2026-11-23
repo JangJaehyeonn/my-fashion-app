@@ -26,6 +26,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -65,7 +66,7 @@ class OnboardingViewModelTest {
 
     private fun TestScope.navEvents(vm: MainViewModel): List<NavEvent> {
         val events = mutableListOf<NavEvent>()
-        backgroundScope.launch { vm.navEvent.collect { events += it } }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.navEvent.collect { events += it } }
         return events
     }
 
