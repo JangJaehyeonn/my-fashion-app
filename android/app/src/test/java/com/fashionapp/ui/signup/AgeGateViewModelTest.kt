@@ -10,6 +10,7 @@ import com.fashionapp.ui.navigation.FakeAppOpenStore
 import com.fashionapp.ui.navigation.FakeEventApi
 import com.fashionapp.ui.navigation.MainViewModel
 import com.fashionapp.ui.navigation.NavEvent
+import com.fashionapp.ui.onboarding.fakeOnboardingGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -34,7 +35,8 @@ class AgeGateViewModelTest {
     private val api = FakeAuthApi()
     private val vm by lazy { MainViewModel(
         AuthRepository(api, FakeTokenStore()),
-        AppOpenReporter(FakeEventApi(), FakeAppOpenStore(), java.time.Clock.systemUTC())
+        AppOpenReporter(FakeEventApi(), FakeAppOpenStore(), java.time.Clock.systemUTC()),
+        fakeOnboardingGate()
     ) }
 
     @Before

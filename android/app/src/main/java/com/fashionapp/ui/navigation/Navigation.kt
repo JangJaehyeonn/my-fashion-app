@@ -30,6 +30,7 @@ import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.ChangePasswordScreen
 import com.fashionapp.ui.mypage.MyPageScreen
+import com.fashionapp.ui.onboarding.OnboardingScreen
 import com.fashionapp.ui.purchase.PurchaseCheckScreen
 import com.fashionapp.ui.purchase.PurchaseCheckViewModel
 import com.fashionapp.ui.purchase.PurchaseSource
@@ -50,6 +51,7 @@ object Route {
     const val SIGNUP = "signup"
     const val CHANGE_PASSWORD = "change_password"
     const val AGE_GATE = "age_gate"
+    const val ONBOARDING = "onboarding"
     const val VTON = "vton/{garmentDesc}"
     // Argument name must match ClothesDetailViewModel.ARG_CLOTHES_ID
     const val CLOTHES_DETAIL = "clothes/{clothesId}"
@@ -132,6 +134,21 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                         onBack = { navController.popBackStack() },
                         onSignedUp = {
                             navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
+                        }
+                    )
+                }
+                composable(Route.ONBOARDING) {
+                    OnboardingScreen(
+                        onLater = {
+                            navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
+                        },
+                        onGoShopping = {
+                            // Home stays the start of the tab back stack, like a bottom tab switch (BottomNavBar)
+                            navController.navigate(Route.HOME) { popUpTo(0) { inclusive = true } }
+                            navController.navigate(Route.SHOPPING) {
+                                popUpTo(Route.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
                         }
                     )
                 }
@@ -260,6 +277,9 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                         popUpTo(0) { inclusive = true }
                     }
                     NavEvent.ToAgeGate -> navController.navigate(Route.AGE_GATE) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    NavEvent.ToOnboarding -> navController.navigate(Route.ONBOARDING) {
                         popUpTo(0) { inclusive = true }
                     }
                 }

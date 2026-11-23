@@ -7,6 +7,7 @@ import com.fashionapp.data.repository.AppOpenReporter
 import com.fashionapp.data.repository.AuthRepository
 import com.fashionapp.ui.signup.FakeAuthApi
 import com.fashionapp.ui.signup.FakeTokenStore
+import com.fashionapp.ui.onboarding.fakeOnboardingGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -33,7 +34,9 @@ class AppOpenViewModelTest {
     private val store = FakeAppOpenStore()
     private val clock = MutableClock(Instant.parse("2026-11-23T01:00:00Z"))
     private val vm by lazy {
-        MainViewModel(AuthRepository(FakeAuthApi(), FakeTokenStore()), AppOpenReporter(eventApi, store, clock))
+        MainViewModel(
+            AuthRepository(FakeAuthApi(), FakeTokenStore()), AppOpenReporter(eventApi, store, clock), fakeOnboardingGate()
+        )
     }
 
     @Before
