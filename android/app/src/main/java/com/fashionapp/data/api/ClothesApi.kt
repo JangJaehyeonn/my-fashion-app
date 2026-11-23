@@ -1,6 +1,7 @@
 package com.fashionapp.data.api
 
 import com.fashionapp.data.model.ApiResponse
+import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesUpdateRequest
 import okhttp3.MultipartBody
@@ -20,6 +21,10 @@ interface ClothesApi {
 
     @GET("clothes")
     suspend fun getMyClothes(): ApiResponse<List<Clothes>>
+
+    // FR-09: total combos the closet can make
+    @GET("clothes/summary")
+    suspend fun getSummary(): ApiResponse<ClosetSummary>
 
     // FR-02: fields left null keep their current value on the server
     @PATCH("clothes/{id}")

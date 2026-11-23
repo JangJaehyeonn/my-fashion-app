@@ -199,3 +199,33 @@ data class ClosetOutfit(
 data class ClosetRecommendResponse(
     val outfits: List<ClosetOutfit>
 )
+
+// FR-09: GET /api/clothes/summary
+data class ClosetSummary(
+    val comboCount: Int
+)
+
+// FR-11 verdict, decided by backend rules
+enum class PurchaseVerdict(val label: String) {
+    BUY("사요"), THINK("고민해보세요"), SIMILAR("비슷한 게 있어요")
+}
+
+// FR-12: what the user did with a purchase check
+enum class PurchaseDecision {
+    BOUGHT, SKIPPED, UNDECIDED
+}
+
+// FR-12: GET /api/purchase-checks entry. imageUrl is set only for BOUGHT checks; price and plus may be null.
+data class PurchaseRecord(
+    val id: String,
+    val name: String?,
+    val category: ClothesCategory?,
+    val color: String?,
+    val price: Long?,
+    val verdict: PurchaseVerdict?,
+    val plus: Int?,
+    val decision: PurchaseDecision?,
+    val clothesId: String?,
+    val imageUrl: String?,
+    val createdAt: String?
+)

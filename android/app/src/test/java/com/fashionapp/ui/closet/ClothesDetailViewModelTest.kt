@@ -3,6 +3,7 @@ package com.fashionapp.ui.closet
 import androidx.lifecycle.SavedStateHandle
 import com.fashionapp.data.api.ClothesApi
 import com.fashionapp.data.model.ApiResponse
+import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
 import com.fashionapp.data.model.ClothesUpdateRequest
@@ -231,6 +232,8 @@ private class FakeClothesApi : ClothesApi {
         if (failList) throw RuntimeException("network")
         return ApiResponse(true, clothes, null)
     }
+
+    override suspend fun getSummary(): ApiResponse<ClosetSummary> = error("unused")
 
     override suspend fun update(id: String, request: ClothesUpdateRequest): ApiResponse<Clothes> {
         lastUpdate = request

@@ -1,6 +1,7 @@
 package com.fashionapp.data.repository
 
 import com.fashionapp.data.api.ClothesApi
+import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesUpdateRequest
 import okhttp3.MultipartBody
@@ -17,6 +18,10 @@ class ClothesRepository @Inject constructor(
 
     suspend fun getMyClothes(): Result<List<Clothes>> = runCatching {
         clothesApi.getMyClothes().data ?: emptyList()
+    }
+
+    suspend fun getSummary(): Result<ClosetSummary> = runCatching {
+        clothesApi.getSummary().data ?: error("옷장 요약 조회 실패")
     }
 
     suspend fun update(id: String, request: ClothesUpdateRequest): Result<Clothes> = runCatching {
