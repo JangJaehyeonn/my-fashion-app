@@ -1,0 +1,20 @@
+[
+  {"id": "t1", "category": "TOP", "color": "화이트", "fit": "레귤러", "material": "면", "pattern": "무지", "name": "옥스퍼드 셔츠"},
+  {"id": "t2", "category": "TOP", "color": "화이트", "fit": "오버핏", "material": "면", "pattern": "무지", "name": "옥스퍼드 셔츠"},
+  {"id": "t3", "category": "TOP", "color": "아이보리", "fit": "레귤러", "material": "면", "pattern": "무지", "name": "셔츠"},
+  {"id": "t4", "category": "TOP", "color": "블랙", "fit": "레귤러", "material": "면", "pattern": "무지", "name": "반팔 티셔츠"},
+  {"id": "t5", "category": "TOP", "color": "네이비", "fit": "레귤러", "material": "면", "pattern": "스트라이프", "name": "긴팔 티셔츠"},
+  {"id": "t6", "category": "TOP", "color": "그레이", "fit": "오버핏", "material": "니트", "pattern": "무지", "name": "라운드 니트"},
+  {"id": "t7", "category": "TOP", "color": "그레이", "fit": "레귤러", "material": "니트", "pattern": "무지", "name": "라운드 니트"},
+  {"id": "b1", "category": "BOTTOM", "color": "블루", "fit": "슬림", "material": "데님", "pattern": "무지", "name": "청바지"},
+  {"id": "b2", "category": "BOTTOM", "color": "블루", "fit": "와이드", "material": "데님", "pattern": "무지", "name": "청바지"},
+  {"id": "b3", "category": "BOTTOM", "color": "베이지", "fit": "레귤러", "material": "면", "pattern": "무지", "name": "치노 팬츠"},
+  {"id": "b4", "category": "BOTTOM", "color": "블랙", "fit": "슬림", "material": "울", "pattern": "무지", "name": "슬랙스"},
+  {"id": "b5", "category": "BOTTOM", "color": "차콜", "fit": "슬림", "material": "울", "pattern": "무지", "name": "슬랙스"},
+  {"id": "s1", "category": "SHOES", "color": "화이트", "material": "가죽", "name": "스니커즈"},
+  {"id": "s2", "category": "SHOES", "color": "화이트", "material": "캔버스", "name": "스니커즈"},
+  {"id": "s3", "category": "SHOES", "color": "블랙", "material": "가죽", "name": "로퍼"},
+  {"id": "o1", "category": "OUTER", "color": "베이지", "fit": "오버핏", "material": "면", "name": "트렌치 코트"},
+  {"id": "o2", "category": "OUTER", "color": "카멜", "fit": "레귤러", "material": "면", "name": "트렌치 코트"},
+  {"id": "o3", "category": "OUTER", "color": "블랙", "fit": "레귤러", "material": "가죽", "name": "라이더 재킷"}
+]

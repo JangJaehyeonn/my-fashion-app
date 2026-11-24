@@ -1,0 +1,45 @@
+[
+  {"id": "c01", "label": "어울림", "items": {
+    "top": {"color": "화이트", "season": "ALL", "pattern": "무지", "name": "옥스퍼드 셔츠"},
+    "bottom": {"color": "블루", "season": "ALL", "pattern": "무지", "name": "청바지"},
+    "shoes": {"color": "화이트", "name": "스니커즈"}}},
+  {"id": "c02", "label": "어울림", "items": {
+    "top": {"color": "네이비", "season": "SPRING", "pattern": "스트라이프", "name": "긴팔 티셔츠"},
+    "bottom": {"color": "베이지", "season": "ALL", "pattern": "무지", "name": "치노 팬츠"},
+    "shoes": {"color": "블랙", "name": "로퍼"},
+    "outer": {"color": "베이지", "season": "FALL", "name": "트렌치 코트"}}},
+  {"id": "c03", "label": "안 어울림", "items": {
+    "top": {"color": "레드", "season": "ALL", "pattern": "무지", "name": "맨투맨"},
+    "bottom": {"color": "그린", "season": "ALL", "pattern": "무지", "name": "카고 팬츠"},
+    "shoes": {"color": "화이트", "name": "스니커즈"}}},
+  {"id": "c04", "label": "안 어울림", "items": {
+    "top": {"color": "화이트", "season": "SUMMER", "pattern": "무지", "name": "린넨 셔츠"},
+    "bottom": {"color": "그레이", "season": "WINTER", "pattern": "무지", "name": "울 슬랙스"},
+    "shoes": {"color": "블랙", "name": "로퍼"}}},
+  {"id": "c05", "label": "안 어울림", "items": {
+    "top": {"color": "블루", "season": "ALL", "pattern": "체크", "name": "체크 셔츠"},
+    "bottom": {"color": "베이지", "season": "ALL", "pattern": "스트라이프", "name": "스트라이프 팬츠"},
+    "shoes": {"color": "화이트", "name": "스니커즈"}}},
+  {"id": "c06", "label": "어울림", "items": {
+    "top": {"color": "블랙", "season": "ALL", "pattern": "무지", "name": "반팔 티셔츠"},
+    "bottom": {"color": "블랙", "season": "ALL", "pattern": "무지", "name": "슬랙스"},
+    "shoes": {"color": "블랙", "name": "로퍼"},
+    "outer": {"color": "블랙", "season": "FALL", "name": "라이더 재킷"}}},
+  {"id": "c07", "label": "안 어울림", "items": {
+    "top": {"color": "오렌지", "season": "ALL", "pattern": "무지", "name": "니트"},
+    "bottom": {"color": "퍼플", "season": "ALL", "pattern": "무지", "name": "와이드 팬츠"},
+    "shoes": {"color": "화이트", "name": "스니커즈"}}},
+  {"id": "c08", "label": "안 어울림", "items": {
+    "top": {"color": "옐로", "season": "ALL", "pattern": "도트", "name": "도트 블라우스"},
+    "bottom": {"color": "핑크", "season": "ALL", "pattern": "무지", "name": "플리츠 스커트"},
+    "shoes": {"color": "그린", "name": "스니커즈"}}},
+  {"id": "c09", "label": "어울림", "items": {
+    "top": {"color": "레드", "season": "ALL", "pattern": "무지", "name": "니트"},
+    "bottom": {"color": "그린", "season": "ALL", "pattern": "체크", "name": "체크 스커트"},
+    "shoes": {"color": "블랙", "name": "메리제인"}}},
+  {"id": "c10", "label": "어울림", "items": {
+    "top": {"color": "그레이", "season": "WINTER", "pattern": "무지", "name": "라운드 니트"},
+    "bottom": {"color": "블루", "season": "ALL", "pattern": "무지", "name": "청바지"},
+    "shoes": {"color": "화이트", "name": "스니커즈"},
+    "outer": {"color": "카멜", "season": "WINTER", "name": "울 코트"}}}
+]
