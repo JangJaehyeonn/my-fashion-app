@@ -58,7 +58,7 @@
 | 피팅 | 쇼핑몰 상품 URL(무신사 앱 공유 링크 포함) → 옷 이미지 추출 → 내 전신 사진과 합성하는 **가상 피팅** |
 | 마이 | 키·몸무게·체형·**선호 스타일(복수 선택)** 설정, 프로필 요약 |
 
-> 내 옷 진단(코디 사진 → 점수·개선 제안)과 쇼핑 도우미(예산·상황 → 아이템 추천) API와 화면 코드는 남아 있지만, 현재 탭에는 노출하지 않습니다. 쇼핑 도우미는 피팅 탭에 통합할지 검토 중입니다.
+> 내 옷 진단(코디 사진 → 점수·개선 제안) API와 화면 코드는 남아 있지만, 현재 탭에는 노출하지 않습니다. 예산·상황으로 아이템을 추천하던 쇼핑 도우미는 지웠습니다 (FR-23).
 
 ---
 
@@ -264,7 +264,6 @@ erDiagram
 | Outfit 🔒 | POST | `/api/outfits/recommend/situation` | 옷장 무관 텍스트 추천 (k6 측정용) |
 | Vton 🔒 | POST | `/api/vton` | 전신 사진 + 옷 사진 → 가상 피팅 결과 이미지 |
 | Diagnosis 🔒 | POST / GET | `/api/diagnosis`, `/api/diagnosis/{id}` | 코디 사진 진단 (탭 미노출) |
-| Shopping 🔒 | POST | `/api/shopping/recommend` | 예산 + 상황 → 아이템 추천 (탭 미노출) |
 
 AI 서버(FastAPI)는 Spring Boot만 호출하는 내부 전용이며 `/ai/clothes/classify`, `/ai/outfits/recommend/closet`, `/ai/vton`, `/ai/weather` 등을 제공합니다.
 
@@ -281,7 +280,7 @@ my-fashion-app/
 │       └── ui/              # home, closet, fitting, mypage, login, theme, navigation
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/fashionapp/
-│       ├── domain/          # user, weather, outfit, clothes, vton, diagnosis, shopping
+│       ├── domain/          # user, weather, outfit, clothes, vton, diagnosis
 │       ├── global/          # config, jwt, exception
 │       └── infra/           # S3Uploader, AiServerClient
 ├── ai-server/               # FastAPI
@@ -366,7 +365,6 @@ JUnit5 + Mockito로 작성한 백엔드 테스트가 30건 이상이며(마지�
 - [x] 성능 개선(캐싱·비동기·이미지 압축)과 구간별 측정
 - [ ] Play Store 등록 (개인정보처리방침, 스토어 등록 정보)
 - [ ] 인증서 자동 갱신의 실제 갱신 동작 확인
-- [ ] 쇼핑 도우미를 피팅 탭에 통합
 - [ ] 운영 DB의 옛 `clothes` 테이블 정리
 - [ ] 가상 피팅 품질 개선(입력 사진 가이드, 전처리)
 
