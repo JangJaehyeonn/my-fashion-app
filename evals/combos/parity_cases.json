@@ -1,0 +1,18 @@
+{
+  "note": "FR-09 규칙 파일(backend/src/main/resources/rules/combo-rules.json) 기준 두 벌 호환 판정. 백엔드 ComboRulesEvalParityTest와 ai-server/tests/test_evals_combos.py가 같은 기대값을 확인한다.",
+  "cases": [
+    {"a": {"color": "레드"}, "b": {"color": "그린"}, "compatible": false},
+    {"a": {"color": " 그린 "}, "b": {"color": "레드"}, "compatible": false},
+    {"a": {"color": "레드"}, "b": {"color": "블랙"}, "compatible": true},
+    {"a": {"color": "오렌지"}, "b": {"color": "퍼플"}, "compatible": false},
+    {"a": {"color": "레드"}, "b": {"color": "레드"}, "compatible": true},
+    {"a": {"color": null}, "b": {"color": "그린"}, "compatible": true},
+    {"a": {"season": "SUMMER"}, "b": {"season": "WINTER"}, "compatible": false},
+    {"a": {"season": "summer"}, "b": {"season": "ALL"}, "compatible": true},
+    {"a": {"pattern": "체크"}, "b": {"pattern": "스트라이프"}, "compatible": false},
+    {"a": {"pattern": "도트"}, "b": {"pattern": "플로럴"}, "compatible": false},
+    {"a": {"pattern": "도트"}, "b": {"pattern": "체크"}, "compatible": true},
+    {"a": {"pattern": "체크", "fit": "슬림"}, "b": {"pattern": "무지", "fit": "슬림"}, "compatible": true},
+    {"a": {"color": "화이트", "season": "SUMMER"}, "b": {"color": "레드", "season": "WINTER"}, "compatible": false}
+  ]
+}
