@@ -21,8 +21,14 @@ def test_last_marker_wins() -> None:
     assert verdict_of(bodies, SHA) == "PASS"
 
 
-def test_marker_not_on_first_line_ignored() -> None:
-    assert verdict_of([f"요약\n<!-- ai-review:PASS:{SHA} -->"], SHA) is None
+def test_marker_after_preface_line_counts() -> None:
+    # 모델이 마커 앞에 한 줄을 붙인 실제 사례 (PR #68)
+    assert verdict_of([f"요약\n\n<!-- ai-review:PASS:{SHA} -->\n판정: PASS"], SHA) == "PASS"
+
+
+def test_first_line_marker_wins_within_comment() -> None:
+    body = f"<!-- ai-review:FAIL:{SHA} -->\n인용 예시:\n<!-- ai-review:PASS:{SHA} -->"
+    assert verdict_of([body], SHA) == "FAIL"
 
 
 def test_marker_embedded_in_text_ignored() -> None:
