@@ -18,7 +18,6 @@ const JWT_TOKEN = __ENV.JWT_TOKEN;
 
 const trendWeather = new Trend("latency_ai_weather", true);
 const trendSituationRecommend = new Trend("latency_ai_situation_recommend", true);
-const trendShoppingRecommend = new Trend("latency_ai_shopping_recommend", true);
 const errorRate = new Rate("error_rate");
 
 const headers = {
@@ -33,7 +32,6 @@ export const options = {
     latency_ai_weather: ["p(95)<3000"],
     // 추천 API는 GPT-4o 포함이므로 10초 이내 허용
     latency_ai_situation_recommend: ["p(95)<10000"],
-    latency_ai_shopping_recommend: ["p(95)<10000"],
     error_rate: ["rate<0.1"],
   },
 };
@@ -68,20 +66,6 @@ export default function () {
   errorRate.add(res.status !== 200);
   check(res, {
     "[POST /outfits/recommend/situation] status 200": (r) => r.status === 200,
-  });
-
-  sleep(2);
-
-  // 3. 쇼핑 도우미 추천 (GPT-4o — 예산 + 상황 + 체형 프로필 기반)
-  const shoppingBody = JSON.stringify({
-    budget: 150000,
-    situation: "출근",
-  });
-  res = http.post(`${BASE_URL}/api/shopping/recommend`, shoppingBody, { headers });
-  trendShoppingRecommend.add(res.timings.duration);
-  errorRate.add(res.status !== 200);
-  check(res, {
-    "[POST /shopping/recommend] status 200": (r) => r.status === 200,
   });
 
   sleep(2);

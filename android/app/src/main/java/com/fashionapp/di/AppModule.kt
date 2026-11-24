@@ -7,7 +7,6 @@ import com.fashionapp.data.api.DiagnosisApi
 import com.fashionapp.data.api.EventApi
 import com.fashionapp.data.api.OutfitApi
 import com.fashionapp.data.api.PurchaseCheckApi
-import com.fashionapp.data.api.ShoppingApi
 import com.fashionapp.data.api.VtonApi
 import com.fashionapp.data.api.WearApi
 import dagger.Module
@@ -39,11 +38,6 @@ object AppModule {
     @Singleton
     fun provideDiagnosisApi(apiClient: ApiClient): DiagnosisApi =
         apiClient.retrofit.create(DiagnosisApi::class.java)
-
-    @Provides
-    @Singleton
-    fun provideShoppingApi(apiClient: ApiClient): ShoppingApi =
-        apiClient.retrofit.create(ShoppingApi::class.java)
 
     // Injected so date formatting in ViewModels is testable with a fixed zone
     @Provides

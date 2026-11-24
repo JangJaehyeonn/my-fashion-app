@@ -92,21 +92,6 @@ public class AiServerClient {
         }, aiServerExecutor);
     }
 
-    public CompletableFuture<AiShoppingRecommendResponse> recommendShopping(AiShoppingRecommendRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return restClient.post()
-                        .uri(aiServerUrl + "/ai/shopping/recommend")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(request)
-                        .retrieve()
-                        .body(AiShoppingRecommendResponse.class);
-            } catch (RestClientException e) {
-                throw toAiException("shopping recommend", e);
-            }
-        }, aiServerExecutor);
-    }
-
     public CompletableFuture<AiVtonResponse> virtualTryOn(MultipartFile personImage, MultipartFile garmentImage, String garmentDesc) {
         return CompletableFuture.supplyAsync(() -> {
             try {

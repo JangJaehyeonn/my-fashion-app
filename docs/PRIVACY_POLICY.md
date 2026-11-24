@@ -41,7 +41,6 @@
 | 리프레시 토큰 14일, 로그인 실패 기록 5분 | `application.yml`(`refresh-token-expiry`), `AuthTokenService`, `LoginAttemptLimiter` |
 | 가상 피팅 동의: 첫 사용 시 동의, 시각 저장, 철회 가능, 미동의면 전송 안 함 | `User.vtonConsentAt`, `POST/DELETE /api/users/me/consents/vton`, `VtonService`(미동의 403, AI 호출 전), 앱 `FittingScreen` 동의 다이얼로그·상시 안내, 마이 탭 철회 (`VtonConsentIntegrationTest`) |
 | 만 14세 이상 확인: 아이디 가입·소셜 첫 가입 모두, 시각 저장 | `SignupRequest.ageOver14`, `User.ageConfirmedAt`, `AgeGateInterceptor`, 앱 `AgeGateScreen` (`AgeGateIntegrationTest`) |
-| OpenAI 이전 항목에 쇼핑 예산 포함 | `ai-server/app/services/shopping_service.py` 프롬프트 |
 | Hugging Face Space 운영자 | `ai-server/app/core/config.py` `hf_vton_space_id = "yisol/IDM-VTON"` |
 | 살까 말까 사진 30분 임시 보관, 결정 즉시·30분 뒤 삭제, 사면 옷장 사진으로 이동 | `PurchaseCheck.PHOTO_TTL`(30분), `PurchaseRecordService.finish`·`buy`, `PurchaseTempPhotoCleaner.deleteExpiredPhotos`(1분마다), Redis 임시 속성 `PurchaseDraftStore` |
 | 살까 말까 기록: 사진 없이 이름·카테고리·색상·가격·판정·코디 수·결정 | `PurchaseCheck`(`purchase_checks`), `PurchaseRecordResponse` |

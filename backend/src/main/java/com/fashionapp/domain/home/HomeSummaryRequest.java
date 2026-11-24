@@ -9,5 +9,4 @@ public class HomeSummaryRequest {
     private double temperature;
     private String condition;
     private String situation;
-    private int budget;
 }

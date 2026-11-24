@@ -5,8 +5,6 @@ import com.fashionapp.domain.user.UserRepository;
 import com.fashionapp.global.exception.CustomException;
 import com.fashionapp.global.exception.ErrorCode;
 import com.fashionapp.infra.AiServerClient;
-import com.fashionapp.infra.AiShoppingRecommendRequest;
-import com.fashionapp.infra.AiShoppingRecommendResponse;
 import com.fashionapp.infra.AiSituationRecommendRequest;
 import com.fashionapp.infra.AiSituationRecommendResponse;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 @Service
@@ -40,24 +37,13 @@ public class HomeService {
                 new AiSituationRecommendRequest.BodyProfile(user.getHeight(), user.getWeight(), bodyType, preferredStyle, preferredStyles)
         );
 
-        AiShoppingRecommendRequest shoppingRequest = new AiShoppingRecommendRequest(
-                request.getBudget(),
-                request.getSituation(),
-                new AiShoppingRecommendRequest.BodyProfile(user.getHeight(), user.getWeight(), bodyType, preferredStyle, preferredStyles)
-        );
-
-        CompletableFuture<AiSituationRecommendResponse> outfitFuture = aiServerClient.recommendOutfitsBySituation(outfitRequest);
-        CompletableFuture<AiShoppingRecommendResponse> shoppingFuture = aiServerClient.recommendShopping(shoppingRequest);
-
         try {
-            CompletableFuture.allOf(outfitFuture, shoppingFuture).join();
+            return new HomeSummaryResponse(aiServerClient.recommendOutfitsBySituation(outfitRequest).join());
         } catch (CompletionException e) {
             if (e.getCause() instanceof CustomException customException) {
                 throw customException;
             }
             throw e;
         }
-
-        return new HomeSummaryResponse(outfitFuture.join(), shoppingFuture.join());
     }
 }
