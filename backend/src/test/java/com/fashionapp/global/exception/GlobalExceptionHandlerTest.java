@@ -4,7 +4,9 @@ import com.fashionapp.global.common.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,5 +32,17 @@ class GlobalExceptionHandlerTest {
     void successHasNoCode() throws Exception {
         String json = mapper.writeValueAsString(ApiResponse.success("ok"));
         assertThat(mapper.readTree(json).has("code")).isFalse();
+    }
+
+    @Test
+    @DisplayName("매핑되지 않은 주소는 500이 아니라 404 API_NOT_FOUND다 (FR-23)")
+    void unmappedPathIsNotFound() throws Exception {
+        ResponseEntity<ApiResponse<Void>> res = new GlobalExceptionHandler()
+                .handleNotFound(new NoResourceFoundException(HttpMethod.POST, "api/removed"));
+
+        assertThat(res.getStatusCode().value()).isEqualTo(404);
+        String json = mapper.writeValueAsString(res.getBody());
+        assertThat(mapper.readTree(json).get("code").asText()).isEqualTo("API_NOT_FOUND");
+        assertThat(mapper.readTree(json).get("success").asBoolean()).isFalse();
     }
 }
