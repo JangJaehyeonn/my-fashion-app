@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,6 +57,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import coil.compose.AsyncImage
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fashionapp.data.model.Situation
@@ -80,6 +82,11 @@ fun HomeScreen(
     // Read so the buttons recompose when a record starts or finishes
     val recordedLooks by wearViewModel.recorded.collectAsState()
     val savingLooks by wearViewModel.saving.collectAsState()
+    val launderedLooks by wearViewModel.laundered.collectAsState()
+    val launderSavingLooks by wearViewModel.launderSaving.collectAsState()
+    val timeline by viewModel.timeline.collectAsState()
+    val ruleNotes by viewModel.ruleNotes.collectAsState()
+    val availabilityText by viewModel.availabilityText.collectAsState()
     val weather by viewModel.weather.collectAsState()
     val isWeatherLoading by viewModel.isWeatherLoading.collectAsState()
     val selectedSituation by viewModel.selectedSituation.collectAsState()
@@ -125,7 +132,11 @@ fun HomeScreen(
     }
 
     // FR-20: this week's wear card follows the server every time the home tab shows
-    LaunchedEffect(Unit) { wearViewModel.loadSummary() }
+    LaunchedEffect(Unit) {
+        wearViewModel.loadSummary()
+        // FR-30: commute times saved on the my tab change the timeline moments
+        viewModel.refreshTimeline()
+    }
 
     LaunchedEffect(wearMessage) {
         wearMessage?.let {
@@ -169,6 +180,8 @@ fun HomeScreen(
                 weather = weather,
                 isLoading = isWeatherLoading,
                 locationLabel = locationLabel,
+                timeline = timeline,
+                ruleNotes = ruleNotes,
                 onRetry = viewModel::loadWeather,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
@@ -217,11 +230,18 @@ fun HomeScreen(
                 val wearStateOf: (LookCard) -> WearButtonState = remember(recordedLooks, savingLooks) {
                     { look -> wearViewModel.buttonState(look) }
                 }
+                val laundryStateOf: (LookCard) -> LaundryButtonState =
+                    remember(recordedLooks, savingLooks, launderedLooks, launderSavingLooks) {
+                        { look -> wearViewModel.laundryState(look) }
+                    }
                 LookPager(
                     looks = looks,
                     situation = selectedSituation,
+                    availabilityText = availabilityText,
                     wearStateOf = wearStateOf,
-                    onWorn = wearViewModel::recordWorn
+                    laundryStateOf = laundryStateOf,
+                    onWorn = wearViewModel::recordWorn,
+                    onLaundry = wearViewModel::putInLaundry
                 )
             }
 
@@ -238,16 +258,66 @@ private fun WeatherCard(
     weather: Weather?,
     isLoading: Boolean,
     locationLabel: String,
+    timeline: CommuteTimeline?,
+    ruleNotes: List<String>,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 테두리 없는 베이지 한 줄 — 기온을 크게, 나머지는 보조 정보로
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(WearonShapes.Card)
             .background(WearonColors.Beige)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp)
+    ) {
+        CurrentWeatherRow(weather, isLoading, locationLabel, onRetry)
+        // FR-30: going out -> midday -> coming back, and the rule lines of the last recommendation
+        if (weather != null && !isLoading) {
+            timeline?.let {
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(WearonColors.BeigeDeep.copy(alpha = 0.4f)))
+                Spacer(Modifier.height(10.dp))
+                TimelineRow(it)
+            }
+            ruleNotes.forEach { note ->
+                Spacer(Modifier.height(6.dp))
+                Text(note, fontSize = 12.sp, color = WearonColors.Ink)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineRow(timeline: CommuteTimeline) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            timeline.pointsText,
+            fontSize = 13.sp,
+            color = WearonColors.Ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            timeline.rangeText,
+            fontSize = 13.sp,
+            fontWeight = if (timeline.rangeEmphasized) FontWeight.Bold else FontWeight.Normal,
+            color = if (timeline.rangeEmphasized) WearonColors.Ink else WearonColors.SubText
+        )
+    }
+}
+
+@Composable
+private fun CurrentWeatherRow(
+    weather: Weather?,
+    isLoading: Boolean,
+    locationLabel: String,
+    onRetry: () -> Unit
+) {
+    // 기온을 크게, 나머지는 보조 정보로
+    Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         when {
@@ -269,7 +339,7 @@ private fun WeatherCard(
             else -> {
                 Text(
                     "${weather.temperature.toInt()}°",
-                    fontSize = 34.sp,
+                    fontSize = 40.sp,
                     fontWeight = FontWeight.Light,
                     letterSpacing = (-1).sp,
                     color = WearonColors.Ink
@@ -330,8 +400,11 @@ private fun SituationChips(selected: Situation, onSelect: (Situation) -> Unit) {
 private fun LookPager(
     looks: List<LookCard>,
     situation: Situation,
+    availabilityText: String?,
     wearStateOf: (LookCard) -> WearButtonState,
-    onWorn: (LookCard) -> Unit
+    laundryStateOf: (LookCard) -> LaundryButtonState,
+    onWorn: (LookCard) -> Unit,
+    onLaundry: (LookCard) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { looks.size })
     // 추천이 새로 오면 첫 장부터 다시 보여줌
@@ -346,6 +419,10 @@ private fun LookPager(
             Spacer(Modifier.width(6.dp))
             Text("${situation.label} · ${looks.size}", fontSize = 13.sp, color = WearonColors.SubText)
         }
+        availabilityText?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, fontSize = 12.sp, color = WearonColors.SubText, modifier = Modifier.padding(horizontal = 20.dp))
+        }
         Spacer(Modifier.height(14.dp))
 
         HorizontalPager(
@@ -358,6 +435,7 @@ private fun LookPager(
                 LookCardView(index = page, look = looks[page])
                 Spacer(Modifier.height(10.dp))
                 WornTodayButton(state = wearStateOf(looks[page]), onClick = { onWorn(looks[page]) })
+                LaundryButton(state = laundryStateOf(looks[page]), onClick = { onLaundry(looks[page]) })
             }
         }
 
@@ -405,16 +483,20 @@ private fun LookCardView(index: Int, look: LookCard) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { item ->
                         Column(modifier = Modifier.weight(1f)) {
-                            AsyncImage(
-                                model = item.imageUrl,
-                                contentDescription = item.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(4f / 5f)
-                                    .clip(WearonShapes.Image)
-                                    .background(WearonColors.Beige)
-                            )
+                            Box {
+                                AsyncImage(
+                                    model = item.imageUrl,
+                                    contentDescription = item.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(4f / 5f)
+                                        .clip(WearonShapes.Image)
+                                        .background(WearonColors.Beige)
+                                )
+                                // FR-29/FR-30: the long-unworn piece this look brings back
+                                if (item.id == look.revivedClothesId) RevivedBadge(Modifier.align(Alignment.TopStart).padding(6.dp))
+                            }
                             Spacer(Modifier.height(6.dp))
                             Text(item.category.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = WearonColors.Ink)
                             Text(
@@ -471,6 +553,39 @@ private fun WornTodayButton(state: WearButtonState, onClick: () -> Unit) {
             }
             WearButtonState.IDLE -> Text("오늘 이거 입었어요", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
+    }
+}
+
+@Composable
+private fun RevivedBadge(modifier: Modifier = Modifier) {
+    Text(
+        HomeTexts.REVIVED_BADGE,
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.White,
+        modifier = modifier
+            .clip(WearonShapes.Image)
+            .background(WearonColors.Accent)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    )
+}
+
+// FR-30 text button under a recorded look: puts its pieces in the laundry basket
+@Composable
+private fun LaundryButton(state: LaundryButtonState, onClick: () -> Unit) {
+    val label = state.label ?: return
+    TextButton(
+        onClick = onClick,
+        enabled = state == LaundryButtonState.IDLE,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = if (state == LaundryButtonState.IDLE) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (state == LaundryButtonState.IDLE) WearonColors.Ink else WearonColors.SubText,
+            textDecoration = if (state == LaundryButtonState.IDLE) TextDecoration.Underline else TextDecoration.None
+        )
     }
 }
 

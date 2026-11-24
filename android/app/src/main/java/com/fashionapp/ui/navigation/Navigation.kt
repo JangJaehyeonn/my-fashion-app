@@ -29,6 +29,7 @@ import com.fashionapp.ui.home.HomeScreen
 import com.fashionapp.ui.login.LoginScreen
 import com.fashionapp.ui.mypage.BodyProfileScreen
 import com.fashionapp.ui.mypage.ChangePasswordScreen
+import com.fashionapp.ui.mypage.CommuteSettingsScreen
 import com.fashionapp.ui.mypage.MyPageScreen
 import com.fashionapp.ui.onboarding.OnboardingScreen
 import com.fashionapp.ui.purchase.PurchaseCheckScreen
@@ -50,6 +51,7 @@ object Route {
     const val BODY_PROFILE = "body_profile"
     const val SIGNUP = "signup"
     const val CHANGE_PASSWORD = "change_password"
+    const val COMMUTE_SETTINGS = "commute_settings"
     const val AGE_GATE = "age_gate"
     const val ONBOARDING = "onboarding"
     const val VTON = "vton/{garmentDesc}"
@@ -246,7 +248,14 @@ fun AppNavigation(mainViewModel: MainViewModel) {
                             }
                         },
                         onEditBodyProfile = { navController.navigate(Route.BODY_PROFILE) },
-                        onChangePassword = { navController.navigate(Route.CHANGE_PASSWORD) }
+                        onChangePassword = { navController.navigate(Route.CHANGE_PASSWORD) },
+                        onEditCommute = { navController.navigate(Route.COMMUTE_SETTINGS) }
+                    )
+                }
+                composable(Route.COMMUTE_SETTINGS) {
+                    CommuteSettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onSaved = { navController.popBackStack() }
                     )
                 }
                 composable(Route.CHANGE_PASSWORD) {

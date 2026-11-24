@@ -36,8 +36,14 @@ object ClosetList {
     /** Classified, the server says it was never worn. Unknown (null) counts are not treated as zero. */
     fun isUnworn(clothes: Clothes): Boolean = !clothes.isUnclassified && clothes.wearCount == 0
 
-    fun filter(clothes: List<Clothes>, category: ClothesCategory?): List<Clothes> =
-        if (category == null) clothes else clothes.filter { it.category == category }
+    /** [laundryOnly] (FR-30 laundry basket chip) shows only pieces in the laundry, across all categories. */
+    fun filter(clothes: List<Clothes>, category: ClothesCategory?, laundryOnly: Boolean = false): List<Clothes> = when {
+        laundryOnly -> clothes.filter { it.isInLaundry }
+        category == null -> clothes
+        else -> clothes.filter { it.category == category }
+    }
+
+    fun laundryCount(clothes: List<Clothes>): Int = clothes.count { it.isInLaundry }
 
     fun sort(clothes: List<Clothes>, sort: ClosetSort): List<Clothes> = clothes.sortedWith(comparator(sort))
 

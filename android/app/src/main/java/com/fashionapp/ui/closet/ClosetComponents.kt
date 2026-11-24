@@ -95,7 +95,10 @@ private fun SummaryDivider() {
 internal fun CategoryChips(
     selected: ClothesCategory?,
     counts: Map<ClothesCategory?, Int>,
-    onSelect: (ClothesCategory?) -> Unit
+    onSelect: (ClothesCategory?) -> Unit,
+    laundryCount: Int = 0,
+    laundryOnly: Boolean = false,
+    onLaundry: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -104,27 +107,67 @@ internal fun CategoryChips(
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // FR-30: the laundry basket comes first, only while something is in the laundry (outlined chip)
+        if (laundryCount > 0) {
+            Chip("세탁 바구니 $laundryCount", isSelected = laundryOnly, borderColor = WearonColors.Ink, onClick = onLaundry)
+        }
         CATEGORY_CHIPS.forEach { category ->
-            val isSelected = category == selected
-            // 44dp touch target around the 38dp chip
-            Box(
-                modifier = Modifier.heightIn(min = 44.dp).clickable { onSelect(category) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "${category?.label ?: "전체"} ${counts[category] ?: 0}",
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) Color.White else WearonColors.Ink,
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(CircleShape)
-                        .background(if (isSelected) WearonColors.Ink else WearonColors.White)
-                        .border(1.dp, if (isSelected) WearonColors.Ink else WearonColors.Line, CircleShape)
-                        .padding(horizontal = 14.dp)
-                        .wrapContentHeight(Alignment.CenterVertically)
-                )
-            }
+            Chip(
+                "${category?.label ?: "전체"} ${counts[category] ?: 0}",
+                isSelected = !laundryOnly && category == selected,
+                onClick = { onSelect(category) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun Chip(text: String, isSelected: Boolean, borderColor: Color = WearonColors.Line, onClick: () -> Unit) {
+    // 44dp touch target around the 38dp chip
+    Box(
+        modifier = Modifier.heightIn(min = 44.dp).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text,
+            fontSize = 13.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) Color.White else WearonColors.Ink,
+            modifier = Modifier
+                .height(38.dp)
+                .clip(CircleShape)
+                .background(if (isSelected) WearonColors.Ink else WearonColors.White)
+                .border(1.dp, if (isSelected) WearonColors.Ink else borderColor, CircleShape)
+                .padding(horizontal = 14.dp)
+                .wrapContentHeight(Alignment.CenterVertically)
+        )
+    }
+}
+
+// FR-30: bottom button of the laundry basket view, makes every piece in the laundry available again
+@Composable
+internal fun FinishLaundryBar(count: Int, isSaving: Boolean, onFinish: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(WearonColors.Ivory)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(WearonShapes.Card)
+                .background(if (isSaving) WearonColors.Line else WearonColors.Ink)
+                .clickable(enabled = !isSaving, onClick = onFinish),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (isSaving) "처리 중…" else "세탁 끝 · ${count}벌",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
         }
     }
 }

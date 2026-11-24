@@ -6,6 +6,8 @@ import com.fashionapp.data.model.ApiResponse
 import com.fashionapp.data.model.ClosetSummary
 import com.fashionapp.data.model.Clothes
 import com.fashionapp.data.model.ClothesCategory
+import com.fashionapp.data.model.ClothesStatusRequest
+import com.fashionapp.data.model.ClothesStatusResult
 import com.fashionapp.data.model.ClothesUpdateRequest
 import com.fashionapp.data.model.WearRecordRequest
 import com.fashionapp.data.model.WearRecordResult
@@ -27,7 +29,9 @@ import kotlinx.coroutines.test.setMain
 import okhttp3.MultipartBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -188,11 +192,100 @@ class ClosetViewModelTest {
         assertEquals("아직 안 입었어요", ClosetList.wearLabel(shirt))
         assertNull(ClosetList.wearLabel(knit.copy(wearCount = null)))
     }
+
+    // ---- FR-30 laundry basket ----
+
+    private fun TestScope.withLaundry(): ClosetViewModel {
+        val vm = loaded()
+        clothesApi.clothes = listOf(knit.copy(status = "LAUNDRY"), shirt, jeans.copy(status = "LAUNDRY"), boots, unknown)
+        vm.laundryCount.launchIn(backgroundScope)
+        vm.loadClothes()
+        advanceUntilIdle()
+        return vm
+    }
+
+    @Test
+    fun `the laundry chip counts pieces in the laundry and is hidden without any`() = runTest(dispatcher) {
+        val plain = loaded()
+        plain.laundryCount.launchIn(backgroundScope)
+        advanceUntilIdle()
+        assertEquals(0, plain.laundryCount.value)
+
+        val vm = withLaundry()
+        assertEquals(2, vm.laundryCount.value)
+        assertEquals(ClothesBadge.LAUNDRY, ClosetList.badge(vm.filteredClothes.value.first { it.id == "knit" }, emptySet()))
+    }
+
+    @Test
+    fun `the laundry chip shows only pieces in the laundry and a category chip goes back`() = runTest(dispatcher) {
+        val vm = withLaundry()
+        vm.selectCategory(ClothesCategory.TOP)
+
+        vm.showLaundry()
+        advanceUntilIdle()
+        assertTrue(vm.laundryOnly.value)
+        assertNull(vm.selectedCategory.value)
+        assertEquals(setOf("knit", "jeans"), vm.ids().toSet())
+
+        vm.selectCategory(null)
+        advanceUntilIdle()
+        assertFalse(vm.laundryOnly.value)
+        assertEquals(5, vm.ids().size)
+    }
+
+    @Test
+    fun `finishing the laundry makes every laundry piece available in one request and removes the badge`() = runTest(dispatcher) {
+        val vm = withLaundry()
+        vm.showLaundry()
+        advanceUntilIdle()
+
+        vm.finishLaundry()
+        advanceUntilIdle()
+
+        assertEquals(listOf(ClothesStatusRequest(listOf("knit", "jeans"), "AVAILABLE")), clothesApi.statusRequests)
+        assertEquals(0, vm.laundryCount.value)
+        assertFalse(vm.laundryOnly.value)
+        assertTrue(vm.filteredClothes.value.none { ClosetList.badge(it, emptySet()) == ClothesBadge.LAUNDRY })
+        assertEquals("세탁을 끝냈어요. 2벌을 다시 입을 수 있어요", vm.message.value)
+    }
+
+    @Test
+    fun `a failed laundry finish keeps the basket and shows a message`() = runTest(dispatcher) {
+        val vm = withLaundry()
+        vm.showLaundry()
+        clothesApi.failStatus = true
+
+        vm.finishLaundry()
+        advanceUntilIdle()
+
+        assertEquals(2, vm.laundryCount.value)
+        assertTrue(vm.laundryOnly.value)
+        assertEquals("세탁 끝 처리에 실패했어요. 다시 시도해 주세요.", vm.message.value)
+    }
+
+    @Test
+    fun `finishing with nothing in the laundry sends nothing`() = runTest(dispatcher) {
+        val vm = loaded()
+        vm.finishLaundry()
+        advanceUntilIdle()
+
+        assertTrue(clothesApi.statusRequests.isEmpty())
+    }
 }
 
 private class ClosetFakeClothesApi : ClothesApi {
     var clothes: List<Clothes> = emptyList()
     var failSummary = false
+    var failStatus = false
+    val statusRequests = mutableListOf<ClothesStatusRequest>()
+
+    // Like the server: the listed pieces get the new status
+    override suspend fun updateStatus(request: ClothesStatusRequest): ApiResponse<ClothesStatusResult> {
+        statusRequests += request
+        if (failStatus) throw RuntimeException("network")
+        clothes = clothes.map { if (it.id in request.clothesIds) it.copy(status = request.status) else it }
+        return ApiResponse(true, ClothesStatusResult(request.clothesIds, request.status, null), null)
+    }
 
     override suspend fun register(image: MultipartBody.Part): ApiResponse<Clothes> = error("unused")
 

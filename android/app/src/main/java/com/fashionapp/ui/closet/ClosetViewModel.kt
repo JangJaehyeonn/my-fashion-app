@@ -46,6 +46,13 @@ class ClosetViewModel @Inject constructor(
     private val _selectedCategory = MutableStateFlow<ClothesCategory?>(null)
     val selectedCategory = _selectedCategory.asStateFlow()
 
+    // FR-30: the laundry basket chip shows pieces in the laundry only (with the "세탁 끝" button)
+    private val _laundryOnly = MutableStateFlow(false)
+    val laundryOnly = _laundryOnly.asStateFlow()
+
+    private val _isFinishingLaundry = MutableStateFlow(false)
+    val isFinishingLaundry = _isFinishingLaundry.asStateFlow()
+
     // FR-19: default order is most combos first
     private val _sort = MutableStateFlow(ClosetSort.MOST_COMBOS)
     val sort = _sort.asStateFlow()
@@ -55,9 +62,14 @@ class ClosetViewModel @Inject constructor(
 
     // 파생 상태는 plain getter가 아니라 combine().stateIn()으로 노출해야 Compose가 변경을 감지함
     val filteredClothes: StateFlow<List<Clothes>> =
-        combine(_clothes, _selectedCategory, _sort) { clothes, category, sort ->
-            ClosetList.sort(ClosetList.filter(clothes, category), sort)
+        combine(_clothes, _selectedCategory, _sort, _laundryOnly) { clothes, category, sort, laundryOnly ->
+            ClosetList.sort(ClosetList.filter(clothes, category, laundryOnly), sort)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** FR-30 "세탁 바구니 N" chip; the chip is hidden at 0. */
+    val laundryCount: StateFlow<Int> =
+        _clothes.map { ClosetList.laundryCount(it) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val countByCategory: StateFlow<Map<ClothesCategory?, Int>> =
         _clothes.map { ClosetList.countByCategory(it) }
@@ -91,7 +103,11 @@ class ClosetViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             clothesRepository.getMyClothes()
-                .onSuccess { _clothes.value = it }
+                .onSuccess { clothes ->
+                    _clothes.value = clothes
+                    // Nothing left in the laundry (e.g. its days passed): the basket chip is gone, go back to all
+                    if (ClosetList.laundryCount(clothes) == 0) _laundryOnly.value = false
+                }
                 .onFailure { _message.value = "옷장을 불러오지 못했어요." }
             _isLoading.value = false
         }
@@ -109,7 +125,32 @@ class ClosetViewModel @Inject constructor(
     }
 
     fun selectCategory(category: ClothesCategory?) {
+        _laundryOnly.value = false
         _selectedCategory.value = category
+    }
+
+    /** FR-30 laundry basket chip: pieces in the laundry only. */
+    fun showLaundry() {
+        _selectedCategory.value = null
+        _laundryOnly.value = true
+    }
+
+    /** FR-30 "세탁 끝": every piece in the laundry becomes available again in one request. */
+    fun finishLaundry() {
+        val ids = _clothes.value.filter { it.isInLaundry }.map { it.id }
+        if (ids.isEmpty() || _isFinishingLaundry.value) return
+        viewModelScope.launch {
+            _isFinishingLaundry.value = true
+            clothesRepository.finishLaundry(ids)
+                .onSuccess {
+                    _clothes.update { list -> list.map { if (it.id in ids) it.copy(status = ClothesRepository.STATUS_AVAILABLE) else it } }
+                    _laundryOnly.value = false
+                    _message.value = "세탁을 끝냈어요. ${ids.size}벌을 다시 입을 수 있어요"
+                    loadClothes()
+                }
+                .onFailure { _message.value = "세탁 끝 처리에 실패했어요. 다시 시도해 주세요." }
+            _isFinishingLaundry.value = false
+        }
     }
 
     fun selectSort(sort: ClosetSort) {
@@ -118,6 +159,7 @@ class ClosetViewModel @Inject constructor(
 
     /** Summary row "잘 안 입는 옷": least worn first across all categories. */
     fun showUnworn() {
+        _laundryOnly.value = false
         _selectedCategory.value = null
         _sort.value = ClosetSort.LEAST_WORN
     }

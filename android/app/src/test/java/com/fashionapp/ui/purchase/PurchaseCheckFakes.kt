@@ -97,6 +97,10 @@ class FakePurchaseCheckApi : PurchaseCheckApi {
 
 /** Closet list used for similar/combo photos. */
 class FakeClothesApi : ClothesApi {
+    override suspend fun updateStatus(
+        request: com.fashionapp.data.model.ClothesStatusRequest
+    ): ApiResponse<com.fashionapp.data.model.ClothesStatusResult> = error("unused")
+
     var clothes: List<Clothes> = listOf(
         Clothes("c1", "/api/images/c1.jpg", ClothesCategory.TOP, "회색", "회색 니트", null),
         Clothes("c2", "/api/images/c2.jpg", ClothesCategory.BOTTOM, "검정", "슬랙스", null)

@@ -81,6 +81,9 @@ fun ClosetScreen(
     val sort by viewModel.sort.collectAsState()
     val summary by viewModel.summary.collectAsState()
     val boughtIds by viewModel.boughtIds.collectAsState()
+    val laundryCount by viewModel.laundryCount.collectAsState()
+    val laundryOnly by viewModel.laundryOnly.collectAsState()
+    val isFinishingLaundry by viewModel.isFinishingLaundry.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val registerProgress by viewModel.registerProgress.collectAsState()
     val isRegistering = registerProgress != null
@@ -132,7 +135,12 @@ fun ClosetScreen(
         containerColor = WearonColors.Ivory,
         // 바깥 AppNavigation Scaffold가 이미 시스템 바 인셋을 적용하므로 중복 적용 방지
         contentWindowInsets = WindowInsets(0),
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            if (laundryOnly && laundryCount > 0) {
+                FinishLaundryBar(count = laundryCount, isSaving = isFinishingLaundry, onFinish = viewModel::finishLaundry)
+            }
+        }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             Row(
@@ -184,7 +192,10 @@ fun ClosetScreen(
             CategoryChips(
                 selected = selectedCategory,
                 counts = counts,
-                onSelect = viewModel::selectCategory
+                onSelect = viewModel::selectCategory,
+                laundryCount = laundryCount,
+                laundryOnly = laundryOnly,
+                onLaundry = viewModel::showLaundry
             )
             SortRow(count = clothes.size, selected = sort, onSelect = viewModel::selectSort)
 

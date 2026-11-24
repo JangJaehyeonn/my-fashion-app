@@ -3,6 +3,7 @@ package com.fashionapp.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fashionapp.data.repository.ClosetChanges
+import com.fashionapp.data.repository.ClothesRepository
 import com.fashionapp.data.repository.WearRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +16,14 @@ import javax.inject.Inject
 
 /** FR-20 '오늘 이거 입었어요' button of one look card. */
 enum class WearButtonState { IDLE, SAVING, DONE }
+
+/** FR-30 '입은 옷 세탁에 넣기' text button under a recorded look. HIDDEN until the look is recorded as worn. */
+enum class LaundryButtonState(val label: String?) {
+    HIDDEN(null),
+    IDLE("입은 옷 세탁에 넣기"),
+    SAVING("세탁 바구니에 넣는 중…"),
+    DONE("세탁 바구니에 넣었어요")
+}
 
 /** FR-20 home card "이번 주 착용 기록 N회" + "가장 많이 입은 옷: {이름} · N회" (null fields = not shown). */
 data class WeekWearCard(
@@ -30,6 +39,7 @@ data class WeekWearCard(
 class HomeWearViewModel @Inject constructor(
     private val wearRepository: WearRepository,
     private val closetChanges: ClosetChanges,
+    private val clothesRepository: ClothesRepository,
     private val clock: Clock
 ) : ViewModel() {
 
@@ -42,6 +52,13 @@ class HomeWearViewModel @Inject constructor(
 
     private val _saving = MutableStateFlow<Set<String>>(emptySet())
     val saving = _saving.asStateFlow()
+
+    // FR-30 looks whose pieces were put in the laundry in this session, and those being sent
+    private val _laundered = MutableStateFlow<Set<String>>(emptySet())
+    val laundered = _laundered.asStateFlow()
+
+    private val _launderSaving = MutableStateFlow<Set<String>>(emptySet())
+    val launderSaving = _launderSaving.asStateFlow()
 
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
@@ -85,6 +102,32 @@ class HomeWearViewModel @Inject constructor(
         }
     }
 
+    fun laundryState(look: LookCard): LaundryButtonState {
+        val key = keyOf(look)
+        return when {
+            buttonState(look) != WearButtonState.DONE -> LaundryButtonState.HIDDEN
+            key in _launderSaving.value -> LaundryButtonState.SAVING
+            key in _laundered.value || look.items.all { it.isInLaundry } -> LaundryButtonState.DONE
+            else -> LaundryButtonState.IDLE
+        }
+    }
+
+    /** FR-30: puts the worn pieces in the laundry (FR-27); they leave the next recommendations and get the closet badge. */
+    fun putInLaundry(look: LookCard) {
+        if (laundryState(look) != LaundryButtonState.IDLE) return
+        val key = keyOf(look)
+        _launderSaving.update { it + key }
+        viewModelScope.launch {
+            clothesRepository.putInLaundry(look.items.map { it.id })
+                .onSuccess {
+                    _laundered.update { it + key }
+                    closetChanges.notifyChanged()
+                }
+                .onFailure { _message.value = MSG_LAUNDRY_FAILED }
+            _launderSaving.update { it - key }
+        }
+    }
+
     fun clearMessage() { _message.value = null }
 
     // Every piece already has today's wear on the server (e.g. recorded before the app restarted)
@@ -95,6 +138,7 @@ class HomeWearViewModel @Inject constructor(
 
     companion object {
         const val MSG_RECORD_FAILED = "착용 기록을 남기지 못했어요. 잠시 후 다시 시도해 주세요."
+        const val MSG_LAUNDRY_FAILED = "세탁 바구니에 넣지 못했어요. 잠시 후 다시 시도해 주세요."
 
         fun keyOf(look: LookCard): String = look.items.map { it.id }.sorted().joinToString(",")
     }
